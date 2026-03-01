@@ -958,6 +958,6 @@ no `reference-pipelines-pt.md` (seção 1):
 *Este documento será atualizado conforme módulos avancem nas fases.
 Última atualização: 01/mar/2026 — Integração do sistema de sincronização
 (strategy-synchronization.md) às Fases 4, 5 e 6; manifesto como artefato
-obrigatório; dashboard de sincronização como critério de publicação.*
-publicados no R2 (Fase 5, atividade 1–2). SI-PNI Populações removido
-como módulo R2 (denominadores via pacotes R existentes).*
+obrigatório; dashboard de sincronização como critério de publicação.
+Dataset cards publicados no R2 (Fase 5, atividade 1–2). SI-PNI Populações
+removido como módulo R2 (denominadores via pacotes R existentes).*

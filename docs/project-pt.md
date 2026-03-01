@@ -5,7 +5,7 @@
 > anteriores. Ele é a fonte de verdade sobre decisões, arquitetura e estado atual.
 >
 > Última atualização: 2026-03-01 (v4 — estado atual: 4 datasets publicados no R2,
-> dataset cards no HF, sistema de sincronização projetado, pré-lançamento)
+> dataset cards no HF, manifesto de sincronização implementado, pré-lançamento)
 >
 > **Documentos relacionados:**  
 > - `strategy-expansion-pt.md` — Ciclo de vida de módulos, lições aprendidas,
@@ -955,7 +955,7 @@ meta-pacote (estilo tidyverse) no futuro, reunindo sipni, sim, sinasc, etc.
 
 - [ ] Criar repositório GitHub público (estrutura de pastas, README bilíngue,
   FUNDING.yml, licença)
-- [ ] Gerar `manifest.json` retroativamente para os 4 módulos já no R2
+- [x] Gerar `manifest.json` retroativamente para os 4 módulos já no R2
 - [ ] Implementar comparison engine (`sync_check.py`) + cron semanal no Hetzner
 - [ ] Criar HF Space (dashboard Streamlit de sincronização)
 - [ ] Configurar GitHub Sponsors

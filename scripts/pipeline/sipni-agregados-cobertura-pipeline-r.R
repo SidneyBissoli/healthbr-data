@@ -1,0 +1,457 @@
+# ==============================================================================
+# sipni-agregados-cobertura-pipeline-r.R — Pipeline: DBF (FTP DATASUS) → Parquet → R2
+# ==============================================================================
+#
+# Pipeline de produção para os dados agregados de cobertura vacinal (CPNI)
+# do antigo SI-PNI (1994–2019).
+#
+# Para cada combinação ano × UF:
+#   1. Baixa o .dbf do FTP do DATASUS
+#   2. Lê com foreign::read.dbf(as.is = TRUE)
+#   3. Converte todos os campos para character (decisão do projeto)
+#   4. Grava como Parquet particionado (ano=/uf=/) no staging local
+#   5. Sobe para o R2 via rclone
+#   6. Atualiza controle de versão
+#
+# Schemas por era (publicados exatamente como o Ministério fornece):
+#   Era 1–2 (1994–2012): 9 colunas — ANO, UF, MUNIC, FX_ETARIA, IMUNO, DOSE, QT_DOSE, POP, COBERT
+#   Era 3   (2013–2019): 7 colunas — ANO, UF, MUNIC, IMUNO, QT_DOSE, POP, COBERT
+#
+# COBERT preservado como na fonte:
+#   1994–2012: numeric com ponto decimal → as.character() → "39.87"
+#   2013–2019: character com vírgula    → preservado     → "64,86"
+#
+# Código de município preservado como na fonte:
+#   1994–2012: 7 dígitos (com verificador IBGE)
+#   2013–2019: 6 dígitos (sem verificador)
+#
+# Adaptado de sipni-agregados-doses-pipeline-r.R (DPNI → CPNI).
+# Diferenças em relação ao pipeline de doses:
+#   - Prefixo de arquivo: CPNI (não DPNI)
+#   - Destino R2: sipni/agregados/cobertura/ (não doses/)
+#   - Schemas: 9 cols (Era 1–2) e 7 cols (Era 3), não 7/12
+#   - Controle de versão: controle_versao_sipni_agregados_cobertura.csv
+#   - Tudo o mais (download, leitura, conversão, upload) é idêntico
+#
+# Referências:
+#   - docs/sipni-agregados/exploration-cobertura-pt.md (exploração e decisões)
+#   - docs/sipni-agregados/exploration-pt.md (exploração de doses — referência)
+#   - docs/reference-pipelines-pt.md (infraestrutura compartilhada)
+#   - docs/strategy-expansion-pt.md (ciclo de vida do módulo)
+#
+# ==============================================================================
+
+# --- Pacotes ------------------------------------------------------------------
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  foreign,
+  arrow,
+  dplyr,
+  readr,
+  fs,
+  glue,
+  curl,
+  digest
+)
+
+# --- Configurações ------------------------------------------------------------
+
+# Diretório temporário (fora do OneDrive no Windows)
+DIR_TEMP     <- file.path(tempdir(), "sipni_agregados_cobertura_pipeline")
+CONTROLE_CSV <- "data/controle_versao_sipni_agregados_cobertura.csv"
+
+# FTP
+FTP_BASE <- "ftp://ftp.datasus.gov.br/dissemin/publicos/PNI/DADOS/"
+
+# R2
+RCLONE_REMOTE <- "r2"
+R2_BUCKET     <- "healthbr-data"
+R2_PREFIX     <- "sipni/agregados/cobertura"
+
+# Período
+ANO_INICIO <- 1994
+ANO_FIM    <- 2019
+
+# UFs: apenas os 27 estados
+# Consolidados (UF, BR, IG) excluídos — ver exploration-cobertura-pt.md, decisão 9.8:
+#   - CPNIIG não existe no FTP ou é vazio (0 linhas)
+#   - CPNIBR é redundante (soma exata dos 27 estaduais, diferença zero)
+#   - CPNIUF tem schema diferente (8 colunas, sem MUNIC) e é redundante
+#   - CPNIBR contém valores de DOSE divergentes (D1, D3, SD) não presentes
+#     nos estaduais — consolidados incluem processamento adicional
+UFS <- c(
+  "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO",
+  "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR",
+  "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"
+)
+
+# ==============================================================================
+# FUNÇÕES: UTILITÁRIOS
+# ==============================================================================
+
+`%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
+
+#' Convert 4-digit year to 2-digit DATASUS suffix
+ano_para_sufixo <- function(ano) {
+  sprintf("%02d", ano %% 100)
+}
+
+#' Build CPNI filename
+nome_arquivo <- function(uf, ano) {
+  paste0("CPNI", uf, ano_para_sufixo(ano), ".DBF")
+}
+
+#' Verify rclone availability and R2 access
+verificar_rclone <- function() {
+  rclone_ok <- tryCatch({
+    res <- system2("rclone", "--version", stdout = TRUE, stderr = TRUE)
+    length(res) > 0
+  }, error = function(e) FALSE)
+
+  if (!rclone_ok) stop("rclone nao encontrado.")
+
+  remotes <- system2("rclone", "listremotes", stdout = TRUE, stderr = TRUE)
+  if (!any(grepl(paste0(RCLONE_REMOTE, ":"), remotes, fixed = TRUE))) {
+    stop(glue("Remote '{RCLONE_REMOTE}' nao encontrado no rclone."))
+  }
+
+  teste <- system2("rclone",
+                    c("lsd", shQuote(glue("{RCLONE_REMOTE}:{R2_BUCKET}"))),
+                    stdout = TRUE, stderr = TRUE)
+  status <- attr(teste, "status")
+  if (!is.null(status) && status != 0) {
+    stop(glue("Bucket '{R2_BUCKET}' nao acessivel."))
+  }
+
+  cat(glue("  rclone OK: {RCLONE_REMOTE}:{R2_BUCKET}"), "\n")
+}
+
+# ==============================================================================
+# FUNÇÕES: CONTROLE DE VERSÃO
+# ==============================================================================
+
+carregar_controle <- function() {
+  if (file_exists(CONTROLE_CSV)) {
+    readr::read_csv(CONTROLE_CSV, show_col_types = FALSE) |>
+      mutate(data_processamento = as.character(data_processamento))
+  } else {
+    tibble(
+      arquivo            = character(),
+      ano                = integer(),
+      uf                 = character(),
+      n_registros        = integer(),
+      n_colunas          = integer(),
+      hash_md5           = character(),
+      tamanho_bytes      = numeric(),
+      data_processamento = character()
+    )
+  }
+}
+
+salvar_controle <- function(df) {
+  dir_create(dirname(CONTROLE_CSV))
+  readr::write_csv(df, CONTROLE_CSV)
+}
+
+# ==============================================================================
+# FUNÇÕES: DOWNLOAD E LEITURA
+# ==============================================================================
+
+#' Download .dbf from FTP with retry
+baixar_dbf <- function(nome_arq, destino, tentativas = 3) {
+  url <- paste0(FTP_BASE, nome_arq)
+
+  for (i in seq_len(tentativas)) {
+    resultado <- tryCatch({
+      curl::curl_download(
+        url, destino, quiet = TRUE,
+        handle = curl::new_handle(
+          connecttimeout = 30,
+          timeout = 120
+        )
+      )
+      TRUE
+    }, error = function(e) {
+      if (i < tentativas) {
+        Sys.sleep(2 * i)
+      }
+      FALSE
+    })
+    if (resultado && file_exists(destino) && file.info(destino)$size > 0) {
+      return(TRUE)
+    }
+  }
+  return(FALSE)
+}
+
+#' Read .dbf and convert all fields to character
+ler_dbf_como_character <- function(caminho) {
+  df <- foreign::read.dbf(caminho, as.is = TRUE)
+  df |>
+    as_tibble() |>
+    mutate(across(everything(), as.character))
+}
+
+# ==============================================================================
+# FUNÇÕES: GRAVAÇÃO E UPLOAD
+# ==============================================================================
+
+#' Write Parquet in Hive partition ano=/uf=/
+gravar_parquet <- function(df, ano, uf, dir_staging) {
+  dir_part <- file.path(dir_staging, paste0("ano=", ano), paste0("uf=", uf))
+  dir_create(dir_part)
+  caminho <- file.path(dir_part, "part-0.parquet")
+  arrow::write_parquet(df, caminho)
+  caminho
+}
+
+#' Upload to R2
+upload_para_r2 <- function(dir_staging) {
+  destino <- glue("{RCLONE_REMOTE}:{R2_BUCKET}/{R2_PREFIX}/")
+
+  args <- c("copy", shQuote(dir_staging), destino,
+            "--transfers", "16", "--checkers", "32",
+            "--s3-no-check-bucket", "--stats", "0", "-v")
+
+  resultado <- system2("rclone", args, stdout = TRUE, stderr = TRUE)
+  status <- attr(resultado, "status")
+
+  if (!is.null(status) && status != 0) {
+    cat(paste(resultado, collapse = "\n"), "\n")
+    stop("Upload para R2 falhou")
+  }
+  TRUE
+}
+
+# ==============================================================================
+# FUNÇÃO PRINCIPAL: PROCESSAR UM ARQUIVO
+# ==============================================================================
+
+processar_arquivo <- function(uf, ano, controle) {
+  nome_arq <- nome_arquivo(uf, ano)
+
+  # Check if already processed
+  registro <- controle |> filter(arquivo == nome_arq)
+  if (nrow(registro) > 0) {
+    return(list(status = "inalterado", n = 0))
+  }
+
+  # Prepare temp
+  dir_create(DIR_TEMP)
+  destino_dbf <- file.path(DIR_TEMP, nome_arq)
+
+  # Download
+  ok <- baixar_dbf(nome_arq, destino_dbf)
+  if (!ok) {
+    return(list(status = "indisponivel", n = 0))
+  }
+
+  # Read and convert
+  df <- tryCatch(
+    ler_dbf_como_character(destino_dbf),
+    error = function(e) {
+      cat(glue("    ERRO ao ler {nome_arq}: {e$message}"), "\n")
+      NULL
+    }
+  )
+
+  if (is.null(df) || nrow(df) == 0) {
+    file_delete(destino_dbf)
+    return(list(status = "vazio", n = 0))
+  }
+
+  n_registros <- nrow(df)
+  n_colunas   <- ncol(df)
+  hash_md5    <- digest::digest(file = destino_dbf, algo = "md5")
+  tamanho     <- file.info(destino_dbf)$size
+
+  # Write Parquet to staging
+  dir_staging <- file.path(DIR_TEMP, "staging_parquet")
+  gravar_parquet(df, ano, uf, dir_staging)
+
+  # Clean up
+  file_delete(destino_dbf)
+  rm(df)
+  gc(verbose = FALSE)
+
+  return(list(
+    status     = "novo",
+    n          = n_registros,
+    n_colunas  = n_colunas,
+    hash_md5   = hash_md5,
+    tamanho    = tamanho,
+    nome_arq   = nome_arq
+  ))
+}
+
+# ==============================================================================
+# EXECUÇÃO
+# ==============================================================================
+
+cat("\n")
+cat(strrep("=", 70), "\n")
+cat("  Pipeline: DBF (FTP DATASUS) -> Parquet -> Cloudflare R2\n")
+cat("  Modulo: SI-PNI Agregados — Cobertura (1994-2019)\n")
+cat(strrep("=", 70), "\n\n")
+
+cat("Verificando pre-requisitos...\n")
+verificar_rclone()
+cat("\n")
+
+cat(glue("Temp:     {DIR_TEMP}"), "\n")
+cat(glue("Destino:  {RCLONE_REMOTE}:{R2_BUCKET}/{R2_PREFIX}/"), "\n")
+cat(glue("Periodo:  {ANO_INICIO}-{ANO_FIM}"), "\n")
+cat(glue("UFs:      {length(UFS)} estados (consolidados excluidos)"), "\n\n")
+
+t_inicio <- Sys.time()
+
+# --- Phase 1: Build grid of files to process ---------------------------------
+
+grade <- expand.grid(
+  uf  = UFS,
+  ano = ANO_INICIO:ANO_FIM,
+  stringsAsFactors = FALSE
+) |>
+  arrange(ano, uf)
+
+cat(glue("Combinacoes ano x UF: {nrow(grade)}"), "\n\n")
+
+controle <- carregar_controle()
+n_ja_processados <- controle |> nrow()
+cat(glue("Ja processados (controle): {n_ja_processados}"), "\n\n")
+
+# --- Phase 2: Download, convert, and upload by yearly batch -------------------
+
+dir_staging <- file.path(DIR_TEMP, "staging_parquet")
+
+n_total_registros <- 0
+n_novos     <- 0
+n_indisponiveis <- 0
+n_inalterados <- 0
+n_erros     <- 0
+
+for (ano in ANO_INICIO:ANO_FIM) {
+
+  cat(strrep("-", 70), "\n")
+  cat(glue("ANO {ano}"), "\n")
+  cat(strrep("-", 70), "\n")
+
+  # Clean staging from previous year
+  if (dir_exists(dir_staging)) {
+    fs::dir_delete(dir_staging)
+  }
+  dir_create(dir_staging)
+
+  ufs_novas_no_ano <- 0
+  registros_no_ano <- 0
+
+  for (uf in UFS) {
+
+    resultado <- processar_arquivo(uf, ano, controle)
+
+    if (resultado$status == "inalterado") {
+      n_inalterados <- n_inalterados + 1
+      next
+    }
+
+    if (resultado$status == "indisponivel") {
+      # Silent — expected in early years for missing UFs
+      n_indisponiveis <- n_indisponiveis + 1
+      next
+    }
+
+    if (resultado$status == "vazio") {
+      cat(glue("  {nome_arquivo(uf, ano)}: vazio"), "\n")
+      n_erros <- n_erros + 1
+      next
+    }
+
+    # status == "novo"
+    cat(glue("  {resultado$nome_arq}: {format(resultado$n, big.mark = '.')} ",
+             "registros ({resultado$n_colunas} cols)"), "\n")
+
+    ufs_novas_no_ano <- ufs_novas_no_ano + 1
+    registros_no_ano <- registros_no_ano + resultado$n
+    n_total_registros <- n_total_registros + resultado$n
+    n_novos <- n_novos + 1
+
+    # Update version control
+    novo_registro <- tibble(
+      arquivo            = resultado$nome_arq,
+      ano                = ano,
+      uf                 = uf,
+      n_registros        = resultado$n,
+      n_colunas          = resultado$n_colunas,
+      hash_md5           = resultado$hash_md5,
+      tamanho_bytes      = resultado$tamanho,
+      data_processamento = as.character(Sys.time())
+    )
+
+    controle <- controle |>
+      filter(arquivo != resultado$nome_arq) |>
+      bind_rows(novo_registro)
+  }
+
+  # Upload full year to R2
+  if (ufs_novas_no_ano > 0) {
+    cat(glue("\n  Subindo ano {ano}: {ufs_novas_no_ano} UFs, ",
+             "{format(registros_no_ano, big.mark = '.')} registros..."), "\n")
+    tryCatch({
+      upload_para_r2(dir_staging)
+      cat(glue("  Upload {ano} concluido."), "\n")
+    }, error = function(e) {
+      cat(glue("  ERRO upload {ano}: {e$message}"), "\n")
+      n_erros <<- n_erros + 1
+    })
+
+    # Checkpoint after each year
+    salvar_controle(controle)
+  } else {
+    cat("  Nenhum arquivo novo neste ano.\n")
+  }
+
+  cat("\n")
+}
+
+# Clean final staging
+if (dir_exists(dir_staging)) {
+  fs::dir_delete(dir_staging)
+}
+
+t_fim <- Sys.time()
+duracao <- round(difftime(t_fim, t_inicio, units = "mins"), 1)
+
+# --- Final summary ------------------------------------------------------------
+
+cat("\n")
+cat(strrep("=", 70), "\n")
+cat("  RESUMO FINAL\n")
+cat(strrep("=", 70), "\n\n")
+
+cat(glue("Novos:           {n_novos}"), "\n")
+cat(glue("Inalterados:     {n_inalterados}"), "\n")
+cat(glue("Indisponiveis:   {n_indisponiveis}"), "\n")
+cat(glue("Erros/vazios:    {n_erros}"), "\n")
+cat(glue("Registros novos: {format(n_total_registros, big.mark = '.')}"), "\n")
+cat(glue("Tempo total:     {duracao} min"), "\n\n")
+
+# Final version control summary
+if (file_exists(CONTROLE_CSV)) {
+  ctrl <- readr::read_csv(CONTROLE_CSV, show_col_types = FALSE)
+  cat(glue("Arquivos no controle: {nrow(ctrl)}"), "\n")
+  cat(glue("Registros totais:     {format(sum(ctrl$n_registros), big.mark = '.')}"), "\n")
+
+  cat("\nRegistros por ano:\n")
+  ctrl |>
+    group_by(ano) |>
+    summarise(
+      n_arquivos  = n(),
+      n_registros = sum(n_registros),
+      .groups     = "drop"
+    ) |>
+    arrange(ano) |>
+    print(n = 30)
+}
+
+cat("\nPipeline concluido.\n")

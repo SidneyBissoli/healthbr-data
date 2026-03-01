@@ -1,0 +1,27 @@
+# RStudio
+.Rhistory
+.Rproj.user/
+.RData
+.Ruserdata
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary data
+*.zip
+*.tmp
+
+# Rendered output
+*.html
+
+# IDE / editor
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# Secrets
+.env
+credentials*

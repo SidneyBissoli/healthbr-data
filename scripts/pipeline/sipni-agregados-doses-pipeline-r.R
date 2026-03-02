@@ -144,8 +144,10 @@ salvar_controle <- function(df) {
 # FUNÇÕES: DOWNLOAD E LEITURA
 # ==============================================================================
 
-#' Baixar .dbf do FTP com retry
-baixar_dbf <- function(nome_arq, destino, tentativas = 3) {
+#' Download .dbf from FTP with robust retry and timeout
+#' Tuned for large files (100-216 MB): 600s timeout, 5 attempts,
+#' low-speed detection. See sipni-agregados-doses-missing-12.R for context.
+baixar_dbf <- function(nome_arq, destino, tentativas = 5) {
   url <- paste0(FTP_BASE, nome_arq)
 
   for (i in seq_len(tentativas)) {
@@ -153,14 +155,17 @@ baixar_dbf <- function(nome_arq, destino, tentativas = 3) {
       curl::curl_download(
         url, destino, quiet = TRUE,
         handle = curl::new_handle(
-          connecttimeout = 30,
-          timeout = 120
+          connecttimeout = 60,
+          timeout = 600,
+          low_speed_limit = 1000,
+          low_speed_time = 120
         )
       )
       TRUE
     }, error = function(e) {
       if (i < tentativas) {
-        Sys.sleep(2 * i)
+        cat(glue("    Tentativa {i}/{tentativas} falhou: {e$message}"), "\n")
+        Sys.sleep(5 * i)
       }
       FALSE
     })
@@ -343,7 +348,7 @@ for (ano in ANO_INICIO:ANO_FIM) {
     }
 
     if (resultado$status == "indisponivel") {
-      # Silencioso — esperado nos primeiros anos e para UFs ausentes
+      cat(glue("  {nome_arquivo(uf, ano)}: indisponivel apos {5} tentativas"), "\n")
       n_indisponiveis <- n_indisponiveis + 1
       next
     }
@@ -439,6 +444,38 @@ if (file_exists(CONTROLE_CSV)) {
     ) |>
     arrange(ano) |>
     print(n = 30)
+}
+
+# --- Verificacao: arquivos esperados vs processados ---------------------------
+
+cat("\n")
+cat(strrep("=", 70), "\n")
+cat("  VERIFICACAO DE INTEGRIDADE\n")
+cat(strrep("=", 70), "\n\n")
+
+ctrl_final <- carregar_controle()
+arquivos_processados <- ctrl_final$arquivo
+
+# Build expected file list (only files that exist on FTP)
+# Known: some early years don't have all UFs (e.g. TO starts in 1994 but
+# some small states may be missing in 1994-1996). We check against the
+# full grid and report any gaps.
+arquivos_esperados <- grade |>
+  mutate(arquivo = paste0("DPNI", uf, sprintf("%02d", ano %% 100), ".DBF"))
+
+faltantes <- arquivos_esperados |>
+  filter(!(arquivo %in% arquivos_processados))
+
+if (nrow(faltantes) == 0) {
+  cat("Todos os arquivos da grade estao no controle. Nenhum faltante.\n")
+} else {
+  cat(glue("ATENCAO: {nrow(faltantes)} arquivo(s) NAO estao no controle:\n"), "\n")
+  for (i in seq_len(nrow(faltantes))) {
+    cat(glue("  - {faltantes$arquivo[i]} (UF={faltantes$uf[i]}, ano={faltantes$ano[i]})"), "\n")
+  }
+  cat("\n")
+  cat("Esses arquivos podem nao existir no FTP (esperado para anos iniciais)\n")
+  cat("ou podem ter falhado por timeout. Verifique manualmente se necessario.\n")
 }
 
 cat("\nPipeline concluido.\n")

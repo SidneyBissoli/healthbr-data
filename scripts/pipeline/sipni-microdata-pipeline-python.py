@@ -19,6 +19,7 @@
 import os
 import sys
 import csv
+import json
 import time
 import hashlib
 import zipfile
@@ -70,6 +71,14 @@ def head_request(url, retries=3):
     return None
 
 
+def download_file(url, dest, timeout=120):
+    """Download a file with socket timeout (replaces urlretrieve)."""
+    req = urllib.request.Request(url)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with open(dest, 'wb') as f:
+            shutil.copyfileobj(resp, f, length=8 * 1024 * 1024)
+
+
 def consultar_servidor(ano, mes):
     """Testa ambos padrões de URL."""
     mes_pt = MESES_PT[mes - 1]
@@ -107,9 +116,8 @@ def salvar_controle(rows):
 def classificar_mes(ano, mes, info, controle):
     if not info:
         return "indisponivel"
-    mes_pt = MESES_PT[mes - 1]
-    nome = f"vacinacao_{mes_pt}_{ano}_json.zip"
-    reg = [r for r in controle if r['arquivo'] == nome]
+    reg = [r for r in controle
+           if r.get('ano') == str(ano) and r.get('mes') == str(mes)]
     if not reg:
         return "novo"
     r = reg[0]
@@ -130,6 +138,24 @@ def md5_file(path):
 # ==============================================================================
 # FUNÇÕES: GRAVAR PARQUET PARTICIONADO
 # ==============================================================================
+
+def read_ndjson_as_strings(path):
+    """Read NDJSON with all columns forced to String type.
+
+    Avoids schema inference issues where polars guesses wrong types
+    from the first 100 rows and then fails on later rows with
+    ComputeError.
+    """
+    import polars as pl
+    path = str(path)
+    with open(path, 'rb') as f:
+        first_line = f.readline()
+    if not first_line.strip():
+        return pl.DataFrame()
+    columns = list(json.loads(first_line).keys())
+    schema = {col: pl.String for col in columns}
+    return pl.read_ndjson(path, schema=schema)
+
 
 def gravar_particionado(df, sufixo, dir_staging):
     """Grava DataFrame polars como Parquet particionado por ano/mes/uf."""
@@ -163,7 +189,7 @@ def preparar_df(df):
     ANO_MAX = str(datetime.now().year)
 
     # Garantir tudo como string
-    df = df.cast({col: pl.Utf8 for col in df.columns})
+    df = df.cast({col: pl.String for col in df.columns})
 
     df = df.with_columns([
         pl.col('dt_vacina').str.slice(0, 4).alias('ano'),
@@ -230,8 +256,8 @@ def processar_parte_pequena(zip_path_str, json_nome, parte_idx, dir_staging_str)
             print(f"    jq ERRO parte {parte_idx}: {proc.stderr.decode()[:200]}")
             return 0
 
-        # 3. polars: JSONL → DataFrame
-        df = pl.read_ndjson(str(jsonl_path))
+        # 3. polars: JSONL → DataFrame (all columns as String)
+        df = read_ndjson_as_strings(jsonl_path)
         jsonl_path.unlink(missing_ok=True)  # Liberar JSONL
 
         # 4. Preparar e gravar
@@ -244,7 +270,7 @@ def processar_parte_pequena(zip_path_str, json_nome, parte_idx, dir_staging_str)
 
     except Exception as e:
         print(f"    ERRO parte {parte_idx}: {e}")
-        return 0
+        raise
 
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
@@ -254,7 +280,7 @@ def processar_parte_pequena(zip_path_str, json_nome, parte_idx, dir_staging_str)
 # PROCESSAMENTO: ARQUIVOS GRANDES (>= 1.5GB) — jq --stream + batches
 # ==============================================================================
 
-def processar_parte_grande(json_path, dir_staging):
+def processar_parte_grande(json_path, dir_staging, part_idx=1):
     """
     Para JSONs grandes (2025+): jq --stream com memória constante.
 
@@ -293,15 +319,15 @@ def processar_parte_grande(json_path, dir_staging):
                 f.writelines(lines)
             lines = []
 
-            # polars lê e converte
-            df = pl.read_ndjson(str(tmp_jsonl))
+            # polars lê e converte (all columns as String)
+            df = read_ndjson_as_strings(tmp_jsonl)
             tmp_jsonl.unlink()
 
             df = preparar_df(df)
             n_batch = len(df)
             n_total += n_batch
 
-            sufixo = f"{batch_num:05d}"
+            sufixo = f"{part_idx:02d}-{batch_num:05d}"
             gravar_particionado(df, sufixo, dir_staging)
 
             print(f"      Batch {batch_num}: +{n_batch:,.0f} "
@@ -314,13 +340,13 @@ def processar_parte_grande(json_path, dir_staging):
         with open(tmp_jsonl, 'wb') as f:
             f.writelines(lines)
 
-        df = pl.read_ndjson(str(tmp_jsonl))
+        df = read_ndjson_as_strings(tmp_jsonl)
         tmp_jsonl.unlink()
 
         df = preparar_df(df)
         n_total += len(df)
 
-        sufixo = f"{batch_num:05d}"
+        sufixo = f"{part_idx:02d}-{batch_num:05d}"
         gravar_particionado(df, sufixo, dir_staging)
 
     proc.wait()
@@ -342,7 +368,7 @@ def processar_parte_grande(json_path, dir_staging):
 def processar_mes(ano, mes, info):
     url = info['url']
     mes_pt = MESES_PT[mes - 1]
-    nome_zip = f"vacinacao_{mes_pt}_{ano}_json.zip"
+    nome_zip = url.rsplit('/', 1)[-1]
 
     DIR_TEMP.mkdir(parents=True, exist_ok=True)
     zip_path = DIR_TEMP / nome_zip
@@ -354,10 +380,10 @@ def processar_mes(ano, mes, info):
             print(f"  Cache OK")
         else:
             print(f"  Rebaixando...")
-            urllib.request.urlretrieve(url, zip_path)
+            download_file(url, zip_path)
     else:
         print(f"  Baixando {nome_zip}...")
-        urllib.request.urlretrieve(url, zip_path)
+        download_file(url, zip_path)
 
     dl_time = time.time() - t0
     mb = zip_path.stat().st_size / 1e6
@@ -429,7 +455,7 @@ def processar_mes(ano, mes, info):
                 zf.extract(nome, dir_json)
 
             json_path = dir_json / nome
-            n = processar_parte_grande(json_path, dir_staging)
+            n = processar_parte_grande(json_path, dir_staging, part_idx=i)
             n_total += n
 
             # Liberar
@@ -458,7 +484,8 @@ def processar_mes(ano, mes, info):
 
     # --- 6. Controle ---
     controle = carregar_controle()
-    controle = [r for r in controle if r['arquivo'] != nome_zip]
+    controle = [r for r in controle
+                if not (r.get('ano') == str(ano) and r.get('mes') == str(mes))]
     controle.append({
         'arquivo': nome_zip,
         'etag_servidor': info['etag'],

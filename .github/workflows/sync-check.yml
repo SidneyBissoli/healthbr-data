@@ -1,0 +1,51 @@
+name: Weekly Sync Check
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # Every Monday at 3:00 AM UTC
+  workflow_dispatch:        # Manual trigger for testing
+
+jobs:
+  sync-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install boto3
+
+      - name: Run comparison engine
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: python scripts/sync/sync_check.py --output sync-status.json
+
+      - name: Upload sync-status.json to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          pip install awscli
+          aws s3 cp sync-status.json s3://healthbr-data/sync-status.json \
+            --endpoint-url ${{ secrets.R2_ENDPOINT }}
+
+      - name: Push sync-status.json to HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git clone https://SidneyBissoli:$HF_TOKEN@huggingface.co/spaces/SidneyBissoli/healthbr-sync-status hf-space
+          cp sync-status.json hf-space/src/sync-status.json
+          cd hf-space
+          git config user.name "healthbr-sync-bot"
+          git config user.email "noreply@healthbr-data.org"
+          git add src/sync-status.json
+          git commit -m "Update sync status $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
+          git push

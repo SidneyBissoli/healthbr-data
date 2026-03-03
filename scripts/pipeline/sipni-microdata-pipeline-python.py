@@ -482,6 +482,30 @@ def processar_mes(ano, mes, info):
     up_time = time.time() - t0
     print(f"  Upload: {up_time:.1f}s")
 
+    # --- 5b. Update manifest on R2 ---
+    try:
+        from manifest_utils import get_r2_client, update_manifest_partition
+        r2_client = get_r2_client()
+        if r2_client:
+            partition_key = f"{ano}-{mes:02d}"
+            update_manifest_partition(
+                r2_client=r2_client,
+                bucket=R2_BUCKET,
+                manifest_key="sipni/manifest.json",
+                partition_key=partition_key,
+                source_url=url,
+                source_size_bytes=info['content_length'],
+                source_etag=info['etag'],
+                source_last_modified=None,
+                staging_dir=dir_staging,
+                r2_prefix=R2_PREFIX,
+                total_records=n_total,
+            )
+        else:
+            print("  manifest: skipped (R2 env vars not set)")
+    except Exception as e:
+        print(f"  manifest: WARNING — failed to update: {e}")
+
     # --- 6. Controle ---
     controle = carregar_controle()
     controle = [r for r in controle

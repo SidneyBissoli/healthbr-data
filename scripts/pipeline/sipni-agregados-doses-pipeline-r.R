@@ -39,7 +39,8 @@ pacman::p_load(
   fs,
   glue,
   curl,
-  digest
+  digest,
+  jsonlite
 )
 
 # --- Configurações ------------------------------------------------------------
@@ -195,6 +196,72 @@ gravar_parquet <- function(df, ano, uf, dir_staging) {
   caminho <- file.path(dir_part, "part-0.parquet")
   arrow::write_parquet(df, caminho)
   caminho
+}
+
+#' Update manifest.json on R2 via rclone
+#' Called after each year's upload to keep manifest in sync.
+update_manifest_r2 <- function(ano, dir_staging, controle) {
+  manifest_key <- glue("{R2_PREFIX}/manifest.json")
+  manifest_r2  <- glue("{RCLONE_REMOTE}:{R2_BUCKET}/{manifest_key}")
+  tmp_manifest <- file.path(DIR_TEMP, "manifest.json")
+
+  # Load existing manifest from R2
+  manifest <- tryCatch({
+    raw <- system2("rclone", c("cat", shQuote(manifest_r2)),
+                   stdout = TRUE, stderr = TRUE)
+    jsonlite::fromJSON(paste(raw, collapse = "\n"), simplifyVector = FALSE)
+  }, error = function(e) {
+    cat(glue("  manifest: could not load, starting fresh: {e$message}"), "\n")
+    list(
+      manifest_version = "1.0.0",
+      dataset = R2_PREFIX,
+      last_updated = NULL,
+      pipeline_version = "1.0.0",
+      partitions = list()
+    )
+  })
+
+  # Update partitions for each UF processed this year
+  ufs_this_year <- controle |> filter(ano == !!ano)
+
+  for (i in seq_len(nrow(ufs_this_year))) {
+    row <- ufs_this_year[i, ]
+    partition_key <- paste0(row$ano, "-", row$uf)
+
+    # Collect output file info from staging
+    part_dir <- file.path(dir_staging, paste0("ano=", ano), paste0("uf=", row$uf))
+    output_files <- list()
+    if (dir_exists(part_dir)) {
+      parquet_files <- fs::dir_ls(part_dir, glob = "*.parquet")
+      for (pf in parquet_files) {
+        output_files <- c(output_files, list(list(
+          path = paste0(R2_PREFIX, "/ano=", ano, "/uf=", row$uf, "/", basename(pf)),
+          size_bytes = file.info(pf)$size,
+          sha256 = digest::digest(file = pf, algo = "sha256"),
+          record_count = as.integer(row$n_registros)
+        )))
+      }
+    }
+
+    manifest$partitions[[partition_key]] <- list(
+      source_url = paste0(FTP_BASE, row$arquivo),
+      source_size_bytes = as.integer(row$tamanho_bytes),
+      source_etag = NULL,
+      source_last_modified = NULL,
+      processing_timestamp = row$data_processamento,
+      output_files = output_files,
+      total_records = as.integer(row$n_registros),
+      total_size_bytes = sum(sapply(output_files, function(f) f$size_bytes))
+    )
+  }
+
+  manifest$last_updated <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+
+  # Write and upload
+  jsonlite::write_json(manifest, tmp_manifest, auto_unbox = TRUE, pretty = TRUE)
+  system2("rclone", c("copyto", shQuote(tmp_manifest), shQuote(manifest_r2),
+                      "--transfers", "16", "--checkers", "32"))
+  cat(glue("  manifest: updated {manifest_key} ({nrow(ufs_this_year)} partitions)"), "\n")
 }
 
 #' Upload para R2
@@ -392,6 +459,13 @@ for (ano in ANO_INICIO:ANO_FIM) {
     tryCatch({
       upload_para_r2(dir_staging)
       cat(glue("  Upload {ano} concluido."), "\n")
+
+      # Update manifest on R2
+      tryCatch({
+        update_manifest_r2(ano, dir_staging, controle)
+      }, error = function(e) {
+        cat(glue("  manifest: WARNING - failed to update: {e$message}"), "\n")
+      })
     }, error = function(e) {
       cat(glue("  ERRO upload {ano}: {e$message}"), "\n")
       n_erros <<- n_erros + 1

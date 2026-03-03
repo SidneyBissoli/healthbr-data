@@ -360,6 +360,29 @@ def processar_uf(uf, info_servidor):
     up_time = time.time() - t0
     print(f"  Upload: {up_time:.1f}s")
 
+    # 4b. Update manifest on R2
+    try:
+        from manifest_utils import get_r2_client, update_manifest_partition
+        r2_client = get_r2_client()
+        if r2_client:
+            update_manifest_partition(
+                r2_client=r2_client,
+                bucket=R2_BUCKET,
+                manifest_key="sipni/covid/manifest.json",
+                partition_key=uf,
+                source_url=info_servidor['partes'][0]['url'],
+                source_size_bytes=info_servidor['content_length_total'],
+                source_etag=info_servidor['etags_concat'],
+                source_last_modified=None,
+                staging_dir=dir_staging,
+                r2_prefix=R2_PREFIX,
+                total_records=n_total,
+            )
+        else:
+            print("  manifest: skipped (R2 env vars not set)")
+    except Exception as e:
+        print(f"  manifest: WARNING \u2014 failed to update: {e}")
+
     # 5. Atualizar controle
     controle = carregar_controle()
     controle = [r for r in controle if r['uf'] != uf]

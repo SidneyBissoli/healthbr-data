@@ -2,8 +2,8 @@
 
 ## healthbr-data — Synchronization between redistributed and official datasets
 
-**Status:** Draft
-**Last updated:** 2026-03-01
+**Status:** Implemented
+**Last updated:** 2026-03-02
 **Scope:** SI-PNI (vaccination data), extensible to SIM, SINASC, SIH
 
 **Related documents:**
@@ -826,3 +826,33 @@ DATASETS = {
 - The HF Space has **no credentials** — it only reads a static JSON file
 - The manifest on R2 is **public** (researchers need it for validation)
 - No sensitive data is stored or transmitted by any component
+
+---
+
+## 12. Implementation Notes
+
+**Implemented:** 2026-03-02
+
+**Deviations from original design:**
+
+1. **HF Space uses Docker SDK** instead of Streamlit SDK. The Streamlit
+   built-in SDK was deprecated by Hugging Face. The Space now uses a
+   Dockerfile with `python:3.12-slim` and runs Streamlit on port 8501.
+   App source lives in `src/app.py` (not root `app.py`).
+
+2. **GitHub Actions instead of Hetzner cron.** The weekly sync check runs
+   as a GitHub Actions workflow (`.github/workflows/sync-check.yml`)
+   instead of a cron job on the VPS. This eliminates infrastructure cost
+   and keeps the automation version-controlled.
+
+3. **Single R2 token** used for both read and write operations in the
+   workflow, rather than separate read-only and read-write tokens.
+
+4. **Comparison engine uses `urllib`** (stdlib) for HTTP HEAD requests
+   instead of boto3 unsigned S3 client. This avoids the need for
+   `botocore.UNSIGNED` configuration for OpenDATASUS queries.
+
+**Live URLs:**
+
+- Dashboard: https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status
+- Workflow: https://github.com/SidneyBissoli/healthbr-data/actions/workflows/sync-check.yml

@@ -17,27 +17,16 @@
 
 ---
 
-## 0. Current State
+## 0. Current State (updated 2026-03-02)
 
-**What exists:**  
-- 4 datasets published on R2: `sipni/microdados/`, `sipni/covid/microdados/`,
-  `sipni/agregados/doses/`, `sipni/agregados/cobertura/`  
-- 4 version control CSVs: `data/controle_versao_*.csv`  
-- 4 pipeline scripts in `scripts/pipeline/`  
-- `strategy-synchronization.md` with full architecture and code sketches  
+**All 6 etapas completed.** The synchronization system is fully operational.
 
-**What does NOT exist yet:**  
-- No `manifest.json` files on R2 (pipelines were built before the schema existed)  
-- No `sync-status.json`  
-- No HF Space for the dashboard  
-- No comparison engine script  
-- No cron/scheduled job  
-- No `scripts/sync/` directory  
-
-**Scope:** This is the first time any module reaches this step. All 3
-components of the sync system (manifest, engine, dashboard) must be
-created from scratch. All 4 SI-PNI datasets will be registered
-simultaneously.
+- ✅ Etapa 1: 4 manifest.json files on R2 (retroactive generation)
+- ✅ Etapa 2: `sync_check.py` comparison engine
+- ✅ Etapa 3: HF Space dashboard live at https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status
+- ✅ Etapa 4: GitHub Actions weekly workflow (`.github/workflows/sync-check.yml`)
+- ✅ Etapa 5: All 4 pipelines updated with manifest auto-generation
+- ✅ Etapa 6: Validation and documentation complete
 
 ---
 

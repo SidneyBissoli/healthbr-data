@@ -926,7 +926,8 @@ no `reference-pipelines-pt.md` (seção 1):
 - Mesma lógica de particionamento Hive (`chave=valor/`)
 - Mesmo manifesto de integridade por módulo (`<prefixo>/manifest.json`)
 - Mesmo dashboard de sincronização (HF Space compartilhado entre módulos)
-- Mesmo comparison engine (cron semanal no Hetzner, verifica todos os módulos)
+- Mesmo comparison engine (GitHub Actions semanal, verifica todos os módulos)
+- Mesmo módulo `manifest_utils.py` para atualização do manifesto nos pipelines Python
 
 ---
 
@@ -956,8 +957,8 @@ no `reference-pipelines-pt.md` (seção 1):
 ---
 
 *Este documento será atualizado conforme módulos avancem nas fases.
-Última atualização: 01/mar/2026 — Integração do sistema de sincronização
-(strategy-synchronization.md) às Fases 4, 5 e 6; manifesto como artefato
-obrigatório; dashboard de sincronização como critério de publicação.
-Dataset cards publicados no R2 (Fase 5, atividade 1–2). SI-PNI Populações
-removido como módulo R2 (denominadores via pacotes R existentes).*
+Última atualização: 02/mar/2026 — Sistema de sincronização implementado
+(Etapas 1–6 completas): manifests retroativos no R2, comparison engine,
+HF Space dashboard, GitHub Actions semanal, manifest auto-update nos 4
+pipelines, documentação atualizada. Seção 11.3 atualizada (GitHub Actions
+em vez de cron Hetzner; manifest_utils.py como infraestrutura compartilhada).*

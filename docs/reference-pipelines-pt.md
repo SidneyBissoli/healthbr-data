@@ -595,4 +595,60 @@ Ao documentar um novo pipeline neste arquivo, usar esta estrutura:
 
 ---
 
-*Última atualização: 27/fev/2026.*
+## 11. SISTEMA DE SINCRONIZAÇÃO (MANIFEST)
+
+Todos os 4 pipelines atualizam automaticamente o `manifest.json` no R2
+após cada upload. Isso alimenta o dashboard de sincronização e permite
+verificação contínua de integridade.
+
+### Pipelines Python (microdados rotina + COVID)
+
+Usam o módulo compartilhado `scripts/pipeline/manifest_utils.py`:
+- `get_r2_client()` — cria cliente boto3 para R2 via variáveis de ambiente
+- `update_manifest_partition()` — carrega manifest, atualiza partição, faz upload
+- `sha256_file()` — hash SHA-256 dos Parquets de saída
+- `collect_output_files()` — varre staging e coleta metadados
+
+Variáveis de ambiente necessárias no Hetzner:
+```bash
+export R2_ENDPOINT="https://...r2.cloudflarestorage.com"
+export R2_ACCESS_KEY_ID="..."
+export R2_SECRET_ACCESS_KEY="..."
+```
+
+Se as variáveis não existirem, o manifest é silenciosamente ignorado —
+os dados são processados normalmente.
+
+### Pipelines R (agregados doses + cobertura)
+
+Usam função `update_manifest_r2()` definida em cada script:
+- Carrega manifest existente via `rclone cat`
+- Atualiza partições do ano processado
+- Faz upload via `rclone copyto`
+- Usa `digest::digest(algo = "sha256")` para hash dos Parquets
+
+Não depende de variáveis de ambiente — usa o rclone já configurado.
+
+### Manifests no R2
+
+| Dataset | Caminho no R2 |
+|---------|---------------|
+| Microdados rotina | `sipni/manifest.json` |
+| COVID | `sipni/covid/manifest.json` |
+| Agregados doses | `sipni/agregados/doses/manifest.json` |
+| Agregados cobertura | `sipni/agregados/cobertura/manifest.json` |
+
+### GitHub Actions
+
+Workflow semanal (`.github/workflows/sync-check.yml`) roda toda segunda
+às 3h UTC:
+1. Lê manifests do R2
+2. Consulta fontes oficiais (HEAD requests)
+3. Gera `sync-status.json`
+4. Atualiza R2 e HF Space
+
+Dashboard: https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status
+
+---
+
+*Última atualização: 02/mar/2026 — Adicionada seção 11 (sistema de sincronização).*

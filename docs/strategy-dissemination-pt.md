@@ -2,7 +2,7 @@
 
 > Documento de planejamento para a camada de descobribilidade, documentação
 > pública e sustentabilidade financeira do projeto healthbr-data.
-> Criado em 26/fev/2026. Atualizado em 28/fev/2026.
+> Criado em 26/fev/2026. Atualizado em 02/mar/2026.
 
 ---
 
@@ -10,12 +10,14 @@
 
 O projeto healthbr-data redistribui dados do SUS (começando pelo SI-PNI) em
 formato Parquet via Cloudflare R2, com egress gratuito e acesso via protocolo
-S3 padrão. A infraestrutura técnica está operacional para os microdados de
-imunização (2020–2026), e os dados agregados históricos (1994–2019) estão em
-fase de finalização.
+S3 padrão. A infraestrutura técnica está operacional para 4 datasets de
+vacinação: microdados de rotina (2020–presente), microdados COVID
+(2021–presente), agregados históricos de doses (1994–2019) e agregados
+históricos de cobertura (1994–2019). Todos estão publicados no R2, com
+dataset cards no Hugging Face, manifesto de integridade e sincronização
+automatizada via GitHub Actions.
 
-O problema agora é diferente: **ninguém sabe que esses dados existem**. Sem
-uma camada de descobribilidade, documentação e divulgação, o trabalho técnico
+O próximo desafio é **descobribilidade**: sem divulgação, o trabalho técnico
 não gera impacto. Este documento planeja essa camada.
 
 ---
@@ -36,7 +38,7 @@ Datasets planejados (em ordem de prioridade):
 | SI-PNI Agregados (doses) | `sipni/agregados/doses/` | ✅ Dados no R2 |
 | SI-PNI Agregados (cobertura) | `sipni/agregados/cobertura/` | ✅ Dados no R2 |
 | SI-PNI COVID | `sipni/covid/` | ✅ Dados no R2 |
-| SI-PNI Dicionários | `sipni/dicionarios/` | 📋 Planejado |
+| SI-PNI Dicionários | `sipni/dicionarios/` | ✅ Dados no R2 |
 | SIM (Mortalidade) | `sim/` | 📋 Futuro |
 | SINASC (Nascidos vivos) | `sinasc/` | 📋 Futuro |
 | SIH (Internações) | `sih/` | 📋 Futuro |
@@ -137,7 +139,7 @@ publicados como referência, sem modificação.
 Antes de divulgar, esses itens precisam estar prontos:
 
 - [x] README de pelo menos um dataset completo e publicado no HF (4 datasets publicados, 28/fev/2026)
-- [ ] Repositório GitHub público com README do pipeline
+- [x] Repositório GitHub público com README do pipeline (`SidneyBissoli/healthbr-data`, 02/mar/2026)
 - [x] Bucket R2 com acesso de leitura confirmado e testado (via token read-only público, 28/fev/2026)
 - [x] Pelo menos um exemplo reproduzível de acesso via R e Python (4 datasets testados, 28/fev/2026)
 - [ ] Página de sustentabilidade (ver Seção 5)
@@ -341,12 +343,13 @@ e referenciado nos dataset cards:
 - Dados agregados históricos — cobertura vacinal (SI-PNI), 1994–2019
   - 2,8M+ registros (686 arquivos .dbf → Parquet, particionado por ano/uf)
   - HF: `SidneyBissoli/sipni-agregados-cobertura`
+- Dicionários de dados do SI-PNI (IMUNO, DOSE, FXET, ANO, MES, IMUNOCOB)
+  - 6 Parquets + 18 arquivos originais (.cnv/.dbf)
+  - HF: `SidneyBissoli/sipni-dicionarios`
 
 ### Em finalização 🔧
 
-- Dicionários oficiais do Ministério da Saúde (IMUNO.CNV, IMUNOCOB.DBF, etc.)
 - Documentação de harmonização entre sistemas agregado ↔ microdados
-- Repositório GitHub público com README do pipeline
 
 ### Planejado 📋
 
@@ -373,8 +376,8 @@ divulgação (ex: "SI-PNI Microdados de Vacinação").
 
 | Recurso | URL | Status |
 |---------|-----|:------:|
-| Hugging Face (perfil) | `huggingface.co/SidneyBissoli` | ✅ Ativo (4 dataset repos) |
-| GitHub org ou repo | `github.com/SidneyBissoli/healthbr-data` (a criar) | Pendente |
+| Hugging Face (perfil) | `huggingface.co/SidneyBissoli` | ✅ Ativo (4 dataset repos + 1 HF Space) |
+| GitHub repo | `github.com/SidneyBissoli/healthbr-data` | ✅ Ativo (README EN/PT, FUNDING.yml, GitHub Actions) |
 | Site/landing page | `healthbr-data.org` (ou GitHub Pages) | Futuro |
 | Twitter/X | `@healthbrdata` | Futuro |
 | Bluesky | `@healthbrdata.bsky.social` | Futuro |
@@ -397,16 +400,16 @@ divulgação (ex: "SI-PNI Microdados de Vacinação").
 - [x] Criar README completo para SI-PNI microdados (usando template §2.3)
 - [x] Upload do README para o R2 (4 datasets: `sipni/microdados/`, `sipni/covid/microdados/`, `sipni/agregados/doses/`, `sipni/agregados/cobertura/`)
 - [x] Criar repositórios HF e publicar dataset cards (4 repos sob `SidneyBissoli/`)
-- [ ] Criar repositório GitHub público com README do pipeline
-- [ ] Configurar FUNDING.yml no GitHub
-- [ ] Criar conta GitHub Sponsors
-- [ ] Definir chave Pix para contribuições
-- [ ] Gerar `manifest.json` retroativamente para os 4 módulos já no R2
-  (inventariar objetos existentes, calcular SHA-256, registrar metadados
-  da fonte). Ver `strategy-synchronization.md`, seção 5.
-- [ ] Implementar comparison engine (`sync_check.py`) e configurar cron
-  semanal no Hetzner. Ver `strategy-synchronization.md`, seção 3.
-- [ ] Criar HF Space (dashboard Streamlit) consumindo `sync-status.json`.
+- [x] Criar repositório GitHub público com README do pipeline (`SidneyBissoli/healthbr-data`, README bilingue EN/PT, 02/mar/2026)
+- [x] Configurar FUNDING.yml no GitHub (GitHub Sponsors + Pix, 02/mar/2026)
+- [x] Criar conta GitHub Sponsors (configurada em `SidneyBissoli`, 02/mar/2026)
+- [x] Definir chave Pix para contribuições (`sbissoli76@gmail.com`, 02/mar/2026)
+- [x] Gerar `manifest.json` retroativamente para os 4 módulos já no R2
+  (02/mar/2026). Ver `strategy-synchronization.md`, seção 5.
+- [x] Implementar comparison engine (`sync_check.py`) e configurar GitHub
+  Actions semanal (02/mar/2026). Ver `strategy-synchronization.md`, seção 3.
+- [x] Criar HF Space (dashboard Streamlit) consumindo `sync-status.json`
+  (`SidneyBissoli/healthbr-sync-status`, 02/mar/2026).
   Ver `strategy-synchronization.md`, seção 4.
 - [x] Testar exemplos de código R e Python de ponta a ponta (4 datasets testados com token read-only, 28/fev/2026)
 - [x] Definir licença → CC-BY 4.0 (aplicada nos 4 repos HF)
@@ -467,4 +470,6 @@ Projetos de redistribuição de dados públicos que servem de referência:
 
 *Este documento será atualizado conforme decisões forem tomadas. Cada seção
 com [TODO] indica um item que precisa de investigação ou decisão antes do
-lançamento.*
+lançamento.
+Última atualização: 07/mar/2026 — Dicionários SI-PNI adicionados ao roadmap
+(5 datasets concluídos). HF: `SidneyBissoli/sipni-dicionarios`.*

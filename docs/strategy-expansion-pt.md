@@ -668,12 +668,12 @@ prioridade máxima.
   </tbody>
 </table>
 
-#### SI-PNI COVID — 🔧 EM PROGRESSO
+#### SI-PNI COVID — ✅ COMPLETO
 
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sipni/covid/microdados/` |
-| Fase atual | 5 (README no R2 ✅, falta dataset card HF, exemplos testados, roadmap) |
+| Fase atual | 6 (integrado) |
 | Registros | 608M+ |
 | Período | 2021–presente |
 | Particionamento | `ano=YYYY/mes=MM/uf=XX/` (+ `ano=_invalid/` para registros com datas fora de 2021–presente) |
@@ -682,14 +682,14 @@ prioridade máxima.
 | Correções aplicadas | Campos com padrão externo (IBGE, CNES, CEP, raça/cor) corrigidos via `str_pad`; campos internos do SI-PNI pendentes de dicionário |
 | Reorganização R2 | Prefixo original `sipni-covid/` movido para `sipni/covid/` (fev/2026); anos inválidos no particionamento (1899–2020) realocados para `ano=_invalid/` (~39 MB, 2.756 objetos) |
 | Exploração | `docs/covid/exploration-pt.md` |
-| Próximo passo | Fase 5 — dataset card HF, exemplos testados, roadmap |
+| Conclusão | README no R2, dataset card HF, exemplos testados, manifesto, sincronização via GitHub Actions |
 
-#### SI-PNI Agregados — Doses (1994-2019) — 🔧 EM PROGRESSO
+#### SI-PNI Agregados — Doses (1994-2019) — ✅ COMPLETO
 
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sipni/agregados/doses/` |
-| Fase atual | 5 (README no R2 ✅, falta dataset card HF, exemplos testados, roadmap) |
+| Fase atual | 6 (integrado) |
 | Fonte | FTP DATASUS, 702 .dbf (27 UFs × 26 anos; consolidados excluídos) |
 | Estrutura | 3 eras: 7 cols (94-03), 12 cols (04-12), 12 cols (13-19) |
 | Pipeline | `sipni-agregados-doses-pipeline-r.R` (R puro: foreign + arrow + rclone) |
@@ -702,37 +702,43 @@ prioridade máxima.
 | Exploração | `docs/sipni-agregados/exploration-pt.md` |
 | Documentação pipeline | `reference-pipelines-pt.md`, seção 3 |
 | Controle | `data/controle_versao_sipni_agregados_doses.csv` |
-| Próximo passo | Fase 5 — dataset card HF, exemplos testados, roadmap |
+| Conclusão | README no R2, dataset card HF, exemplos testados, manifesto, sincronização via GitHub Actions |
 
-#### SI-PNI Agregados — Cobertura (1994-2019) — 🔧 EM PROGRESSO
+#### SI-PNI Agregados — Cobertura (1994-2019) — ✅ COMPLETO
 
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sipni/agregados/cobertura/` |
-| Fase atual | 5 (README no R2 ✅, falta dataset card HF, exemplos testados, roadmap) |
+| Fase atual | 6 (integrado) |
 | Fonte | FTP DATASUS, 702 .dbf (27 UFs × 26 anos; consolidados excluídos) |
 | Estrutura | 2 schemas: 9 cols (94-12), 7 cols (13-19) |
 | Registros estimados | ~3 milhões |
 | Particularidades conhecidas | Dicionário IMUNOCOB.DBF (26 indicadores compostos) diferente do IMUNO.CNV; cobertura pré-calculada pelo MS; colunas FX_ETARIA e DOSE desaparecem em 2013; COBERT muda de numeric (ponto) para character (vírgula) em 2013; 64 códigos IMUNO únicos; mesmas 12 UFs ausentes em 1994 que DPNI |
 | Exploração | `docs/sipni-agregados/exploration-cobertura-pt.md` |
 | Bootstrap | 44 min, 686 arquivos, 2.762.327 registros |
-| Próximo passo | Fase 5 — dataset card HF, exemplos testados, roadmap |
+| Conclusão | README no R2, dataset card HF, exemplos testados, manifesto, sincronização via GitHub Actions |
 
 **Nota sobre os dois submódulos de agregados:** Doses e cobertura podem
 compartilhar o mesmo pipeline (mesmo formato .dbf, mesmo FTP, mesma
 lógica de download), com bifurcação apenas no processamento dos campos.
 Avaliar se faz sentido um pipeline unificado.
 
-#### SI-PNI Dicionários — 📋 PLANEJADO
+#### SI-PNI Dicionários — ✅ COMPLETO
 
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sipni/dicionarios/` |
-| Fase atual | 1 (recon — fontes identificadas) |
-| Fonte | FTP DATASUS `/PNI/AUXILIARES/` (17 .cnv + 62 .def + 1 .dbf) |
-| Particularidades conhecidas | .cnv é formato proprietário TabWin; IMUNOCOB.DBF já foi parcialmente decodificado; campos nos .def são metadados de tabulação, não dados |
-| Complexidade | Baixa (poucos arquivos, pequenos, sem pipeline pesado) |
-| Próximo passo | Decidir formato de publicação (original vs convertido vs ambos) |
+| Fase atual | 5 (publicado) |
+| Fonte | FTP DATASUS `/PNI/AUXILIARES/` (17 .cnv + 1 .dbf; 61 .def excluídos — config de interface) |
+| Pipeline | `sipni-dicionarios-pipeline-r.R` (R puro: curl + foreign + arrow) |
+| Parquets | 6 (imuno, imunocob, dose, fxet, ano, mes) — 263 linhas total |
+| Originais | 18 arquivos preservados em `originais/` |
+| Tamanho R2 | ~84 KB |
+| Particularidades | .cnv é formato proprietário TabWin (Latin-1, largura fixa); parser custom `parse_cnv()` com `readBin()`+`iconv()` para encoding correto; mapeamento muitos-para-um via `source_codes`; sem manifesto nem sync (dados estáticos de 2019) |
+| Exploração | `docs/sipni-dicionarios/exploration-pt.md` |
+| Documentação pipeline | `reference-pipelines-pt.md`, seção 12 |
+| Conclusão | README no R2, dataset card HF, exemplos R e Python |
+| Pendente Fase 6 | Atualizar `project-pt.md` e `project-en.md`; integração ao pacote R `sipni` |
 
 #### SI-PNI Populações (denominadores) — ❌ REMOVIDO COMO MÓDULO R2
 
@@ -807,15 +813,15 @@ acima nas fases 5 ou 6).
 | Módulo | Fase | Prioridade | Justificativa |
 |--------|:----:|:----------:|---------------|
 | SI-PNI Microdados (rotina) | ✅ 6 | — | Concluído |
-| SI-PNI COVID | 5 | **1** | README no R2 ✅; falta dataset card HF, exemplos, roadmap |
-| SI-PNI Agregados (doses) | 5 | **2** | README no R2 ✅; falta dataset card HF, exemplos, roadmap |
-| SI-PNI Agregados (cobertura) | 5 | **2** | README no R2 ✅; falta dataset card HF, exemplos, roadmap |
-| SI-PNI Dicionários | 1 | **3** | Baixa complexidade, alto valor documental |
-| Pacote R `sipni` | — | **4** | Integra tudo; inclui lógica de denominadores (sem módulo R2 próprio) |
-| SIM | 0 | **5** | Primeiro módulo fora do SI-PNI (prefixo `sim/`) |
-| SINASC | 0 | **6** | Sinergia com SIM (prefixo `sinasc/`) |
-| SIH | 0 | **7** | Complexo, muitas alternativas existentes (prefixo `sih/`) |
-| SINAN | 0 | **8** | Horizonte, sem demanda explícita (prefixo `sinan/`) |
+| SI-PNI COVID | ✅ 6 | — | Concluído |
+| SI-PNI Agregados (doses) | ✅ 6 | — | Concluído |
+| SI-PNI Agregados (cobertura) | ✅ 6 | — | Concluído |
+| SI-PNI Dicionários | ✅ 5 | **1** | Publicado (R2 + HF); pendente Fase 6 (integração) |
+| Pacote R `sipni` | — | **2** | Integra tudo; inclui lógica de denominadores (sem módulo R2 próprio) |
+| SIM | 0 | **3** | Primeiro módulo fora do SI-PNI (prefixo `sim/`) |
+| SINASC | 0 | **4** | Sinergia com SIM (prefixo `sinasc/`) |
+| SIH | 0 | **5** | Complexo, muitas alternativas existentes (prefixo `sih/`) |
+| SINAN | 0 | **6** | Horizonte, sem demanda explícita (prefixo `sinan/`) |
 | ~~SI-PNI Populações~~ | ❌ | — | Removido: denominadores via pacotes R existentes, sem R2 |
 
 ---
@@ -825,23 +831,24 @@ acima nas fases 5 ou 6).
 ### Bloco 1 — Completar o SI-PNI (prioridade máxima)
 
 ```
-1. SI-PNI COVID ──────── Fase 5 (publicar) ─── rápido, ~2 dias
+✅ SI-PNI Microdados (rotina) ─ Fase 6 (concluído)
+✅ SI-PNI COVID ──────────── Fase 6 (concluído)
+✅ Agregados doses ───────── Fase 6 (concluído)
+✅ Agregados cobertura ───── Fase 6 (concluído)
        │
-2. Agregados doses ───── Fase 3→4→5 ────────── ~2 semanas
-   + cobertura            (pipeline unificado?)
+✅ Dicionários ────────── Fase 5 (publicado) ──── pendente Fase 6
        │
-3. Dicionários ────────── Fase 2→5 ──────────── ~3 dias
-       │
-4. Pacote R sipni ─────── Desenvolvimento ───── ~3-4 semanas
+2. Pacote R sipni ─────── Desenvolvimento ───── ~3-4 semanas
                           (inclui denominadores via
                            pacotes R existentes)
 ```
 
-**Por que esta ordem:**  
-- O COVID já tem pipeline; publicar é o menor esforço com o maior
-  retorno imediato (608M registros acessíveis).  
-- Agregados são o segundo pilar do projeto — sem eles, não existe
-  série histórica 1994-2025.  
+**Situação atual (02/mar/2026):**
+4 dos 6 submódulos SI-PNI estão concluídos (microdados rotina, COVID,
+agregados doses, agregados cobertura), todos com dados no R2, dataset cards
+no HF, manifesto de integridade e sincronização via GitHub Actions.
+
+**Próximos passos:**  
 - Dicionários são rápidos e desbloqueiam a decodificação dos agregados.  
 - O pacote R é o produto final que integra tudo, incluindo acesso a
   denominadores populacionais via pacotes R existentes (sem módulo R2).  
@@ -957,8 +964,7 @@ no `reference-pipelines-pt.md` (seção 1):
 ---
 
 *Este documento será atualizado conforme módulos avancem nas fases.
-Última atualização: 02/mar/2026 — Sistema de sincronização implementado
-(Etapas 1–6 completas): manifests retroativos no R2, comparison engine,
-HF Space dashboard, GitHub Actions semanal, manifest auto-update nos 4
-pipelines, documentação atualizada. Seção 11.3 atualizada (GitHub Actions
-em vez de cron Hetzner; manifest_utils.py como infraestrutura compartilhada).*
+Última atualização: 07/mar/2026 — SI-PNI Dicionários movido para Fase 5
+(publicado: R2 + dataset card HF). 5 de 6 submódulos SI-PNI concluídos.
+Próxima prioridade: Fase 6 (integração) dos Dicionários, seguido do
+pacote R `sipni` (prioridade 2).*

@@ -651,4 +651,75 @@ Dashboard: https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status
 
 ---
 
-*Última atualização: 02/mar/2026 — Adicionada seção 11 (sistema de sincronização).*
+## 12. PIPELINE SI-PNI DICIONÁRIOS: CNV/DBF → Parquet → R2
+
+### Objetivo
+
+Converter os dicionários de dados do SI-PNI (arquivos auxiliares do DATASUS)
+para Parquet, e publicar junto com os originais no R2 para permitir
+decodificação programática dos datasets agregados.
+
+### Arquitetura
+
+```
+FTP DATASUS (PNI/AUXILIARES/)
+  ↓ curl (download direto, 18 arquivos: 17 .cnv + 1 .dbf)
+  ↓ parse_cnv() — parser R para formato TabWin proprietário
+  ↓ foreign::read.dbf() — para IMUNOCOB.DBF
+  ↓ arrow::write_parquet() — tudo como string, UTF-8
+  ↓ rclone copy → R2
+```
+
+Linguagem: R puro (arrow, foreign, curl).
+Servidor: local (arquivos pequenos, < 1 MB total).
+
+### Números finais
+
+| Métrica | Valor |
+|---------|-------|
+| Arquivos fonte | 18 (17 .cnv + 1 .dbf) |
+| Parquets gerados | 6 (imuno, imunocob, dose, fxet, ano, mes) |
+| Originais preservados | 18 (em `originais/`) |
+| Tamanho total no R2 | ~84 KB |
+| Tempo de execução | < 5 segundos |
+| Pipeline | `scripts/pipeline/sipni-dicionarios-pipeline-r.R` |
+
+### Particularidades
+
+- **Formato .cnv (TabWin):** formato proprietário de largura fixa.
+  Header declara número de entradas e largura do campo código. Dados
+  posicionais: código em posição fixa, label preenchido com espaços,
+  source_codes no final (vírgula-separados para mapeamento muitos-para-um).
+- **Encoding:** Arquivos fonte em Latin-1; conversão para UTF-8 via
+  `rawToChar()` + `iconv()` no nível do arquivo inteiro (antes do
+  parsing posicional, para evitar corrupção de caracteres multibyte).
+- **Mapeamento muitos-para-um:** O campo `source_codes` pode conter
+  múltiplos códigos separados por vírgula (ex.: `88,45` para Hepatite A).
+  Reflete mudanças de codificação de vacinas ao longo do tempo.
+- **.def excluídos:** 61 arquivos .def são configuração de interface
+  TabWin/TabNet, não dicionários de dados. Não publicados.
+- **Sem manifesto:** módulo estático (fonte de 2019, sem atualização
+  recorrente). Não justifica manifest.json nem sincronização.
+- **Sem controle de versão CSV:** pela mesma razão — dados estáticos.
+
+### Rodar e monitorar
+
+```r
+# No RStudio, com working directory na raiz do projeto:
+source("scripts/pipeline/sipni-dicionarios-pipeline-r.R")
+```
+
+Depois, no terminal:
+
+```bash
+rclone copy data/exploration/auxiliares/r2_staging/sipni/dicionarios \
+  r2:healthbr-data/sipni/dicionarios/ \
+  --transfers 16 --checkers 32 --progress
+
+# Verificar
+rclone ls r2:healthbr-data/sipni/dicionarios/ --transfers 16 --checkers 32
+```
+
+---
+
+*Última atualização: 03/mar/2026 — Adicionada seção 12 (pipeline dicionários SI-PNI).*

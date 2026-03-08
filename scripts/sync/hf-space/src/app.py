@@ -2,8 +2,8 @@
 healthbr-data Sync Status Dashboard
 
 Streamlit app that visualizes the synchronization status between
-official SI-PNI data sources and the healthbr-data redistribution
-on Cloudflare R2.
+official data sources (SI-PNI, SINASC) and the healthbr-data
+redistribution on Cloudflare R2.
 
 Reads a static sync-status.json (updated weekly by GitHub Actions).
 """
@@ -61,6 +61,7 @@ DATASET_LABELS = {
     "sipni-covid": "SI-PNI COVID",
     "sipni-agregados-doses": "SI-PNI Aggregated \u2014 Doses (1994\u20132019)",
     "sipni-agregados-cobertura": "SI-PNI Aggregated \u2014 Coverage (1994\u20132019)",
+    "sinasc": "SINASC \u2014 Live Births (1994\u20132022)",
 }
 
 
@@ -107,7 +108,7 @@ st.caption(f"Last checked: {fmt_timestamp(data.get('generated_at'))}")
 # Summary cards
 # ---------------------------------------------------------------------------
 
-cols = st.columns(4)
+cols = st.columns(len(DATASET_LABELS))
 datasets = data.get("datasets", {})
 
 for col, (ds_key, ds_label) in zip(cols, DATASET_LABELS.items()):
@@ -318,6 +319,10 @@ with tabs[2]:
 with tabs[3]:
     render_dataset_tab("sipni-agregados-cobertura", build_agregados_df)
 
+# --- Tab 4: SINASC ---
+with tabs[4]:
+    render_dataset_tab("sinasc", build_agregados_df)
+
 # ---------------------------------------------------------------------------
 # Footer
 # ---------------------------------------------------------------------------
@@ -333,8 +338,8 @@ st.markdown(
 )
 
 st.caption(
-    "This dashboard compares the official SI-PNI data published by Brazil's "
-    "Ministry of Health with the [healthbr-data](https://huggingface.co/datasets/SidneyBissoli/healthbr-data) "
+    "This dashboard compares official data published by Brazil's "
+    "Ministry of Health (SI-PNI, SINASC) with the [healthbr-data](https://huggingface.co/SidneyBissoli) "
     "redistribution on Cloudflare R2. Updated weekly via GitHub Actions. "
     "Source code: [github.com/SidneyBissoli/healthbr-data](https://github.com/SidneyBissoli/healthbr-data)"
 )

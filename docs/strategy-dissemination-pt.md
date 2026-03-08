@@ -39,8 +39,8 @@ Datasets planejados (em ordem de prioridade):
 | SI-PNI Agregados (cobertura) | `sipni/agregados/cobertura/` | ✅ Dados no R2 |
 | SI-PNI COVID | `sipni/covid/` | ✅ Dados no R2 |
 | SI-PNI Dicionários | `sipni/dicionarios/` | ✅ Dados no R2 |
+| SINASC (Nascidos vivos) | `sinasc/` | ✅ Dados no R2 |
 | SIM (Mortalidade) | `sim/` | 📋 Futuro |
-| SINASC (Nascidos vivos) | `sinasc/` | 📋 Futuro |
 | SIH (Internações) | `sih/` | 📋 Futuro |
 
 ### 2.2 Onde publicar os READMEs
@@ -346,6 +346,10 @@ e referenciado nos dataset cards:
 - Dicionários de dados do SI-PNI (IMUNO, DOSE, FXET, ANO, MES, IMUNOCOB)
   - 6 Parquets + 18 arquivos originais (.cnv/.dbf)
   - HF: `SidneyBissoli/sipni-dicionarios`
+- Microdados de nascidos vivos (SINASC), 1994–2022
+  - 85M+ registros em Parquet particionado (ano/uf)
+  - 783 arquivos .dbc (FTP DATASUS), 12 schemas históricos
+  - HF: `SidneyBissoli/sinasc`
 
 ### Em finalização 🔧
 
@@ -359,7 +363,7 @@ e referenciado nos dataset cards:
 
 ### Futuro 🔮
 
-- Novos sistemas de informação: SIM (mortalidade), SINASC (nascidos vivos), SIH (internações) — cada um como dataset independente no R2
+- Novos sistemas de informação: SIM (mortalidade), SIH (internações) — cada um como dataset independente no R2
 - API REST para consultas leves (se houver demanda)
 
 ---
@@ -471,6 +475,6 @@ Projetos de redistribuição de dados públicos que servem de referência:
 *Este documento será atualizado conforme decisões forem tomadas. Cada seção
 com [TODO] indica um item que precisa de investigação ou decisão antes do
 lançamento.
-Última atualização: 07/mar/2026 — Dicionários SI-PNI adicionados ao roadmap
-(5 datasets concluídos). HF: `SidneyBissoli/sipni-dicionarios`. Decisão de
-arquitetura do pacote R formalizada: `healthbR` unificado como modelo definitivo.*
+Última atualização: 08/mar/2026 — SINASC adicionado ao roadmap
+(6 datasets concluídos: 5 SI-PNI + SINASC). HF: `SidneyBissoli/sinasc`.
+85M+ registros, 1994–2022, 783 arquivos .dbc.*

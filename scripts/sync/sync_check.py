@@ -53,6 +53,12 @@ COVID_NUM_PARTS = 5  # parts 00000–00004 per UF
 DATASUS_FTP_HOST = "ftp.datasus.gov.br"
 DATASUS_FTP_PATH = "/dissemin/publicos/PNI/DADOS/"
 
+# DATASUS FTP (SINASC — live births)
+SINASC_FTP_NOV = "/dissemin/publicos/SINASC/NOV/DNRES/"
+SINASC_FTP_ANT = "/dissemin/publicos/SINASC/ANT/DNRES/"
+SINASC_YEAR_START = 1994
+SINASC_YEAR_END = 2022  # most recent year on FTP as of 2026-03-08
+
 MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun",
              "jul", "ago", "set", "out", "nov", "dez"]
 
@@ -139,6 +145,53 @@ def ftp_list_pni():
                         pass
                 if size is not None:
                     files[name] = size
+
+            ftp.quit()
+            return {"success": True, "files": files, "error": None}
+
+        except (ftplib.all_errors, OSError, TimeoutError) as e:
+            if attempt < MAX_RETRIES:
+                time.sleep(RETRY_BACKOFF * attempt)
+                continue
+            return {"success": False, "files": {}, "error": str(e)}
+
+    return {"success": False, "files": {}, "error": "max retries"}
+
+
+def ftp_list_sinasc():
+    """
+    Connect to DATASUS FTP and LIST both SINASC directories (NOV + ANT).
+    Returns {"success": bool, "files": {FILENAME: size_bytes}, "error": str|None}.
+    Filenames are uppercased for consistent comparison.
+    """
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            ftp = ftplib.FTP(timeout=FTP_TIMEOUT)
+            ftp.connect(DATASUS_FTP_HOST)
+            ftp.login()  # anonymous
+
+            files = {}
+            for ftp_path in (SINASC_FTP_NOV, SINASC_FTP_ANT):
+                lines = []
+                ftp.retrlines(f"LIST {ftp_path}", lines.append)
+
+                for line in lines:
+                    parts = line.split()
+                    if not parts:
+                        continue
+                    name = parts[-1].upper()
+                    size = None
+                    # Windows format: "05-23-19  05:19PM  14843 FILENAME"
+                    if len(parts) >= 4 and parts[-2].isdigit():
+                        size = int(parts[-2])
+                    # Unix format: "-rw-r--r-- 1 user group SIZE ... FILENAME"
+                    elif len(parts) >= 9:
+                        try:
+                            size = int(parts[4])
+                        except ValueError:
+                            pass
+                    if size is not None:
+                        files[name] = size
 
             ftp.quit()
             return {"success": True, "files": files, "error": None}
@@ -507,6 +560,97 @@ def check_sipni_agregados(r2_client, tipo, ftp_listing):
     }
 
 
+def check_sinasc(r2_client, ftp_listing):
+    """
+    Check SINASC (live births) against FTP listing.
+
+    FTP file patterns:
+      Modern (1996–2022): DN{UF}{YYYY}.DBC  in NOV/DNRES/
+      Old    (1994–1995): DNR{UF}{YYYY}.DBC in ANT/DNRES/
+
+    Manifest partition keys: "{year}-{uf}" (e.g., "2022-SP")
+    """
+    print("  sinasc: loading manifest...")
+    manifest = load_manifest(r2_client, "sinasc/manifest.json")
+    if not manifest:
+        return {
+            "status": "check_failed", "summary": {}, "details": [],
+            "error": "Could not load manifest",
+        }
+
+    if not ftp_listing["success"]:
+        return {
+            "status": "check_failed", "summary": {}, "details": [],
+            "error": f"FTP failed: {ftp_listing['error']}",
+        }
+
+    partitions = manifest.get("partitions", {})
+    ftp_files = ftp_listing["files"]
+
+    details = []
+    counters = {}
+
+    for year in range(SINASC_YEAR_START, SINASC_YEAR_END + 1):
+        for uf in UFS:
+            key = f"{year}-{uf}"
+
+            # Build expected filename (matches pipeline info_arquivo logic)
+            if year <= 1995:
+                filename = f"DNR{uf}{year}.DBC"
+            else:
+                filename = f"DN{uf}{year}.DBC"
+
+            ftp_size = ftp_files.get(filename)
+            # .dbc files can be small but valid; use a lower threshold
+            # than .dbf (header-only .dbc is ~100 bytes)
+            source_exists = ftp_size is not None and ftp_size > EMPTY_DBF_THRESHOLD
+
+            source = {
+                "exists": source_exists,
+                "filename": filename,
+                "size_bytes": ftp_size,
+            }
+
+            mpart = partitions.get(key)
+            status, notes = classify(
+                source_exists, mpart is not None, mpart, source,
+            )
+            counters[status] = counters.get(status, 0) + 1
+
+            details.append({
+                "partition": key,
+                "status": status,
+                "source": source,
+                "redistribution": {
+                    "exists": mpart is not None,
+                    "total_records": (
+                        mpart["total_records"] if mpart else None
+                    ),
+                    "total_size_bytes": (
+                        mpart["total_size_bytes"] if mpart else None
+                    ),
+                    "processing_timestamp": (
+                        mpart.get("processing_timestamp") if mpart else None
+                    ),
+                },
+                "notes": notes,
+            })
+
+    n = len(details)
+    sync = counters.get("in_sync", 0)
+    print(f"  sinasc: {n} checked, {sync} in_sync")
+
+    overall = "in_sync"
+    if counters.get("missing", 0) > 0 or counters.get("outdated", 0) > 0:
+        overall = "outdated"
+
+    return {
+        "status": overall,
+        "summary": {"total_checked": n, **counters},
+        "details": details,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -550,6 +694,16 @@ def main():
     results["sipni-agregados-cobertura"] = check_sipni_agregados(
         r2_client, "cobertura", ftp_listing,
     )
+
+    # --- FTP-based datasets: SINASC (separate connection) ---
+    print("  Connecting to DATASUS FTP (SINASC)...")
+    sinasc_listing = ftp_list_sinasc()
+    if sinasc_listing["success"]:
+        print(f"  FTP SINASC: {len(sinasc_listing['files'])} files listed")
+    else:
+        print(f"  FTP SINASC FAILED: {sinasc_listing['error']}", file=sys.stderr)
+
+    results["sinasc"] = check_sinasc(r2_client, sinasc_listing)
 
     # --- Assemble output ---
     output = {

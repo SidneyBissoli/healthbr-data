@@ -779,12 +779,12 @@ acima nas fases 5 ou 6).
 | Integração no pacote R | Módulo `healthbR::sim_*()` — ver decisão de arquitetura de 07/mar/2026 na Seção 8.1 |
 | **Justificativa do módulo** | SIM é o principal sistema de mortalidade do Brasil e insumo básico para epidemiologia, saúde pública e formulação de políticas. Complementa diretamente o SI-PNI (cobertura vacinal × mortalidade por doenças imunopreveníveis) e é exigido para indicadores como TMI e esperança de vida. A inexistência de via de acesso via Parquet pré-processado em R2 público (PCDaS tem restrição de acesso; microdatasus não persiste dados) justifica o módulo. |
 
-#### SINASC (Nascidos Vivos) — 🔍 FASE 2 CONCLUÍDA
+#### SINASC (Nascidos Vivos) — 📦 FASE 5 (PUBLICAÇÃO)
 
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sinasc/` |
-| Fase atual | **3 (Decisão concluída — 07/mar/2026)** |
+| Fase atual | **5 (Publicação — 08/mar/2026)** |
 | Fonte | **FTP DATASUS** (única via viável; OpenDATASUS S3 bloqueado — HTTP 403) |
 | — FTP `NOV/DNRES/` | 734 arquivos `DN{UF}{AAAA}.dbc`, 29 UFs, 1996–2022 |
 | — FTP `ANT/DNRES/` | 109 arquivos, inclui 1994–1995 com prefixo `DNR{UF}` |
@@ -797,8 +797,16 @@ acima nas fases 5 ou 6).
 | Dicionários localizados | `NASC98.HLP` (FTP `ANT/DOCS/`, era 1994–1998) + `Estrutura_SINASC_para_CD.pdf` (FTP `NOV/DOCS/`, era moderna) + 5 tabelas `.DBF` em `NOV/TABELAS/` |
 | Sinergia | Alta com SIM (estatísticas vitais complementares); histórica com SI-PNI (denominadores para cobertura vacinal) |
 | Complexidade estimada | **Média** — formato .dbc bem mapeado; 12 schemas históricos gerenciados via schema unificado |
+| Pipeline | `scripts/pipeline/sinasc-pipeline-r.R` (R: read.dbc + arrow + curl + rclone) |
+| Bootstrap | 783 arquivos, 85.033.402 registros, 0 erros, 117 min |
+| Controle | `data/controle_versao_sinasc.csv` |
 | Exploração | `docs/sinasc/exploration-pt.md` |
+| Documentação pipeline | `reference-pipelines-pt.md`, seção 13 |
+| Dataset card HF | `SidneyBissoli/sinasc` |
+| README R2 | `sinasc/README.md` |
+| Sincronização | Registrado no `sync_check.py` e dashboard HF |
 | Integração no pacote R | Módulo `healthbR::sinasc_*()` — ver decisão de arquitetura de 07/mar/2026 na Seção 8.1 |
+| Pendente Fase 6 | Atualizar `project-pt.md` e `project-en.md`; integração ao pacote R `healthbR` (módulo `sinasc`) |
 
 #### SIH (Internações Hospitalares) — 📋 FUTURO
 
@@ -835,7 +843,7 @@ acima nas fases 5 ou 6).
 | SI-PNI Dicionários | ✅ 5 | **1** | Publicado (R2 + HF); pendente Fase 6 (integração ao `healthbR`) |
 | Pacote R `healthbR` | — | **2** | Meta-pacote unificado (módulos `sipni`, `sim`, `sinasc`…); inclui lógica de denominadores sem módulo R2 próprio — ver decisão de 07/mar/2026 |
 | SIM | 1 | **3** | Recon concluído 07/mar/2026; primeiro módulo fora do SI-PNI (prefixo `sim/`) |
-| SINASC | 4 | **5** | Fases 2–4 concluídas em 07/mar/2026; bootstrap: 783 arquivos, 85M registros, 0 erros; pronto para Fase 5 (publicação) |
+| SINASC | ✅ 5 | **4** | Publicado (R2 + HF + sync); 783 arquivos, 85M registros; pendente Fase 6 (integração ao `healthbR`) |
 | SIH | 0 | **5** | Complexo, muitas alternativas existentes (prefixo `sih/`) |
 | SINAN | 0 | **6** | Horizonte, sem demanda explícita (prefixo `sinan/`) |
 | ~~SI-PNI Populações~~ | ❌ | — | Removido: denominadores via pacotes R existentes, sem R2 |
@@ -873,11 +881,11 @@ no HF, manifesto de integridade e sincronização via GitHub Actions.
 ### Bloco 2 — Expandir o ecossistema
 
 ```
-6. SIM ────────────── Fase 1→6 ──── primeiro módulo novo, valida o método
+✅ SINASC ─────────── Fase 5 (publicado) ── pendente Fase 6 (healthbR)
        │
-7. SINASC (completo) ─ Fase 1→6 ──── sinergia com SIM
+6. SIM ────────────── Fase 1→6 ──── primeiro módulo novo após SINASC
        │
-8. SIH ────────────── Fase 1→6 ──── maior complexidade, mais alternativas
+7. SIH ────────────── Fase 1→6 ──── maior complexidade, mais alternativas
 ```
 
 **Antes de iniciar o Bloco 2:**  
@@ -1015,10 +1023,7 @@ avaliados:
 ---
 
 *Este documento será atualizado conforme módulos avancem nas fases.
-Última atualização: 07/mar/2026 — SI-PNI Dicionários movido para Fase 5
-(publicado: R2 + dataset card HF). SINASC avançou para Fase 3 (Fases 2 e 3 concluídas
-em 07/mar/2026: FTP mapeado, 843 arquivos, 12 schemas históricos,
-dicionários analisados, schema unificado confirmado, infraestrutura
-e bootstrap estimados). SIM avançou para Fase 1 (Recon
-concluído). Decisão sobre arquitetura do pacote R formalizada: `healthbR`
-unificado (meta-pacote) adotado como modelo definitivo.*
+Última atualização: 08/mar/2026 — SINASC avançou para Fase 5 (publicação):
+README no R2, dataset card no HF (`SidneyBissoli/sinasc`), registrado no
+`sync_check.py` e dashboard de sincronização. 783 arquivos, 85M registros,
+1994–2022. SI-PNI Dicionários na Fase 5. SIM na Fase 1 (Recon concluído).*

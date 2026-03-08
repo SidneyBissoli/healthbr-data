@@ -25,3 +25,6 @@ Thumbs.db
 # Secrets
 .env
 credentials*
+
+# Exploration data (temporary working files)
+data/exploration/

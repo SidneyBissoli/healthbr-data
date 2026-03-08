@@ -287,8 +287,7 @@ documentação central, divulgação).
 
 **Atividades:**  
 - Atualizar `project-pt.md` e `project-en.md` com o novo módulo  
-- Adicionar suporte no pacote R (se aplicável — `sipni` para módulos SI-PNI; 
-pacote próprio para SIM, SINASC, SIH)  
+- Adicionar suporte no pacote R `healthbR` (ver decisão de arquitetura de 07/mar/2026 na Seção 8.1)  
 - Atualizar guias rápidos (`guides/quick-guide-*.R`)  
 - Divulgar nos canais definidos no `strategy-dissemination-pt.md`  
 - Atualizar transparência financeira (novo custo de armazenamento no R2)  
@@ -738,7 +737,7 @@ Avaliar se faz sentido um pipeline unificado.
 | Exploração | `docs/sipni-dicionarios/exploration-pt.md` |
 | Documentação pipeline | `reference-pipelines-pt.md`, seção 12 |
 | Conclusão | README no R2, dataset card HF, exemplos R e Python |
-| Pendente Fase 6 | Atualizar `project-pt.md` e `project-en.md`; integração ao pacote R `sipni` |
+| Pendente Fase 6 | Atualizar `project-pt.md` e `project-en.md`; integração ao pacote R `healthbR` (módulo `sipni`) |
 
 #### SI-PNI Populações (denominadores) — ❌ REMOVIDO COMO MÓDULO R2
 
@@ -758,31 +757,48 @@ Estes módulos expandem o projeto para além da vacinação. Só devem ser
 iniciados quando o core SI-PNI estiver completo (todos os submódulos
 acima nas fases 5 ou 6).
 
-#### SIM (Mortalidade) — 📋 FUTURO
+#### SIM (Mortalidade) — 🔍 FASE 1 CONCLUÍDA
 
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sim/` |
-| Fase atual | 0 (não iniciado) |
-| Fonte provável | FTP DATASUS (`.dbc` → precisa `read.dbc` ou blast-dbf) |
-| Cobertura temporal provável | 1979–presente |
-| Alternativas existentes | PCDaS (Fiocruz) — cobre SIM; microdatasus (pacote R) — lê .dbc do FTP |
-| Sinergia | Alta com SINASC (mortalidade infantil = SIM + SINASC) |
-| Complexidade estimada | Média (formato .dbc é mais complexo que .dbf, mas microdatasus já resolveu a leitura; volume grande mas estrutura estável) |
-| Reconhecimento necessário | Formato exato dos arquivos, volume, se .dbc ou .dbf, se há JSON/CSV no OpenDATASUS |
+| Fase atual | **1 (Recon concluído — 07/mar/2026)** |
+| Fontes identificadas | **Duas vias complementares** |
+| — FTP DATASUS (principal) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SIM/CID10/DORES/` — arquivos `.dbc` por UF × ano (DO = óbitos não fetais); padrão `DO{UF}{AAAA}.dbc`; CID-10 (1996–presente) |
+| — FTP DATASUS (óbitos fetais) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SIM/CID10/DOFET/` — arquivos `.dbc` anuais de óbitos fetais (`DF{UF}{AAAA}.dbc`) |
+| — FTP DATASUS (CID-9 histórico) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SIM/CID9/` — série 1979–1995; padrão de nome diferente (2 dígitos de ano, prefixo `DOR`); leitura exige atenção ao esquema do período |
+| — OpenDATASUS (S3) | Presente no portal (`opendatasus.saude.gov.br/dataset/sim`) com microdata do SIM (DO_BDD); formato e cobertura a verificar na Fase 2 |
+| Cobertura temporal confirmada | **1979–presente** (série CID-9 + CID-10); dado oficial publicado ~15 meses após o ano de ocorrência; dado preliminar disponível ~10 meses após |
+| Formato | `.dbc` (formato proprietário DATASUS — compressão sobre DBF); leitura via `read.dbc` (R) ou `blast-dbf`/`pysus` (Python) |
+| Volume estimado | **~1,0–1,4 milhão de óbitos/ano** (não fetais) nos anos recentes; ~27 UFs × ~30 anos CID-10 = ~810 arquivos DORES + ~810 DOFET; série histórica CID-9 adicional (~17 anos × 27 UFs). Estimativa total: **2.500–3.500 arquivos .dbc** para cobertura completa |
+| Variáveis principais | ~103 variáveis na versão CID-10 (confirmado em literatura): dados do falecido (nascimento, idade, sexo, raça/cor, estado civil, escolaridade, ocupação, município de residência), dados do óbito (data, local, estabelecimento, município de ocorrência), causa básica (CID-10), causas múltiplas, circunstâncias de morte não natural; informações maternas quando óbito fetal ou infantil |
+| Dicionário oficial | Documentação disponível no DATASUS (PDF); estrutura das variáveis bem documentada pelo microdatasus e PCDaS; CID-10 como sistema de codificação internacional |
+| Alternativas existentes | **PCDaS/Fiocruz** (1996–presente, tratado e enriquecido com CID-10 e geocoordenadas, acesso restrito); **`microdatasus`** (R, lê .dbc do FTP diretamente, `SIM-DO`); **Base dos Dados** (parcial); **`pysus`** (Python) |
+| Complexidade estimada | **Média** — formato .dbc bem mapeado pelo microdatasus; dois subsistemas (DORES + DOFET) com estruturas distintas; série histórica CID-9 (1979–1995) tem esquema diferente e pode exigir tratamento separado |
+| Sinergia | Alta com SINASC (mortalidade infantil = óbitos de menores de 1 ano via SIM + nascimentos via SINASC); Alta com SIH (internações + óbitos para estudos de desfechos) |
+| Integração no pacote R | Módulo `healthbR::sim_*()` — ver decisão de arquitetura de 07/mar/2026 na Seção 8.1 |
+| **Justificativa do módulo** | SIM é o principal sistema de mortalidade do Brasil e insumo básico para epidemiologia, saúde pública e formulação de políticas. Complementa diretamente o SI-PNI (cobertura vacinal × mortalidade por doenças imunopreveníveis) e é exigido para indicadores como TMI e esperança de vida. A inexistência de via de acesso via Parquet pré-processado em R2 público (PCDaS tem restrição de acesso; microdatasus não persiste dados) justifica o módulo. |
 
-#### SINASC (Nascidos Vivos) — 📋 FUTURO
+#### SINASC (Nascidos Vivos) — 🔍 FASE 2 CONCLUÍDA
 
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sinasc/` |
-| Fase atual | 0 (não iniciado, mas parcialmente reconhecido como dependência dos denominadores) |
-| Fonte provável | FTP DATASUS (`.dbc`) |
-| Cobertura temporal provável | 1994–presente |
-| Alternativas existentes | PCDaS (Fiocruz); microdatasus |
-| Sinergia | Máxima — já é dependência dos denominadores do SI-PNI |
-| Complexidade estimada | Média (similar ao SIM em formato) |
-| Nota | O SINASC será publicado como módulo independente com microdados completos de nascidos vivos. Para denominadores populacionais do SI-PNI, a lógica de acesso ao SINASC será incorporada ao pacote R `sipni` (via pacotes existentes como `brpop` ou `microdatasus`), sem necessidade de pipeline próprio para essa finalidade. |
+| Fase atual | **3 (Decisão concluída — 07/mar/2026)** |
+| Fonte | **FTP DATASUS** (única via viável; OpenDATASUS S3 bloqueado — HTTP 403) |
+| — FTP `NOV/DNRES/` | 734 arquivos `DN{UF}{AAAA}.dbc`, 29 UFs, 1996–2022 |
+| — FTP `ANT/DNRES/` | 109 arquivos, inclui 1994–1995 com prefixo `DNR{UF}` |
+| Total de arquivos | **843 arquivos .dbc** |
+| Cobertura temporal | **1994–2022** (mais recente disponível no FTP em 07/mar/2026) |
+| Formato | `.dbc` (DBF comprimido); leitura via `read.dbc::read.dbc()` (R) |
+| Particionamento definido | `sinasc/ano=YYYY/uf=XX/` |
+| Schemas históricos | **12 schemas distintos** identificados (1994–2022, DF como referência): 30 cols (94-95), 21 cols (96-98), 20 cols (99-00), 23 cols (01), 26 cols (02-05), 29 cols (06-09), 55-61 cols (10-22) |
+| Estratégia de schema | **Schema unificado** — mapeamento de nomenclatura 1994–1995 → moderna via dicionários oficiais (`NASC98.HLP` + `Estrutura_SINASC_para_CD.pdf`); 20 campos mapeados; 6 campos locais mantidos como colunas extras; 4 campos de controle interno descartados |
+| Dicionários localizados | `NASC98.HLP` (FTP `ANT/DOCS/`, era 1994–1998) + `Estrutura_SINASC_para_CD.pdf` (FTP `NOV/DOCS/`, era moderna) + 5 tabelas `.DBF` em `NOV/TABELAS/` |
+| Sinergia | Alta com SIM (estatísticas vitais complementares); histórica com SI-PNI (denominadores para cobertura vacinal) |
+| Complexidade estimada | **Média** — formato .dbc bem mapeado; 12 schemas históricos gerenciados via schema unificado |
+| Exploração | `docs/sinasc/exploration-pt.md` |
+| Integração no pacote R | Módulo `healthbR::sinasc_*()` — ver decisão de arquitetura de 07/mar/2026 na Seção 8.1 |
 
 #### SIH (Internações Hospitalares) — 📋 FUTURO
 
@@ -816,10 +832,10 @@ acima nas fases 5 ou 6).
 | SI-PNI COVID | ✅ 6 | — | Concluído |
 | SI-PNI Agregados (doses) | ✅ 6 | — | Concluído |
 | SI-PNI Agregados (cobertura) | ✅ 6 | — | Concluído |
-| SI-PNI Dicionários | ✅ 5 | **1** | Publicado (R2 + HF); pendente Fase 6 (integração) |
-| Pacote R `sipni` | — | **2** | Integra tudo; inclui lógica de denominadores (sem módulo R2 próprio) |
-| SIM | 0 | **3** | Primeiro módulo fora do SI-PNI (prefixo `sim/`) |
-| SINASC | 0 | **4** | Sinergia com SIM (prefixo `sinasc/`) |
+| SI-PNI Dicionários | ✅ 5 | **1** | Publicado (R2 + HF); pendente Fase 6 (integração ao `healthbR`) |
+| Pacote R `healthbR` | — | **2** | Meta-pacote unificado (módulos `sipni`, `sim`, `sinasc`…); inclui lógica de denominadores sem módulo R2 próprio — ver decisão de 07/mar/2026 |
+| SIM | 1 | **3** | Recon concluído 07/mar/2026; primeiro módulo fora do SI-PNI (prefixo `sim/`) |
+| SINASC | 4 | **5** | Fases 2–4 concluídas em 07/mar/2026; bootstrap: 783 arquivos, 85M registros, 0 erros; pronto para Fase 5 (publicação) |
 | SIH | 0 | **5** | Complexo, muitas alternativas existentes (prefixo `sih/`) |
 | SINAN | 0 | **6** | Horizonte, sem demanda explícita (prefixo `sinan/`) |
 | ~~SI-PNI Populações~~ | ❌ | — | Removido: denominadores via pacotes R existentes, sem R2 |
@@ -838,9 +854,10 @@ acima nas fases 5 ou 6).
        │
 ✅ Dicionários ────────── Fase 5 (publicado) ──── pendente Fase 6
        │
-2. Pacote R sipni ─────── Desenvolvimento ───── ~3-4 semanas
-                          (inclui denominadores via
-                           pacotes R existentes)
+2. Pacote R healthbR ──── Desenvolvimento ───── ~3-4 semanas
+                          (meta-pacote; módulo sipni como ponto
+                           de entrada; denominadores via pacotes
+                           R existentes, sem módulo R2 próprio)
 ```
 
 **Situação atual (02/mar/2026):**
@@ -850,7 +867,7 @@ no HF, manifesto de integridade e sincronização via GitHub Actions.
 
 **Próximos passos:**  
 - Dicionários são rápidos e desbloqueiam a decodificação dos agregados.  
-- O pacote R é o produto final que integra tudo, incluindo acesso a
+- O pacote R `healthbR` é o produto final que integra tudo, incluindo acesso a
   denominadores populacionais via pacotes R existentes (sem módulo R2).  
 
 ### Bloco 2 — Expandir o ecossistema
@@ -963,8 +980,45 @@ no `reference-pipelines-pt.md` (seção 1):
 
 ---
 
+---
+
+## 14. DECISÃO DE ARQUITETURA DO PACOTE R (07/mar/2026)
+
+**Decisão:** O projeto adotará um **pacote R unificado `healthbR`** em vez
+de pacotes isolados por sistema de informação.
+
+**Contexto:** Durante o Recon do SIM (07/mar/2026), ficou evidente que o SIM
+não cabe dentro do `sipni` — são sistemas independentes. Dois modelos foram
+avaliados:
+
+| Critério | Pacotes isolados (`sipni`, `sim`, `sinasc`…) | Meta-pacote `healthbR` |
+|----------|:-------------------------------------------:|:----------------------:|
+| Denominadores SINASC para SI-PNI | Duplicados entre pacotes | Resolvidos internamente |
+| Interface do pesquisador | Fragmentada (vários `install.packages`) | Unificada (`library(healthbR)`) |
+| Consistência de convenções | Risco de divergência entre pacotes | Garantida pelo meta-pacote |
+| Sinergia SIM × SINASC × SI-PNI | Exige coordenação manual | Natural dentro do mesmo pacote |
+| Overhead de manutenção | Alto (N repos, N CIs, N release cycles) | Baixo (1 repo) |
+| Modelo de referência | — | tidyverse, tidymodels |
+
+**Modelo adotado:** `healthbR` como meta-pacote com módulos por sistema:
+- `healthbR::sipni_*()` — acesso ao SI-PNI (microdados, agregados, dicionários)
+- `healthbR::sim_*()` — acesso ao SIM (mortalidade)
+- `healthbR::sinasc_*()` — acesso ao SINASC (nascidos vivos)
+- `healthbR::sih_*()` — acesso ao SIH (internações) — futuro
+
+**Consequências:**  
+- O repositório do pacote será nomeado `healthbR` (não `sipni`)  
+- A documentação pública já fazia referência ao `healthbR` como meta-pacote futuro — essa visão está agora formalizada como o modelo definitivo  
+- Módulos individuais podem ser submetidos ao CRAN como pacotes leves se houver demanda por instalação granular, mas a interface primária é o `healthbR`  
+- Denominadores populacionais (SINASC + IBGE) são acessados via funções internas do `healthbR`, sem módulo R2 próprio  
+
+---
+
 *Este documento será atualizado conforme módulos avancem nas fases.
 Última atualização: 07/mar/2026 — SI-PNI Dicionários movido para Fase 5
-(publicado: R2 + dataset card HF). 5 de 6 submódulos SI-PNI concluídos.
-Próxima prioridade: Fase 6 (integração) dos Dicionários, seguido do
-pacote R `sipni` (prioridade 2).*
+(publicado: R2 + dataset card HF). SINASC avançou para Fase 3 (Fases 2 e 3 concluídas
+em 07/mar/2026: FTP mapeado, 843 arquivos, 12 schemas históricos,
+dicionários analisados, schema unificado confirmado, infraestrutura
+e bootstrap estimados). SIM avançou para Fase 1 (Recon
+concluído). Decisão sobre arquitetura do pacote R formalizada: `healthbR`
+unificado (meta-pacote) adotado como modelo definitivo.*

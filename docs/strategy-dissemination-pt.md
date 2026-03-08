@@ -353,7 +353,7 @@ e referenciado nos dataset cards:
 
 ### Planejado 📋
 
-- Pacote R `healthbR` para acesso integrado aos dados no R2 (inclui acesso a denominadores populacionais via pacotes R existentes)
+- Pacote R `healthbR` (meta-pacote unificado) para acesso integrado a SI-PNI, SIM, SINASC e outros sistemas via mesma interface — inclui acesso a denominadores populacionais via pacotes R existentes. Decisão de arquitetura formalizada em 07/mar/2026.
 - Série temporal harmonizada de cobertura vacinal (1994–presente)
 - Página de transparência financeira
 
@@ -472,4 +472,5 @@ Projetos de redistribuição de dados públicos que servem de referência:
 com [TODO] indica um item que precisa de investigação ou decisão antes do
 lançamento.
 Última atualização: 07/mar/2026 — Dicionários SI-PNI adicionados ao roadmap
-(5 datasets concluídos). HF: `SidneyBissoli/sipni-dicionarios`.*
+(5 datasets concluídos). HF: `SidneyBissoli/sipni-dicionarios`. Decisão de
+arquitetura do pacote R formalizada: `healthbR` unificado como modelo definitivo.*

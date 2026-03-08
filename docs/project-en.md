@@ -5,12 +5,13 @@
 > in previous conversations. It is the source of truth on decisions,
 > architecture, and current state.
 >
-> Last updated: 2026-02-22 (v3 — integration of coverage technical notes)
+> Last updated: 2026-03-07 (v5 — aligned with project-pt.md v6: 5 SI-PNI
+> modules published; `healthbR` unified package architecture adopted;
+> SIM and SINASC recon complete)
 >
-> **⚠️ Note:** The Portuguese version (`project-pt.md`) was updated to v4 on
-> 2026-03-01 with significant changes: 4 datasets published on R2, dataset
-> cards on HF, synchronization system, updated architecture and task list.
-> This English version needs to be updated to match.
+> **Note:** The Portuguese version (`project-pt.md`) is the primary source
+> of truth. This English version is kept in sync for international
+> contributors and dataset card users.
 
 ---
 
@@ -134,8 +135,8 @@ This project offers:
 │  3. Hugging Face (mirror for discoverability)                    │
 │     └── README points to R2 as primary source                    │
 │                                                                  │
-│  4. R package "sipni" (consumption)                              │
-│     └── Connects to 4 harmonized sources on R2                   │
+│  4. R package "healthbR" (consumption)                           │
+│     └── Meta-package with modules per system (sipni, sim, sinasc)│
 │     └── Calculates vaccination coverage with correct denominator │
 │     └── Delivers time series and ggplot-ready data               │
 │                                                                  │
@@ -160,18 +161,21 @@ s3://healthbr-data/sipni/
     cobertura/
       ano=2005/uf=SP/
         part-0.parquet
-  populacao/                           ← Denominators
-    sinasc/                            ← Live births by municipality
-    ibge/                              ← Population estimates
   dicionarios/                         ← Reference (MoH originals)
-    microdados/
-      dicionario_tb_ria_rotina.json    ← 56 fields from the new SI-PNI
-    agregados/
-      IMUNO.CNV                        ← Vaccines (doses)
-      IMUNOCOB.DBF                     ← Vaccines (coverage)
-      DOSE.CNV                         ← Dose types
-      FXET.CNV                         ← Age groups
+    imuno.parquet                      ← Vaccines (doses)
+    imunocob.parquet                   ← Vaccines (coverage)
+    dose.parquet                       ← Dose types
+    fxet.parquet                       ← Age groups
+    ano.parquet                        ← Year codes
+    mes.parquet                        ← Month codes
+    originais/                         ← Original .cnv/.dbf files from MoH
 ```
+
+**Note on denominators:** Population denominators (SINASC live births, IBGE
+estimates) are **not published as an R2 module**. The denominator construction
+logic will be built into the `healthbR` R package, which accesses sources
+directly via existing R packages (`brpop`, `sidrar`, `microdatasus`).
+Decision of 2026-02-28.
 
 ### Why not GitHub Actions?
 
@@ -730,57 +734,74 @@ reference files in the repository. The researcher does the join if desired.
 
 **Dictionaries:** published in full, in the Ministry's original formats.
 
-**Populations:** published as separate Parquets, with source identified
-(SINASC or IBGE).
+**Populations (denominators):** not published as an R2 module. The
+denominator construction logic will be built into the `healthbR` R package,
+which will access sources via existing R packages (`brpop`, `sidrar`,
+`microdatasus`). See section 10.
 
 ### Why not decode aggregated data inline?
 
 Decoding would create a derivative of ours, no longer the Ministry's
 original document. The project prioritizes fidelity to the source. The R
-package `sipni` will do the join automatically for the researcher —
+package `healthbR` will do the join automatically for the researcher —
 convenience lives in the software, not in the data.
 
 ---
 
-## 10. R PACKAGE `sipni`
+## 10. R PACKAGE `healthbR`
 
-### Name
+### Architecture decision (2026-03-07)
 
-`sipni` — validated with `pak::pkg_name_check()`. Available on CRAN and
-Bioconductor. Short, descriptive, no `r` prefix (modern rOpenSci convention).
+The project adopts a **unified `healthbR` R package** as the primary
+researcher interface. Isolated packages per system (`sipni`, `sim`,
+`sinasc`…) were evaluated and rejected because:
+
+- Population denominators (SINASC → SI-PNI) would be duplicated across packages
+- A fragmented interface would require multiple `install.packages()` for integrated analyses
+- Synergy between systems (SIM × SINASC × SI-PNI) is natural inside one package
+- Maintenance overhead (N repos, N CIs, N release cycles) is unnecessary
+
+The reference model is the tidyverse: a meta-package loading coherent modules.
+See `strategy-expansion-pt.md`, Section 14, for the full discussion.
+
+### Module structure
+
+- `healthbR::sipni_*()` — SI-PNI (microdata, aggregated, dictionaries)
+- `healthbR::sim_*()` — SIM (mortality) — future
+- `healthbR::sinasc_*()` — SINASC (live births) — future
+- `healthbR::sih_*()` — SIH (hospital admissions) — future
 
 ### Package value
 
-The package is justified by integrating 4 harmonized sources and solving
-complexity that no researcher should have to repeat individually:
+The package is justified by integrating multiple harmonized sources and
+solving complexity that no researcher should have to repeat individually:
 
-- Connects to aggregated data, microdata, dictionaries, and population data on R2
+- Connects to aggregated data, microdata, and dictionaries on R2
 - Automatically joins code→name for aggregated data
-- Calculates coverage from microdata + SINASC/IBGE denominator
+- Calculates coverage from microdata + SINASC/IBGE denominator (via existing R packages)
 - Harmonizes vaccine nomenclature across 30 years
 - Builds continuous time series for any vaccine × geography
+- Cross-system analyses (mortality × vaccination × live births)
 
 ### Conceptual interface
 
 ```r
-library(sipni)
+library(healthbR)
 
-# Coverage time series
-sipni::cobertura("triplice_viral", uf = "DF", anos = 1994:2025)
+# Coverage time series (sipni module)
+healthbR::sipni_cobertura("triplice_viral", uf = "DF", anos = 1994:2025)
 # → tibble with year, coverage_pct, source (aggregated/microdata), denominator
 
 # Raw administered doses
-sipni::doses(vacina = "pentavalente", municipio = "530010", anos = 2015:2025)
+healthbR::sipni_doses(vacina = "pentavalente", municipio = "530010", anos = 2015:2025)
 
 # Raw microdata
-sipni::microdados(uf = "AC", ano = 2024, mes = 1)
+healthbR::sipni_microdados(uf = "AC", ano = 2024, mes = 1)
 # → arrow::open_dataset() with filters applied
+
+# Mortality (sim module — future)
+healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 ```
-
-### Relationship with healthbR
-
-`sipni` will be an independent CRAN package. `healthbR` may become a
-meta-package (tidyverse-style) in the future, bundling sipni, sim, sinasc, etc.
 
 ---
 
@@ -788,97 +809,96 @@ meta-package (tidyverse-style) in the future, bundling sipni, sim, sinasc, etc.
 
 | Decision | Rejected alternative | Reason |
 |----------|:--------------------:|--------|
-| JSON as microdata source | CSV | 2020-2024 CSV has artifacts (.0, lost zeros). JSON ~1.3x larger, but eliminates all reconstruction logic. |
+| JSON as microdata source (routine) | CSV | 2020-2024 CSV has artifacts (.0, lost zeros). JSON ~1.3x larger, but eliminates all reconstruction logic. |
+| CSV as microdata source (COVID) | — | JSON does not exist for COVID. CSV is the only available format. |
 | Everything as character in Parquet | Automatic typing | JSON already delivers everything as string. Leading zeros preserved natively. |
 | R2 as storage | HF direct / AWS S3 | Zero egress + S3 standard. |
-| Hetzner VPS for execution | GitHub Actions | Volume exceeds free tier limits. |
+| Read-only public token (R2) | Anonymous S3 access | R2 does not support anonymous access. Token published; read-only. |
+| Hetzner x86 VPS for execution | GitHub Actions / ARM | Volume exceeds free tier limits. ARM lacks pre-compiled binaries for Arrow/polars. |
 | Raw data + separate dictionaries | Inline decoded data | Fidelity to original source. Convenience via package. |
 | Pipeline separate from package | Monorepo | Infrastructure ≠ researcher interface. |
-| Municipality in 6 digits | Keep 7 digits from legacy data | 6 digits (without check digit) is the IBGE standard. |
-| Name `sipni` | `rsipni`, `vacinabr` | rOpenSci convention: short, descriptive, no `r` prefix. |
+| Municipality as-is in source (7d or 6d) | Truncate to 6 digits in pipeline | Fidelity to source; normalization lives in `healthbR`. |
+| Denominators in R package, not R2 | R2 module `sipni/populacao/` | Easy to obtain via existing packages. No pipeline justified. |
+| Sync dashboard on HF Spaces | GitHub Pages / Vercel | Free, Python-native, lives alongside datasets, discoverable. |
+| Unified R package `healthbR` | Isolated packages per system | Unified interface, cross-system synergy, no denominator duplication. Decision of 2026-03-07. |
+| Precision over speed | Faster pipeline with CSV | 22h vs 8h bootstrap, but data fidelity is non-negotiable. |
 
 ---
 
-## 12. WHAT HAS BEEN DONE (EXPLORATORY PHASE)
+## 12. WHAT HAS BEEN DONE
 
-### Microdata (2020+)
-- [x] Format discovery: CSV with header (Latin-1) and JSON (UTF-8), 56 columns
-- [x] Located official dictionary (60 fields)
-- [x] Complete mapping of 56 columns (position → official name)
-- [x] Cross-validation CSV × JSON × dictionary (55/56 matched; 1 corrected)
-- [x] Identification of 4 missing fields and 1 official typo
-- [x] **Discovery: CSV has a header** (contrary to initial assumption)
-- [x] **Discovery: 2020-2024 CSV has artifacts** (float .0, lost zeros)
-- [x] **Discovery: JSON preserves types correctly** (all string, zeros intact)
-- [x] **Decision: JSON as primary source** (available 2020-2025, both URL patterns mapped)
-- [x] Size comparison: JSON ~1.3x larger than CSV (~28 GB extra for 72 months)
-- [x] Confirmation: same 56 columns in both formats, zero exclusives
-- [x] Technical note: JSON is a single-line array (>2GB), requires binary reading
-- [x] Type decision (all character, preserving leading zeros from JSON)
-- [x] Partitioning definition (year/month/state)
-- [x] Pipeline scripts drafted (4 scripts in /outputs)
+### Production pipelines (complete)
 
-### Aggregated data (1994-2019)
-- [x] Discovery of .dbf files on DATASUS FTP (1504 files)
-- [x] File naming convention mapping (CPNI/DPNI + state + year)
-- [x] Identification of 3 structural eras (CPNI and DPNI)
-- [x] Located dictionaries in /AUXILIARES/ (17 .cnv + 62 .def + 1 .dbf)
-- [x] Decoding of IMUNO.CNV and IMUNOCOB.DBF dictionaries
-- [x] Confirmation that coverage and doses use different IMUNO code systems
-- [x] Analysis of the evolution of 65 vaccine codes over 26 years
-- [x] Complete IMUNO × year matrix (exported as CSV)
-- [x] Transition mapping: municipality code (7→6), columns, types
+**SI-PNI Microdata (routine):**
+- [x] Python pipeline (jq + polars): `sipni-pipeline-python.py`
+- [x] Full bootstrap: 736M+ records, 21.7 hours on Hetzner x86
+- [x] Data on R2: `sipni/microdados/` partitioned by year/month/state
 
-### Reference documentation consulted
-- `Regrascobertura2013.pdf` — Detailed numerators by vaccine (2012-2013),
-  including APIDOS vs APIWEB rules, multi-vaccination and MRC campaign
-- `notatecnicaTx.pdf` — Dropout rates: formulas by vaccine, components to sum
-- `notatecnicaCobertura.pdf` — Vaccination coverage: complete rules by vaccine,
-  doses that complete the schedule, notes on Hexa (private clinics) and Pneumo 13V
-- `notatecnica.pdf` — General technical notes: data origin, coverage and vaccines,
-  target population table by period and state, age groups by immunobiological
-- `Nota_Tecnica_Imunizacoes_Cobertura_desde_1994.pdf` — Coverage since 1994:
-  immunobiologicals × period × target population × coverage dose table,
-  composite indicators ("vaccine totals against..."), denominator rules
-  by state and period, observations on vaccine transitions
-- `Imun_cobertura_desde_1994.pdf` — Same information in different layout
-- `Nota_Tecnica_Imunizacoes_Doses_aplicadas_desde_1994.pdf` — Complete table
-  of immunobiologicals with periods, doses, age groups, and conditions (sex,
-  pregnancy), including sera and immunoglobulins
-- `Imun_doses_aplic_desde_1994.pdf` — Same information in different layout
+**SI-PNI COVID:**
+- [x] Python pipeline (polars): `sipni-covid-pipeline.py`
+- [x] Full bootstrap: 608M+ records, 7.8 hours on Hetzner x86
+- [x] Data on R2: `sipni/covid/microdados/` partitioned by year/month/state
+
+**SI-PNI Aggregated — Doses:**
+- [x] R pipeline (foreign + arrow + rclone): `sipni-agregados-doses-pipeline-r.R`
+- [x] Bootstrap: 84M records, 674 files processed, 4h40
+- [x] Data on R2: `sipni/agregados/doses/` partitioned by year/state
+
+**SI-PNI Aggregated — Coverage:**
+- [x] R pipeline: `sipni-agregados-cobertura-pipeline-r.R`
+- [x] Bootstrap: 2.76M records, 686 files, 44 minutes
+- [x] Data on R2: `sipni/agregados/cobertura/` partitioned by year/state
+
+**SI-PNI Dictionaries:**
+- [x] R pipeline: `sipni-dicionarios-pipeline-r.R` (curl + foreign + arrow)
+- [x] 18 files downloaded from DATASUS FTP (`/PNI/AUXILIARES/`): 17 .cnv + 1 .dbf
+- [x] 6 Parquets generated (imuno, imunocob, dose, fxet, ano, mes) — 263 rows total
+- [x] 18 originals preserved in `sipni/dicionarios/originais/`
+- [x] Data on R2: `sipni/dicionarios/` (~84 KB total)
+- [x] README published on R2; HF dataset card created (`SidneyBissoli/sipni-dicionarios`)
+
+### Publication
+- [x] READMEs in English created and published on R2 (5 datasets)
+- [x] Dataset cards created on Hugging Face (5 repos under `SidneyBissoli/`)
+- [x] Read-only public token configured on R2
+- [x] R code examples tested with all 5 datasets
+- [x] License defined: CC-BY 4.0
+- [x] `manifest.json` generated for all 4 primary modules
+- [x] Comparison engine implemented (`sync_check.py`)
+- [x] HF Space sync dashboard created and live
+
+### Recon (Phase 1 complete)
+- [x] SIM (mortality) — Recon complete 2026-03-07
+- [x] SINASC (live births) — Recon complete 2026-03-07
 
 ---
 
 ## 13. WHAT REMAINS TO BE DONE
 
-### Phase 1: Documentation (CURRENT)
-- [x] Rewrite PROJECT.md with updated scope
-- [ ] Organize exploratory scripts without redundancy
-- [ ] Create missing scripts from the microdata exploration phase
-- [ ] Store dictionaries (both phases)
-- [ ] Create harmonization document for aggregated ↔ microdata
-- [ ] Create code translation document across the entire time series
+### Pre-launch (immediate next steps)
+- [ ] Create `healthbR` package GitHub repository (folder structure, bilingual README,
+  FUNDING.yml, license)
+- [ ] Configure GitHub Sponsors
+- [ ] Publish financial transparency page
+- [ ] Public launch (dissemination per `strategy-dissemination-pt.md`)
+- [ ] Phase 6 (integration) for Dictionaries: document integration into `sipni_*()` module
 
-### Phase 2: Production pipeline
-- [ ] Final script: JSON download + microdata conversion (2020+)
-- [ ] Final script: download + conversion of aggregated data (1994-2019)
-- [ ] Final script: denominator download (SINASC + IBGE)
-- [ ] Upload script to R2
-- [ ] Complete pipeline testing and validation
-
-### Phase 3: R package `sipni`
-- [ ] Create package repository
-- [ ] Implement data access functions
-- [ ] Implement vaccine harmonization
-- [ ] Implement coverage calculation (microdata + denominator)
+### R package `healthbR`
+- [ ] Create package repository (`healthbR`)
+- [ ] Implement `sipni_*()` module — access SI-PNI data on R2 via Arrow
+- [ ] Implement vaccine harmonization (crosswalk aggregated ↔ microdata)
+- [ ] Implement coverage calculation (microdata + denominator via existing R packages)
 - [ ] Implement time series construction
+- [ ] Implement `check_sync()` and `validate_local()` (integrity via manifest)
 - [ ] Documentation and vignettes
 - [ ] Publish on GitHub (with pkgdown)
 - [ ] Submit to CRAN
+- [ ] Add `sim_*()` and `sinasc_*()` modules as datasets advance
 
-### Phase 4: Expansion (future)
-- [ ] Expand pipeline to other systems (SIM, SINASC, SIH)
-- [ ] Refactor healthbR as a meta-package
+### Expansion (future — after launch and feedback)
+- [ ] SIM (Mortality) — first module outside SI-PNI (Recon complete 2026-03-07)
+- [ ] SINASC (Live births) — synergy with SIM (Recon complete 2026-03-07)
+- [ ] SIH (Hospital admissions) — high complexity
 - [ ] API for non-R consumers
 
 ---
@@ -897,6 +917,18 @@ meta-package (tidyverse-style) in the future, bundling sipni, sim, sinasc, etc.
 | TabNet coverage | `http://tabnet.datasus.gov.br/cgi/dhdat.exe?bd_pni/cpnibr.def` |
 | TabNet doses | `http://tabnet.datasus.gov.br/cgi/dhdat.exe?bd_pni/dpnibr.def` |
 | SINASC (FTP) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SINASC/` |
+
+### Published URLs
+
+| Resource | URL |
+|----------|-----|
+| Hugging Face — SI-PNI Microdata | `https://huggingface.co/datasets/SidneyBissoli/sipni-microdados` |
+| Hugging Face — SI-PNI COVID | `https://huggingface.co/datasets/SidneyBissoli/sipni-covid` |
+| Hugging Face — SI-PNI Aggregated Doses | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-doses` |
+| Hugging Face — SI-PNI Aggregated Coverage | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-cobertura` |
+| Hugging Face — SI-PNI Dictionaries | `https://huggingface.co/datasets/SidneyBissoli/sipni-dicionarios` |
+| HF Space — Sync Status Dashboard | `https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status` |
+| R2 endpoint (S3-compatible) | `https://<account-id>.r2.cloudflarestorage.com` |
 
 ### Exploration artifacts
 

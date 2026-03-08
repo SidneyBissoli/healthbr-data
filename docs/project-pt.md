@@ -4,9 +4,9 @@
 > Claude Code) que precise entender o projeto sem ter participado das conversas
 > anteriores. Ele é a fonte de verdade sobre decisões, arquitetura e estado atual.
 >
-> Última atualização: 2026-03-01 (v4 — estado atual: 4 datasets publicados no R2,
-> dataset cards no HF, sistema de sincronização operacional (manifesto + comparison
-> engine + dashboard HF), pré-lançamento)
+> Última atualização: 2026-03-07 (v6 — SI-PNI Dicionários publicado (Fase 5
+> concluída); Recon do SIM e SINASC concluídos; decisão de arquitetura do
+> pacote R formalizada: `healthbR` unificado adotado como modelo definitivo)
 >
 > **Documentos relacionados:**  
 > - `strategy-expansion-pt.md` — Ciclo de vida de módulos, lições aprendidas,
@@ -57,9 +57,10 @@ O projeto tem quatro componentes:
    que verifica se os dados redistribuídos estão em sincronia com as fontes
    oficiais, com dashboard público no Hugging Face Spaces.
 
-4. **Pacote R `sipni`** (repositório separado) — permite ao pesquisador
-   construir séries temporais de cobertura vacinal por qualquer vacina e
-   geografia com poucas linhas de código.
+4. **Pacote R `healthbR`** (repositório separado) — permite ao pesquisador
+   acessar dados de múltiplos sistemas de informação (SI-PNI, SIM, SINASC…)
+   e construir análises integradas com poucas linhas de código. O SI-PNI é
+   o primeiro módulo implementado (`healthbR::sipni_*()`).
 
 ---
 
@@ -149,8 +150,8 @@ Este projeto oferece:
 │  3. Hugging Face (espelho para descobribilidade)                 │
 │     └── README aponta para R2 como fonte primária                │
 │                                                                  │
-│  4. Pacote R "sipni" (consumo)                                   │
-│     └── Conecta às 4 fontes harmonizadas no R2                   │
+│  4. Pacote R "healthbR" (consumo)                                │
+│     └── Meta-pacote com módulos por sistema (sipni, sim, sinasc) │
 │     └── Calcula cobertura vacinal com denominador correto        │
 │     └── Entrega séries temporais e dados prontos para ggplot     │
 │                                                                  │
@@ -211,7 +212,7 @@ leitura de objetos no bucket `healthbr-data`.
 
 **Dados populacionais (denominadores):** Não são publicados como módulo no R2.
 A lógica de construção de denominadores (regras CGPNI por período e UF) será
-incorporada ao pacote R `sipni`, que acessará as fontes diretamente via
+incorporada ao pacote R `healthbR`, que acessará as fontes diretamente via
 pacotes R existentes (`brpop`, `sidrar`, `microdatasus`). Decisão de
 28/fev/2026 — denominadores são dados fáceis de obter e não justificam
 pipeline, armazenamento nem documentação de dataset próprios.
@@ -778,60 +779,77 @@ de referência separados no repositório. O pesquisador faz o join se quiser.
 **Dicionários:** publicados na íntegra, nos formatos originais do Ministério.
 
 **Populações (denominadores):** não são publicadas como módulo no R2.
-A lógica de construção de denominadores será incorporada ao pacote R `sipni`
+A lógica de construção de denominadores será incorporada ao pacote R `healthbR`
 (ver seção 10).
 
 ### Por que não decodificar os agregados inline?
 
 Decodificar criaria um derivado nosso, não mais o documento original do
-Ministério. O projeto prioriza fidelidade à fonte. O pacote R `sipni` fará
+Ministério. O projeto prioriza fidelidade à fonte. O pacote R `healthbR` fará
 o join automaticamente para o pesquisador — a conveniência fica no software,
 não nos dados.
 
 ---
 
-## 10. PACOTE R `sipni`
+## 10. PACOTE R `healthbR`
+
+### Decisão de arquitetura (07/mar/2026)
+
+O projeto adota um **pacote R unificado `healthbR`** como interface principal
+para os pesquisadores. A alternativa de pacotes isolados por sistema (`sipni`,
+`sim`, `sinasc`…) foi avaliada e descartada pelos seguintes motivos:
+
+- Denominadores populacionais (SINASC → SI-PNI) seriam duplicados entre pacotes  
+- Interface fragmentada exigiria múltiplos `install.packages()` para análises integradas  
+- Sinergia entre sistemas (SIM × SINASC × SI-PNI) é natural dentro de um único pacote  
+- Overhead de manutenção (N repos, N CIs, N release cycles) desnecessário  
+
+O modelo de referência é o tidyverse: um meta-pacote que carrega módulos
+coerentes entre si. Ver `strategy-expansion-pt.md`, Seção 14, para a
+discussão completa.
 
 ### Nome
 
-`sipni` — validado com `pak::pkg_name_check()`. Disponível no CRAN e
-Bioconductor. Curto, descritivo, sem prefixo `r` (convenção rOpenSci moderna).
+`healthbR` — meta-pacote com módulos por sistema de informação:
+- `healthbR::sipni_*()` — SI-PNI (microdados, agregados, dicionários)
+- `healthbR::sim_*()` — SIM (mortalidade)
+- `healthbR::sinasc_*()` — SINASC (nascidos vivos)
+- `healthbR::sih_*()` — SIH (internações) — futuro
 
 ### Valor do pacote
 
 O pacote se justifica por integrar múltiplas fontes harmonizadas e resolver a
 complexidade que nenhum pesquisador deveria repetir individualmente:
 
-- Conecta a agregados, microdados e dicionários no R2
+- Conecta a agregados, microdados e dicionários do SI-PNI no R2
 - Faz join código→nome automaticamente para os agregados
 - Calcula cobertura a partir dos microdados + denominador SINASC/IBGE
   (acessa denominadores via pacotes R existentes, sem módulo R2 próprio)
 - Harmoniza nomenclatura de vacinas ao longo de 30 anos
 - Constrói série temporal contínua para qualquer vacina × geografia
+- Acessa dados do SIM, SINASC (quando disponíveis) via mesma interface
 - Valida integridade dos dados: `check_sync()` compara manifesto com fonte
   atual; `validate_local()` verifica checksums de Parquets locais
 
 ### Interface conceitual
 
 ```r
-library(sipni)
+library(healthbR)
 
-# Série temporal de cobertura
-sipni::cobertura("triplice_viral", uf = "DF", anos = 1994:2025)
+# Série temporal de cobertura vacinal (módulo sipni)
+healthbR::sipni_cobertura("triplice_viral", uf = "DF", anos = 1994:2025)
 # → tibble com ano, cobertura_pct, fonte (agregado/microdados), denominador
 
 # Doses aplicadas brutas
-sipni::doses(vacina = "pentavalente", municipio = "530010", anos = 2015:2025)
+healthbR::sipni_doses(vacina = "pentavalente", municipio = "530010", anos = 2015:2025)
 
 # Dados brutos de microdados
-sipni::microdados(uf = "AC", ano = 2024, mes = 1)
+healthbR::sipni_microdados(uf = "AC", ano = 2024, mes = 1)
 # → arrow::open_dataset() com filtros aplicados
+
+# Mortalidade (módulo sim — futuro)
+healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 ```
-
-### Relação com healthbR
-
-O `sipni` será pacote independente no CRAN. O `healthbR` poderá ser
-meta-pacote (estilo tidyverse) no futuro, reunindo sipni, sim, sinasc, etc.
 
 ---
 
@@ -851,7 +869,7 @@ meta-pacote (estilo tidyverse) no futuro, reunindo sipni, sim, sinasc, etc.
 | Denominadores no pacote R, não no R2 | Módulo R2 `sipni/populacao/` | Dados fáceis de obter via pacotes existentes. Não justifica pipeline. |
 | Dashboard de sincronização no HF Spaces | GitHub Pages / Vercel | Gratuito, Python-nativo, vive ao lado dos datasets, descobrível. |
 | Manifesto por módulo no R2 | Controle de versão centralizado | Cada módulo é autocontido. Consumidores (dashboard, pacote R) leem o manifesto diretamente. |
-| Nome `sipni` | `rsipni`, `vacinabr` | Convenção rOpenSci: curto, descritivo, sem prefixo `r`. |
+| Pacote R `healthbR` unificado | Pacotes isolados por sistema (`sipni`, `sim`…) | Interface unificada, sinergia entre sistemas, sem duplicação de denominadores. Decisão de 07/mar/2026. |
 | Precisão prevalece sobre velocidade | Pipeline mais rápido com CSV | 22h vs 8h de bootstrap, mas fidelidade aos dados originais é inegociável. |
 
 ---
@@ -913,12 +931,21 @@ meta-pacote (estilo tidyverse) no futuro, reunindo sipni, sim, sinasc, etc.
 - [x] Bootstrap: 2.76M registros, 686 arquivos, 44 minutos
 - [x] Dados no R2: `sipni/agregados/cobertura/` particionado por ano/uf
 
+**SI-PNI Dicionários:**
+- [x] Pipeline R: `sipni-dicionarios-pipeline-r.R` (curl + foreign + arrow)
+- [x] 18 arquivos baixados do FTP DATASUS (`/PNI/AUXILIARES/`): 17 .cnv + 1 .dbf
+- [x] 6 Parquets gerados (imuno, imunocob, dose, fxet, ano, mes) — 263 linhas total
+- [x] 18 originais preservados em `sipni/dicionarios/originais/`
+- [x] Dados no R2: `sipni/dicionarios/` (~84 KB total)
+- [x] README publicado no R2; dataset card HF criado (`SidneyBissoli/sipni-dicionarios`)
+- [x] Exemplos R e Python testados
+
 ### Publicação (parcialmente concluída)
 
-- [x] READMEs em inglês criados e publicados no R2 (4 datasets)
-- [x] Dataset cards criados no Hugging Face (4 repos sob `SidneyBissoli/`)
+- [x] READMEs em inglês criados e publicados no R2 (5 datasets, incluindo Dicionários)
+- [x] Dataset cards criados no Hugging Face (5 repos sob `SidneyBissoli/`)
 - [x] Token read-only público configurado no R2
-- [x] Exemplos de código R testados com os 4 datasets
+- [x] Exemplos de código R testados com os 5 datasets
 - [x] Licença definida: CC-BY 4.0
 
 ### Documentação estratégica (concluída)
@@ -954,7 +981,7 @@ meta-pacote (estilo tidyverse) no futuro, reunindo sipni, sim, sinasc, etc.
 
 ### Pré-lançamento (próximos passos imediatos)
 
-- [ ] Criar repositório GitHub público (estrutura de pastas, README bilíngue,
+- [ ] Criar repositório GitHub público do pacote `healthbR` (estrutura de pastas, README bilíngue,
   FUNDING.yml, licença)
 - [x] Gerar `manifest.json` retroativamente para os 4 módulos já no R2
 - [x] Implementar comparison engine (`sync_check.py`)
@@ -967,12 +994,13 @@ meta-pacote (estilo tidyverse) no futuro, reunindo sipni, sim, sinasc, etc.
 
 - [ ] Criar documento de tradução de códigos IMUNO ao longo de toda a série
   temporal (crosswalk 65 códigos × 26 anos)
-- [ ] Publicar dicionários originais no R2 (`sipni/dicionarios/`)
+- [x] Publicar dicionários originais no R2 (`sipni/dicionarios/`) — concluído
+- [ ] Fase 6 dos Dicionários: documentar integração ao módulo `sipni_*()` do `healthbR`
 
-### Pacote R `sipni`
+### Pacote R `healthbR`
 
-- [ ] Criar repositório do pacote
-- [ ] Implementar funções de acesso aos dados (R2 via Arrow)
+- [ ] Criar repositório do pacote (`healthbR`)
+- [ ] Implementar módulo `sipni_*()` — acesso aos dados do SI-PNI (R2 via Arrow)
 - [ ] Implementar harmonização de vacinas (crosswalk agregados ↔ microdados)
 - [ ] Implementar cálculo de cobertura (microdados + denominador via pacotes
   R existentes — `brpop`, `sidrar`, `microdatasus`)
@@ -981,13 +1009,13 @@ meta-pacote (estilo tidyverse) no futuro, reunindo sipni, sim, sinasc, etc.
 - [ ] Documentação e vignettes
 - [ ] Publicar no GitHub (com pkgdown)
 - [ ] Submeter ao CRAN
+- [ ] Adicionar módulos `sim_*()` e `sinasc_*()` conforme esses datasets avançam nas fases
 
 ### Expansão (futuro — após lançamento e feedback)
 
-- [ ] SIM (Mortalidade) — primeiro módulo fora do SI-PNI
-- [ ] SINASC (Nascidos Vivos) — sinergia com SIM
+- [ ] SIM (Mortalidade) — primeiro módulo fora do SI-PNI (Recon concluído 07/mar/2026)
+- [ ] SINASC (Nascidos Vivos) — sinergia com SIM (Recon concluído 07/mar/2026)
 - [ ] SIH (Internações Hospitalares) — alta complexidade
-- [ ] Reformular healthbR como meta-pacote
 - [ ] API para consumidores não-R
 
 > **Sequência detalhada, critérios de prontidão e priorização:** ver
@@ -1020,6 +1048,7 @@ meta-pacote (estilo tidyverse) no futuro, reunindo sipni, sim, sinasc, etc.
 | Hugging Face — SI-PNI COVID | `https://huggingface.co/datasets/SidneyBissoli/sipni-covid` |
 | Hugging Face — SI-PNI Agregados Doses | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-doses` |
 | Hugging Face — SI-PNI Agregados Cobertura | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-cobertura` |
+| Hugging Face — SI-PNI Dicionários | `https://huggingface.co/datasets/SidneyBissoli/sipni-dicionarios` |
 | HF Space — Sync Status Dashboard | `https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status` |
 | R2 endpoint (S3-compatível) | `https://<account-id>.r2.cloudflarestorage.com` |
 
@@ -1043,6 +1072,7 @@ meta-pacote (estilo tidyverse) no futuro, reunindo sipni, sim, sinasc, etc.
 | `docs/covid/exploration-pt.md` | Exploração completa do dataset COVID |
 | `docs/sipni-agregados/exploration-pt.md` | Exploração dos agregados (doses) |
 | `docs/sipni-agregados/exploration-cobertura-pt.md` | Exploração dos agregados (cobertura) |
+| `docs/sipni-dicionarios/exploration-pt.md` | Exploração dos dicionários (formatos .cnv/.dbf, decisões de parsing) |
 
 ### Documentos técnicos de referência (arquivos do projeto)
 

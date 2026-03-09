@@ -497,14 +497,14 @@ cat /root/data/controle_versao_sipni_agregados_cobertura.csv
 
 ## 7. COMPARAÇÃO DOS PIPELINES
 
-| Métrica | SI-PNI (rotina) | SI-PNI COVID | Agregados Doses | Agregados Cobertura |
-|---------|-----------------|--------------|-----------------|---------------------|
-| Tempo total | 21,7 horas | 7,8 horas | 4,7 horas | **44 min** |
-| Registros | 736 milhões | 608 milhões | 84 milhões | **2,8 milhões** |
-| Dados brutos | ~130 GB (ZIP) | 292 GB (CSV) | ~1,5 GB (.dbf) | **~50 MB (.dbf)** |
-| Taxa | ~33,9M reg/hora | ~78,0M reg/hora | ~300K reg/hora | **~3,8M reg/hora** |
-| Formato fonte | JSON em ZIP | CSV direto | .dbf (FTP) | .dbf (FTP) |
-| Dependências | Python + jq + polars + rclone | Python + polars + rclone | R + foreign + arrow + rclone | R + foreign + arrow + rclone |
+| Métrica | SI-PNI (rotina) | SI-PNI COVID | Agregados Doses | Agregados Cobertura | **SINASC** |
+|---------|-----------------|--------------|-----------------|---------------------|------------|
+| Tempo total | 21,7 horas | 7,8 horas | 4,7 horas | 44 min | **117 min** |
+| Registros | 736 milhões | 608 milhões | 84 milhões | 2,8 milhões | **85 milhões** |
+| Dados brutos | ~130 GB (ZIP) | 292 GB (CSV) | ~1,5 GB (.dbf) | ~50 MB (.dbf) | **~5,4 GB (.dbc)** |
+| Taxa | ~33,9M reg/hora | ~78,0M reg/hora | ~300K reg/hora | ~3,8M reg/hora | **~43,6M reg/hora** |
+| Formato fonte | JSON em ZIP | CSV direto | .dbf (FTP) | .dbf (FTP) | **.dbc (FTP)** |
+| Dependências | Python + jq + polars + rclone | Python + polars + rclone | R + foreign + arrow + rclone | R + foreign + arrow + rclone | **R + read.dbc + arrow + rclone** |
 
 O COVID processou 2,3x mais registros por hora apesar de lidar com 2,2x
 mais dados brutos em volume. **Lição: o formato da fonte é o fator
@@ -722,4 +722,190 @@ rclone ls r2:healthbr-data/sipni/dicionarios/ --transfers 16 --checkers 32
 
 ---
 
-*Última atualização: 03/mar/2026 — Adicionada seção 12 (pipeline dicionários SI-PNI).*
+## 13. PIPELINE SINASC: DBC → Parquet → R2
+
+### Objetivo
+
+Baixar microdados de nascidos vivos do SINASC (1994–2022) do FTP do
+DATASUS (arquivos .dbc), aplicar schema unificado para harmonizar 12
+schemas históricos, converter para Parquet particionado (ano/uf), e
+armazenar no Cloudflare R2 para redistribuição.
+
+### Arquitetura
+
+```
+FTP do DATASUS (arquivos .dbc por UF e ano)
+        ↓ download via curl
+VPS Hetzner (processamento temporário)
+        ↓ R: read.dbc::read.dbc() + schema unificado + arrow::write_parquet
+        ↓ upload via rclone
+Cloudflare R2 (armazenamento permanente)
+        ↓ leitura via Arrow
+Pesquisadores (pacote R healthbR)
+```
+
+### Números finais
+
+| Métrica | Valor |
+|---------|-------|
+| Série | 1994–2022 (29 anos) |
+| Arquivos processados | **783** (de 843 na grade: 29 UFs × 29 anos) |
+| Arquivos indisponíveis/vazios | 60 (UFs/anos sem dados no FTP) |
+| Total de registros | **85.033.402** |
+| Tempo de bootstrap | **117 minutos (~2 horas)** |
+| Taxa | ~43,6M registros/hora |
+| Dados fonte | ~5,4 GB (.dbc via FTP) |
+| Estrutura no R2 | `sinasc/ano=YYYY/uf=XX/part-0.parquet` |
+| Script | `scripts/pipeline/sinasc-pipeline-r.R` |
+| Controle | `data/controle_versao_sinasc.csv` |
+
+### Diferenças em relação aos pipelines anteriores
+
+| Aspecto | SI-PNI Agregados (.dbf) | SINASC (.dbc) |
+|---------|:-----------------------:|:-------------:|
+| Formato fonte | .dbf (DBF puro) | **.dbc** (DBF comprimido DATASUS) |
+| Ferramenta de leitura | `foreign::read.dbf()` | `read.dbc::read.dbc()` |
+| Schemas históricos | 2–3 eras | **12 schemas distintos** |
+| Schema unificado | Não (publicação por era) | **Sim** (rename 1994–1995 → moderno) |
+| Conversão de datas | Não | **Sim** (YYYYMMDD → DDMMYYYY na era 1994–1995) |
+| Volume | ~1,5 GB (doses), ~50 MB (cobertura) | **~5,4 GB** |
+| Registros | 84M (doses), 2,8M (cobertura) | **85M** |
+| Diretórios FTP | 1 (`PNI/DADOS/`) | **2** (`NOV/DNRES/` + `ANT/DNRES/`) |
+| Prefixo de arquivo | DPNI/CPNI (fixo) | **DN** (moderna) / **DNR** (1994–1995) |
+
+Este é o **primeiro pipeline com formato .dbc** e o primeiro fora do
+ecossistema SI-PNI, validando o método de expansão modular definido no
+`strategy-expansion-pt.md`.
+
+### Particularidades
+
+**Formato .dbc:** Formato proprietário do DATASUS — compressão sobre DBF.
+Leitura via `read.dbc::read.dbc()` (R). O pacote precisa ser instalado
+separadamente: `install.packages("read.dbc")`.
+
+**12 schemas históricos:** A DNV (Declaração de Nascido Vivo) evoluiu de
+30 campos (1994–1995) para 61 campos (2018–2022), passando por 12
+configurações distintas. Os dados são publicados com o schema original
+de cada era — `open_dataset(unify_schemas = TRUE)` do Arrow preenche
+automaticamente colunas ausentes com `null`.
+
+**Schema unificado (era 1994–1995):** Os arquivos da era antiga usam
+nomenclatura diferente (ex: `LOCAL_OCOR` → `LOCNASC`, `MUNI_OCOR` →
+`CODMUNNASC`). O pipeline aplica rename de 20 campos + conversão de
+datas (YYYYMMDD → DDMMYYYY) para harmonizar com a era moderna. Campos
+locais sem equivalente nacional são mantidos como colunas extras; campos
+de controle interno (ETNIA, FIL_ABORT, NUMEXPORT, CRITICA) são
+descartados. Mapeamento documentado em `docs/sinasc/exploration-pt.md`,
+seção 9.5.
+
+**Dois diretórios FTP:** Era antiga em `ANT/DNRES/` (prefixo `DNR`),
+era moderna em `NOV/DNRES/` (prefixo `DN`). O pipeline seleciona
+automaticamente via `info_arquivo(uf, ano)`.
+
+**Instalação do `read.dbc` no Hetzner:** O pacote depende de compilação
+C. Ver `scripts/pipeline/install-read-dbc.R` para o procedimento de
+instalação no servidor.
+
+### Rodar e monitorar
+
+```bash
+# Instalar dependência read.dbc (uma vez)
+Rscript /opt/sinasc/install-read-dbc.R
+
+# Rodar
+nohup Rscript /opt/sinasc/sinasc-pipeline-r.R > /root/pipeline_sinasc.log 2>&1 &
+
+# Monitorar
+tail -f /root/pipeline_sinasc.log
+grep "^ANO " /root/pipeline_sinasc.log
+grep -c "registros" /root/pipeline_sinasc.log
+grep -i "erro\|indisponivel" /root/pipeline_sinasc.log
+cat /root/data/controle_versao_sinasc.csv | wc -l
+```
+
+---
+
+## 14. PIPELINE SIH — AIH REDUZIDA (RD)
+
+### Visão geral
+
+| Propriedade | Valor |
+|-------------|-------|
+| Script | `scripts/pipeline/sih-pipeline-r.R` |
+| Linguagem | R puro (read.dbc + arrow + curl + rclone) |
+| Fonte | FTP DATASUS — `.dbc` (era moderna `200801_/Dados/` + era antiga `199201_200712/Dados/`) |
+| Escopo | Apenas RD (AIH Reduzida) — SP, RJ, ER são expansões futuras |
+| Prefixo R2 | `sih/` |
+| Particionamento | `ano=YYYY/mes=MM/uf=XX/part-0.parquet` |
+| Tipos no Parquet | Tudo string (padrão do projeto) |
+| Estratégia de schema | Schema original por arquivo — sem unificação, sem NAs fabricados |
+
+### Números do bootstrap
+
+| Métrica | Sprint 1 (2008–2026) | Sprint 2 (1992–2007) | Total |
+|---|---|---|---|
+| Arquivos processados | 5.856 | 5.155 | **11.011** |
+| Registros | 217.800.186 | 197.572.316 | **415.372.502** |
+| Tamanho no R2 | — | — | **16,1 GiB** |
+| Tempo | 1.084,7 min (~18h) | ~12–15h | **~30–33h** |
+| Schemas distintos | 4 (86, 93, 95, 113 cols) | 10 (35, 39, 41, 42, 52, 60, 68, 69, 75, 86 cols) | **14** |
+| Lacunas (indisponíveis no FTP) | 300 (meses futuros 2025–2026) | 19 (Roraima 1995–2000, AC 1994, AP 2007) | 319 |
+
+### Evolução do schema
+
+| Período | Cols | Marco |
+|---------|:----:|-------|
+| 1992–1993 | 35 | Início da informatização |
+| 1994 | 39 | |
+| 1995–1997 | 41–42 | CID-9, datas YYMMDD, ANO_CMPT 2 dígitos |
+| 1998 | 41 | **Transição:** CID-10, datas YYYYMMDD, ANO_CMPT 4 dígitos |
+| 1999–2001 | 52–60 | +UTI, +gestão |
+| 2002–2005 | 68–69 | +CNES (2004) |
+| 2006–2007 | 75 | |
+| 2008–2010 | 86 | **Troca de era FTP**, SIGTAP (10 dígitos), +RACA_COR |
+| 2011–2012 | 93 | |
+| 2013 | 95 | |
+| 2014–2026 | 113 | **Estabilizado** — +DIAGSEC1-9 |
+
+### Particularidades
+
+**Dados preservados como publicados pelo MS:** O pipeline não converte
+datas (YYMMDD permanece YYMMDD na era antiga), não remapeia CID-9 para
+CID-10, e não normaliza ANO_CMPT de 2 para 4 dígitos. Cada arquivo
+Parquet tem exatamente as colunas que o `read.dbc()` retorna.
+
+**Sprints independentes:** A variável `SPRINT` no script controla o
+escopo (1 = era moderna 2008+, 2 = era antiga 1992–2007, 3 = full).
+O Sprint 2 acumula no mesmo controle de versão e manifesto do Sprint 1.
+
+**Nomenclatura de arquivos .dbc:** Padrão `RD{UF}{AA}{MM}.dbc` onde
+`AA` = ano com 2 dígitos (ex: `RDDF2401.dbc` = DF, jan/2024;
+`RDDF9501.dbc` = DF, jan/1995). Ambas as eras usam o mesmo padrão de
+nome, diferindo apenas no diretório FTP.
+
+**Lacunas históricas:** 19 arquivos da era antiga não existem no FTP.
+15 são de Roraima (jul/1995–mai/2000), estado com informatização tardia.
+Os demais são AC fev/1994 e AP out/2007. Essas lacunas são do próprio
+Ministério, não falhas do pipeline.
+
+### Rodar e monitorar
+
+```bash
+# Sprint 1 (era moderna, 2008–presente)
+nohup Rscript sih-pipeline-r.R > sih-sprint1.log 2>&1 &
+tail -f sih-sprint1.log
+
+# Sprint 2 (era antiga, 1992–2007) — após Sprint 1
+sed -i 's/^SPRINT <- 1/SPRINT <- 2/' sih-pipeline-r.R
+nohup Rscript sih-pipeline-r.R > sih-sprint2.log 2>&1 &
+tail -f sih-sprint2.log
+
+# Monitorar
+grep -c "rows" sih-sprint1.log
+grep "Upload" sih-sprint1.log | tail -5
+ps aux | grep sih-pipeline
+```
+
+---
+
+*Última atualização: 09/mar/2026 — Adicionada seção 14 (pipeline SIH).*

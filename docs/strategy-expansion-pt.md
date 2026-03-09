@@ -808,18 +808,45 @@ acima nas fases 5 ou 6).
 | Integração no pacote R | Módulo `healthbR::sinasc_*()` — ver decisão de arquitetura de 07/mar/2026 na Seção 8.1 |
 | Pendente Fase 6 | Atualizar `project-pt.md` e `project-en.md`; integração ao pacote R `healthbR` (módulo `sinasc`) |
 
-#### SIH (Internações Hospitalares) — 📋 FUTURO
+#### SIH (Internações Hospitalares) — 🔍 FASE 1 CONCLUÍDA
 
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sih/` |
-| Fase atual | 0 (não iniciado) |
-| Fonte provável | FTP DATASUS (`.dbc`) — AIH (Autorização de Internação Hospitalar) |
-| Cobertura temporal provável | 1992–presente |
-| Alternativas existentes | PCDaS (Fiocruz); microdatasus; Base dos Dados (parcial) |
-| Sinergia | Baixa com SI-PNI; alta com SIM (internações + óbitos) |
-| Complexidade estimada | Alta (múltiplos tipos de arquivo: RD, RJ, SP, ER; estrutura complexa; volume muito grande — dezenas de milhões de AIH/ano) |
-| Reconhecimento necessário | Tipos de arquivo, volume, estrutura, se há microdados no OpenDATASUS |
+| Fase atual | **4 (Pipeline concluído — 09/mar/2026)** |
+| Fontes identificadas | **FTP DATASUS — duas eras** |
+| — FTP era moderna (2008–presente) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Dados/` — arquivos `.dbc` mensais por tipo × UF; padrão `{TIPO}{UF}{AAMM}.dbc` (ex: `RDSP2107.dbc`) |
+| — FTP era antiga (1992–2007) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/199201_200712/Dados/` — mesmo padrão de nomes; possível diferença de schema entre eras |
+| — OpenDATASUS (S3) | **Não disponível** para microdados do SIH convencional. Portal tem apenas dados de ocupação hospitalar COVID-19 (sistema e-SUS separado). Diferente do SIM, não há base SIH no S3 do OpenDATASUS |
+| Tipos de arquivo | **4 tipos de `.dbc`**, cada um com série própria por UF × mês: |
+| | — **RD** (AIH Reduzida): internações processadas e validadas — **é o dataset principal para pesquisa** |
+| | — **SP** (Serviços Profissionais): atos médicos detalhados por procedimento |
+| | — **RJ** (AIH Rejeitada): internações rejeitadas no processamento |
+| | — **ER** (Erro de Rejeição): motivos de erro das AIHs rejeitadas |
+| Cobertura temporal confirmada | **1992–presente** (informatização iniciada em 1992; dados de 1981–1991 existem mas apenas agregados no TabNet, sem microdados .dbc) |
+| Frequência de atualização | **Mensal** — um arquivo por tipo × UF × mês de competência |
+| Formato | `.dbc` (formato proprietário DATASUS — compressão sobre DBF); leitura via `read.dbc::read.dbc()` (R) ou `pysus` (Python) |
+| Variáveis | **113 variáveis** na AIH Reduzida moderna (2015+, confirmado via exploração). **~10 schemas históricos** (35–113 cols). Transições: CID-9→CID-10 em 1998, SIGTAP em 2008, DIAGSEC1-9 em 2015. Variáveis: identificação do paciente (sexo, nascimento, idade, raça/cor, estado civil, município de residência, CEP, ocupação), internação (data entrada/saída, especialidade, tipo admissão, dias permanência, UTI, motivo alta), diagnósticos (CID-10 principal + até 9 secundários), procedimentos realizados (códigos SIGTAP), custos (valores por componente), estabelecimento (CNES, município, natureza jurídica) |
+| Volume estimado | **~11 milhões de AIH/ano** nos anos recentes (186,3M de AIH entre 2008 e maio/2024 segundo PCDaS). Considerando 4 tipos × 27 UFs × 12 meses × ~33 anos = **~42.000–50.000 arquivos .dbc** para cobertura completa (1992–presente). Somente RD da era moderna (2008–presente): ~27 UFs × ~17 anos × 12 meses = **~5.500 arquivos**. Volume total estimado em disco (comprimido .dbc): **dezenas de GB**; descomprimido/Parquet: **centenas de GB** |
+| Dicionário oficial | **TAB_SIH.zip** (5,4 MB, 887 arquivos: 793 .cnv, 81 .dbf, 4 .def, 2 PDF, 1 XLSX). Inclui CID-10, SIGTAP, CBO, CNES. Doc: IT_SIHSUS_1603.pdf. Legado: TAB_SIH_199201-199712.zip |
+| Alternativas existentes | **PCDaS/Fiocruz** (2008–presente, tratado e enriquecido, **acesso restrito** via cadastro institucional); **`microdatasus`** (R, lê .dbc do FTP diretamente, suporta `SIH-RD` com pré-processamento); **`pysus`** (Python, suporta RD/RJ/ER/SP); **Base dos Dados** (parcial); **`datasus-fetcher`** (Python, download automatizado) |
+| Complexidade estimada | **Alta** — (1) 4 tipos de arquivo com schemas distintos; (2) particionamento mensal (vs anual no SIM/SINASC) multiplica número de arquivos por 12; (3) volume massivo (~11M registros/ano só para RD); (4) duas eras FTP com possível mudança de schema; (5) histórico 1992–2007 pode ter menos variáveis que 2008–presente |
+| Sinergia | Alta com SIM (internações + óbitos para estudos de desfechos e mortalidade hospitalar); alta com SINASC (internações perinatais × nascimentos); média com SI-PNI (internações por doenças imunopreveníveis — ICSAP) |
+| Integração no pacote R | Módulo `healthbR::sih_*()` — ver decisão de arquitetura de 07/mar/2026 na Seção 14 |
+| Exploração | `docs/sih/exploration-pt.md` |
+| Pipeline | `scripts/pipeline/sih-pipeline-r.R` |
+| Documentação pipeline | `reference-pipelines-pt.md`, seção 14 |
+| Controle | `data/controle_versao_sih.csv` |
+| Bootstrap Sprint 1 | 5.856 arquivos, 217.800.186 registros, 1.084,7 min, 4 schemas (86–113 cols) |
+| Bootstrap Sprint 2 | 5.155 arquivos, 197.572.316 registros, ~12–15h, 10 schemas (35–86 cols) |
+| **Totais** | **11.011 arquivos, 415.372.502 registros, 16,1 GiB no R2, 14 schemas distintos** |
+| Lacunas | 19 históricas (Roraima 1995–2000, AC 1994, AP 2007) + 300 meses futuros |
+| **Justificativa do módulo** | SIH é o maior sistema de informações hospitalares do SUS e um dos mais utilizados em pesquisa em saúde pública no Brasil. Com ~11M de internações/ano e 113 variáveis por registro, é insumo básico para estudos de morbidade hospitalar, avaliação de serviços, análises de custo, e indicadores como taxa de mortalidade hospitalar e tempo médio de permanência. As alternativas existentes (microdatasus, pysus) não persistem dados — exigem download e processamento a cada uso. PCDaS persiste mas tem acesso restrito. Base dos Dados tem cobertura parcial. Um dataset Parquet pré-processado no R2 público preenche uma lacuna real. Complementa diretamente SIM (desfecho óbito após internação) e SINASC (internações perinatais) |
+| **Cobertura-alvo** | **1992–presente (completa)**, construída em duas sprints dentro da Fase 4 (Pipeline) |
+| **Sprint 1 — Era moderna (2008–presente)** | AIH Reduzida (RD), 5.858 arquivos. Schema estável, ~113 variáveis, documentação sólida. Pipeline nasce aqui: download FTP → read.dbc → Parquet particionado (`sih/ano=YYYY/mes=MM/uf=XX/`). Validar contagem, tipos, partições. Publicar no R2 ao final da sprint |
+| **Sprint 2 — Era antiga (1992–2007)** | AIH Reduzida (RD), 5.165 arquivos (`199201_200712/`). Explorar schema da era antiga (possível diferença de variáveis e codificação vs era moderna). Mapear para schema unificado se necessário (padrão SINASC: mapeamento nome antigo → moderno). Incorporar ao mesmo prefixo `sih/` no R2. O resultado final é um dataset RD contínuo 1992–presente |
+| **Expansão futura (pós-publicação)** | SP, RJ, ER como submódulos opcionais em `sih/sp/`, `sih/rj/`, `sih/er/` — baixa prioridade, só se houver demanda |
+| **Precedente** | Mesmo padrão do SINASC: `NOV/DNRES/` (1996–2022) + `ANT/DNRES/` (1994–1995), com mapeamento de 12 schemas históricos para schema unificado |
 
 #### SINAN (Agravos de Notificação) — 🔮 HORIZONTE
 
@@ -844,7 +871,7 @@ acima nas fases 5 ou 6).
 | Pacote R `healthbR` | — | **2** | Meta-pacote unificado (módulos `sipni`, `sim`, `sinasc`…); inclui lógica de denominadores sem módulo R2 próprio — ver decisão de 07/mar/2026 |
 | SIM | 1 | **3** | Recon concluído 07/mar/2026; primeiro módulo fora do SI-PNI (prefixo `sim/`) |
 | SINASC | ✅ 5 | **4** | Publicado (R2 + HF + sync); 783 arquivos, 85M registros; pendente Fase 6 (integração ao `healthbR`) |
-| SIH | 0 | **5** | Complexo, muitas alternativas existentes (prefixo `sih/`) |
+| SIH | 4 | **5** | Fase 4 concluída 09/mar/2026; RD 1992–2026, 11.011 arquivos, 415M registros, 16,1 GiB no R2; pronto para Fase 5 (prefixo `sih/`) |
 | SINAN | 0 | **6** | Horizonte, sem demanda explícita (prefixo `sinan/`) |
 | ~~SI-PNI Populações~~ | ❌ | — | Removido: denominadores via pacotes R existentes, sem R2 |
 
@@ -883,9 +910,12 @@ no HF, manifesto de integridade e sincronização via GitHub Actions.
 ```
 ✅ SINASC ─────────── Fase 5 (publicado) ── pendente Fase 6 (healthbR)
        │
-6. SIM ────────────── Fase 1→6 ──── primeiro módulo novo após SINASC
+6. SIM ────────────── Fase 1→6 ──── Recon concluído 07/mar/2026
        │
-7. SIH ────────────── Fase 1→6 ──── maior complexidade, mais alternativas
+7. SIH ────────────── Fase 1→6 ──── Recon concluído 08/mar/2026
+                                    Sprint 1: RD 2008–presente
+                                    Sprint 2: RD 1992–2007
+                                    Resultado: RD 1992–presente (completo)
 ```
 
 **Antes de iniciar o Bloco 2:**  
@@ -1023,7 +1053,9 @@ avaliados:
 ---
 
 *Este documento será atualizado conforme módulos avancem nas fases.
-Última atualização: 08/mar/2026 — SINASC avançou para Fase 5 (publicação):
-README no R2, dataset card no HF (`SidneyBissoli/sinasc`), registrado no
-`sync_check.py` e dashboard de sincronização. 783 arquivos, 85M registros,
-1994–2022. SI-PNI Dicionários na Fase 5. SIM na Fase 1 (Recon concluído).*
+Última atualização: 09/mar/2026 — SIH avançou para Fase 4 (Pipeline
+concluído): 11.011 arquivos RD processados (1992–2026), 415.372.502
+registros, 16,1 GiB no R2, 14 schemas distintos (35–113 colunas).
+Bootstrap em 2 sprints (~30–33h total). Documentação em
+`reference-pipelines-pt.md`, seção 14. SINASC na Fase 5 (publicado).
+SI-PNI Dicionários na Fase 5. SIM na Fase 1.*

@@ -455,7 +455,7 @@ def classify_covid(source_count, manifest_part):
         return "extra", "In redistribution but not found at source"
 
     # Both exist — compare record counts
-    manifest_records = manifest_part.get("total_records", 0)
+    manifest_records = manifest_part.get("total_records") or 0
 
     if source_count > manifest_records:
         diff = source_count - manifest_records

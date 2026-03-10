@@ -37,7 +37,7 @@ import boto3
 # ---------------------------------------------------------------------------
 
 R2_BUCKET = "healthbr-data"
-ENGINE_VERSION = "1.2.0"
+ENGINE_VERSION = "1.3.0"
 
 # COVID baseline file — stores last successful API counts per UF.
 # Used as fallback when the Elasticsearch API is unreachable (e.g.,
@@ -66,6 +66,12 @@ SINASC_FTP_NOV = "/dissemin/publicos/SINASC/NOV/DNRES/"
 SINASC_FTP_ANT = "/dissemin/publicos/SINASC/ANT/DNRES/"
 SINASC_YEAR_START = 1994
 SINASC_YEAR_END = 2022  # most recent year on FTP as of 2026-03-08
+
+# DATASUS FTP (SIH — hospital admissions)
+SIH_FTP_MODERN = "/dissemin/publicos/SIHSUS/200801_/Dados/"
+SIH_FTP_LEGACY = "/dissemin/publicos/SIHSUS/199201_200712/Dados/"
+SIH_YEAR_START = 1992
+SIH_YEAR_END = 2026  # most recent year on FTP as of 2026-03-09
 
 MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun",
              "jul", "ago", "set", "out", "nov", "dez"]
@@ -284,6 +290,53 @@ def ftp_list_sinasc():
 
             files = {}
             for ftp_path in (SINASC_FTP_NOV, SINASC_FTP_ANT):
+                lines = []
+                ftp.retrlines(f"LIST {ftp_path}", lines.append)
+
+                for line in lines:
+                    parts = line.split()
+                    if not parts:
+                        continue
+                    name = parts[-1].upper()
+                    size = None
+                    # Windows format: "05-23-19  05:19PM  14843 FILENAME"
+                    if len(parts) >= 4 and parts[-2].isdigit():
+                        size = int(parts[-2])
+                    # Unix format: "-rw-r--r-- 1 user group SIZE ... FILENAME"
+                    elif len(parts) >= 9:
+                        try:
+                            size = int(parts[4])
+                        except ValueError:
+                            pass
+                    if size is not None:
+                        files[name] = size
+
+            ftp.quit()
+            return {"success": True, "files": files, "error": None}
+
+        except (ftplib.all_errors, OSError, TimeoutError) as e:
+            if attempt < MAX_RETRIES:
+                time.sleep(RETRY_BACKOFF * attempt)
+                continue
+            return {"success": False, "files": {}, "error": str(e)}
+
+    return {"success": False, "files": {}, "error": "max retries"}
+
+
+def ftp_list_sih():
+    """
+    Connect to DATASUS FTP and LIST both SIH directories (modern + legacy).
+    Returns {"success": bool, "files": {FILENAME: size_bytes}, "error": str|None}.
+    Filenames are uppercased for consistent comparison.
+    """
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            ftp = ftplib.FTP(timeout=FTP_TIMEOUT)
+            ftp.connect(DATASUS_FTP_HOST)
+            ftp.login()  # anonymous
+
+            files = {}
+            for ftp_path in (SIH_FTP_MODERN, SIH_FTP_LEGACY):
                 lines = []
                 ftp.retrlines(f"LIST {ftp_path}", lines.append)
 
@@ -881,6 +934,99 @@ def check_sinasc(r2_client, ftp_listing):
     }
 
 
+def check_sih(r2_client, ftp_listing):
+    """
+    Check SIH (hospital admissions) against FTP listing.
+
+    FTP file pattern: RD{UF}{AA}{MM}.DBC
+      where AA = 2-digit year, MM = 2-digit month
+      Example: RDSP2401.DBC = SP, Jan 2024
+
+    Both FTP eras use the same naming convention, just in different
+    directories. The ftp_list_sih() merges both.
+
+    Manifest partition keys: "{year}-{month:02d}-{uf}" (e.g., "2024-01-SP")
+    """
+    print("  sih: loading manifest...")
+    manifest = load_manifest(r2_client, "sih/manifest.json")
+    if not manifest:
+        return {
+            "status": "check_failed", "summary": {}, "details": [],
+            "error": "Could not load manifest",
+        }
+
+    if not ftp_listing["success"]:
+        return {
+            "status": "check_failed", "summary": {}, "details": [],
+            "error": f"FTP failed: {ftp_listing['error']}",
+        }
+
+    partitions = manifest.get("partitions", {})
+    ftp_files = ftp_listing["files"]
+    now = datetime.now(timezone.utc)
+
+    details = []
+    counters = {}
+
+    for year in range(SIH_YEAR_START, SIH_YEAR_END + 1):
+        max_month = now.month if year == now.year else 12
+        yy = f"{year % 100:02d}"
+        for month in range(1, max_month + 1):
+            for uf in UFS:
+                key = f"{year}-{month:02d}-{uf}"
+                filename = f"RD{uf}{yy}{month:02d}.DBC"
+
+                ftp_size = ftp_files.get(filename)
+                source_exists = (
+                    ftp_size is not None and ftp_size > EMPTY_DBF_THRESHOLD
+                )
+
+                source = {
+                    "exists": source_exists,
+                    "filename": filename,
+                    "size_bytes": ftp_size,
+                }
+
+                mpart = partitions.get(key)
+                status, notes = classify(
+                    source_exists, mpart is not None, mpart, source,
+                )
+                counters[status] = counters.get(status, 0) + 1
+
+                details.append({
+                    "partition": key,
+                    "status": status,
+                    "source": source,
+                    "redistribution": {
+                        "exists": mpart is not None,
+                        "total_records": (
+                            mpart["total_records"] if mpart else None
+                        ),
+                        "total_size_bytes": (
+                            mpart["total_size_bytes"] if mpart else None
+                        ),
+                        "processing_timestamp": (
+                            mpart.get("processing_timestamp") if mpart else None
+                        ),
+                    },
+                    "notes": notes,
+                })
+
+    n = len(details)
+    sync = counters.get("in_sync", 0)
+    print(f"  sih: {n} checked, {sync} in_sync")
+
+    overall = "in_sync"
+    if counters.get("missing", 0) > 0 or counters.get("outdated", 0) > 0:
+        overall = "outdated"
+
+    return {
+        "status": overall,
+        "summary": {"total_checked": n, **counters},
+        "details": details,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -946,6 +1092,16 @@ def main():
         print(f"  FTP SINASC FAILED: {sinasc_listing['error']}", file=sys.stderr)
 
     results["sinasc"] = check_sinasc(r2_client, sinasc_listing)
+
+    # --- FTP-based datasets: SIH (separate connection) ---
+    print("  Connecting to DATASUS FTP (SIH)...")
+    sih_listing = ftp_list_sih()
+    if sih_listing["success"]:
+        print(f"  FTP SIH: {len(sih_listing['files'])} files listed")
+    else:
+        print(f"  FTP SIH FAILED: {sih_listing['error']}", file=sys.stderr)
+
+    results["sih"] = check_sih(r2_client, sih_listing)
 
     # --- Assemble output ---
     output = {

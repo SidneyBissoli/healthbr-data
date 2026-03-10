@@ -41,7 +41,7 @@ Datasets planejados (em ordem de prioridade):
 | SI-PNI Dicionários | `sipni/dicionarios/` | ✅ Dados no R2 |
 | SINASC (Nascidos vivos) | `sinasc/` | ✅ Dados no R2 |
 | SIM (Mortalidade) | `sim/` | 📋 Futuro |
-| SIH (Internações) | `sih/` | 📋 Futuro |
+| SIH (Internações) | `sih/` | ✅ Dados no R2 |
 
 ### 2.2 Onde publicar os READMEs
 
@@ -350,6 +350,10 @@ e referenciado nos dataset cards:
   - 85M+ registros em Parquet particionado (ano/uf)
   - 783 arquivos .dbc (FTP DATASUS), 12 schemas históricos
   - HF: `SidneyBissoli/sinasc`
+- Microdados de internações hospitalares (SIH — AIH Reduzida), 1992–2026
+  - 415M+ registros em Parquet particionado (ano/mes/uf)
+  - 11.011 arquivos .dbc (FTP DATASUS), 14 schemas históricos
+  - HF: `SidneyBissoli/sih`
 
 ### Em finalização 🔧
 
@@ -363,7 +367,7 @@ e referenciado nos dataset cards:
 
 ### Futuro 🔮
 
-- Novos sistemas de informação: SIM (mortalidade), SIH (internações) — cada um como dataset independente no R2
+- Novos sistemas de informação: SIM (mortalidade) — como dataset independente no R2
 - API REST para consultas leves (se houver demanda)
 
 ---
@@ -475,6 +479,6 @@ Projetos de redistribuição de dados públicos que servem de referência:
 *Este documento será atualizado conforme decisões forem tomadas. Cada seção
 com [TODO] indica um item que precisa de investigação ou decisão antes do
 lançamento.
-Última atualização: 08/mar/2026 — SINASC adicionado ao roadmap
-(6 datasets concluídos: 5 SI-PNI + SINASC). HF: `SidneyBissoli/sinasc`.
-85M+ registros, 1994–2022, 783 arquivos .dbc.*
+Última atualização: 09/mar/2026 — SIH adicionado ao roadmap
+(7 datasets concluídos: 5 SI-PNI + SINASC + SIH). HF: `SidneyBissoli/sih`.
+415M+ registros, 1992–2026, 11.011 arquivos .dbc.*

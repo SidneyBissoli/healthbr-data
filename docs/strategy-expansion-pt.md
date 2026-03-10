@@ -813,7 +813,7 @@ acima nas fases 5 ou 6).
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sih/` |
-| Fase atual | **4 (Pipeline concluído — 09/mar/2026)** |
+| Fase atual | **5 (Publicação — 09/mar/2026)** |
 | Fontes identificadas | **FTP DATASUS — duas eras** |
 | — FTP era moderna (2008–presente) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Dados/` — arquivos `.dbc` mensais por tipo × UF; padrão `{TIPO}{UF}{AAMM}.dbc` (ex: `RDSP2107.dbc`) |
 | — FTP era antiga (1992–2007) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/199201_200712/Dados/` — mesmo padrão de nomes; possível diferença de schema entre eras |
@@ -841,6 +841,10 @@ acima nas fases 5 ou 6).
 | Bootstrap Sprint 2 | 5.155 arquivos, 197.572.316 registros, ~12–15h, 10 schemas (35–86 cols) |
 | **Totais** | **11.011 arquivos, 415.372.502 registros, 16,1 GiB no R2, 14 schemas distintos** |
 | Lacunas | 19 históricas (Roraima 1995–2000, AC 1994, AP 2007) + 300 meses futuros |
+| Dataset card HF | `SidneyBissoli/sih` |
+| README R2 | `sih/README.md` |
+| Sincronização | Registrado no `sync_check.py` e dashboard HF |
+| Pendente Fase 6 | Atualizar `project-pt.md` e `project-en.md`; integração ao pacote R `healthbR` (módulo `sih`) |
 | **Justificativa do módulo** | SIH é o maior sistema de informações hospitalares do SUS e um dos mais utilizados em pesquisa em saúde pública no Brasil. Com ~11M de internações/ano e 113 variáveis por registro, é insumo básico para estudos de morbidade hospitalar, avaliação de serviços, análises de custo, e indicadores como taxa de mortalidade hospitalar e tempo médio de permanência. As alternativas existentes (microdatasus, pysus) não persistem dados — exigem download e processamento a cada uso. PCDaS persiste mas tem acesso restrito. Base dos Dados tem cobertura parcial. Um dataset Parquet pré-processado no R2 público preenche uma lacuna real. Complementa diretamente SIM (desfecho óbito após internação) e SINASC (internações perinatais) |
 | **Cobertura-alvo** | **1992–presente (completa)**, construída em duas sprints dentro da Fase 4 (Pipeline) |
 | **Sprint 1 — Era moderna (2008–presente)** | AIH Reduzida (RD), 5.858 arquivos. Schema estável, ~113 variáveis, documentação sólida. Pipeline nasce aqui: download FTP → read.dbc → Parquet particionado (`sih/ano=YYYY/mes=MM/uf=XX/`). Validar contagem, tipos, partições. Publicar no R2 ao final da sprint |
@@ -871,7 +875,7 @@ acima nas fases 5 ou 6).
 | Pacote R `healthbR` | — | **2** | Meta-pacote unificado (módulos `sipni`, `sim`, `sinasc`…); inclui lógica de denominadores sem módulo R2 próprio — ver decisão de 07/mar/2026 |
 | SIM | 1 | **3** | Recon concluído 07/mar/2026; primeiro módulo fora do SI-PNI (prefixo `sim/`) |
 | SINASC | ✅ 5 | **4** | Publicado (R2 + HF + sync); 783 arquivos, 85M registros; pendente Fase 6 (integração ao `healthbR`) |
-| SIH | 4 | **5** | Fase 4 concluída 09/mar/2026; RD 1992–2026, 11.011 arquivos, 415M registros, 16,1 GiB no R2; pronto para Fase 5 (prefixo `sih/`) |
+| SIH | ✅ 5 | **5** | Publicado (R2 + HF + sync); RD 1992–2026, 11.011 arquivos, 415M registros, 16,1 GiB no R2; pendente Fase 6 (integração ao `healthbR`) |
 | SINAN | 0 | **6** | Horizonte, sem demanda explícita (prefixo `sinan/`) |
 | ~~SI-PNI Populações~~ | ❌ | — | Removido: denominadores via pacotes R existentes, sem R2 |
 
@@ -912,10 +916,8 @@ no HF, manifesto de integridade e sincronização via GitHub Actions.
        │
 6. SIM ────────────── Fase 1→6 ──── Recon concluído 07/mar/2026
        │
-7. SIH ────────────── Fase 1→6 ──── Recon concluído 08/mar/2026
-                                    Sprint 1: RD 2008–presente
-                                    Sprint 2: RD 1992–2007
-                                    Resultado: RD 1992–presente (completo)
+✅ SIH ───────────── Fase 5 (publicado) ── pendente Fase 6 (healthbR)
+                      RD 1992–2026, 11.011 arquivos, 415M registros
 ```
 
 **Antes de iniciar o Bloco 2:**  
@@ -1053,9 +1055,8 @@ avaliados:
 ---
 
 *Este documento será atualizado conforme módulos avancem nas fases.
-Última atualização: 09/mar/2026 — SIH avançou para Fase 4 (Pipeline
-concluído): 11.011 arquivos RD processados (1992–2026), 415.372.502
-registros, 16,1 GiB no R2, 14 schemas distintos (35–113 colunas).
-Bootstrap em 2 sprints (~30–33h total). Documentação em
-`reference-pipelines-pt.md`, seção 14. SINASC na Fase 5 (publicado).
+Última atualização: 09/mar/2026 — SIH avançou para Fase 5 (Publicação):
+README no R2, dataset card HF (`SidneyBissoli/sih`), registrado no
+sync_check.py e dashboard de sincronização. 11.011 arquivos RD
+(1992–2026), 415.372.502 registros, 16,1 GiB no R2. SINASC na Fase 5.
 SI-PNI Dicionários na Fase 5. SIM na Fase 1.*

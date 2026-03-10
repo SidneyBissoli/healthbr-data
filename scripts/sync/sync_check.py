@@ -19,6 +19,7 @@ See: docs/implementation-synchronization.md, Etapa 2 for context.
 """
 
 import argparse
+import base64
 import ftplib
 import json
 import os
@@ -36,18 +37,19 @@ import boto3
 # ---------------------------------------------------------------------------
 
 R2_BUCKET = "healthbr-data"
-ENGINE_VERSION = "1.0.0"
+ENGINE_VERSION = "1.1.0"
 
 # OpenDATASUS (microdata rotina)
 OPENDATASUS_BASE = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br"
 
-# OpenDATASUS (COVID)
-COVID_BASE_URL = (
-    "https://s3.sa-east-1.amazonaws.com/"
-    "ckan.saude.gov.br/SIPNI/COVID/uf"
-)
-COVID_HASH_PUB = "f58e39ef-bcdd-4fc4-bae5-f3c5a2858afe"
-COVID_NUM_PARTS = 5  # parts 00000–00004 per UF
+# OpenDATASUS COVID — Elasticsearch API
+# Public credentials published at:
+#   https://opendatasus.saude.gov.br/dataset/covid-19-vacinacao
+# Replaces the previous S3 HEAD approach, which broke whenever the
+# government republished CSVs with new Spark hashes (403 errors).
+ES_COVID_URL = "https://imunizacao-es.saude.gov.br/desc-imunizacao"
+ES_COVID_USER = "imunizacao_public"
+ES_COVID_PASS = "qlto5t&7r_@+#Tlstigi"
 
 # DATASUS FTP (aggregated data)
 DATASUS_FTP_HOST = "ftp.datasus.gov.br"
@@ -70,6 +72,7 @@ UFS = sorted([
 
 # Network resilience
 HTTP_TIMEOUT = 30
+ES_TIMEOUT = 60  # Elasticsearch aggregations can take longer
 FTP_TIMEOUT = 30
 MAX_RETRIES = 3
 RETRY_BACKOFF = 2  # seconds, multiplied by attempt number
@@ -110,6 +113,109 @@ def http_head(url):
                 continue
             return {"exists": False, "error": "network error"}
     return {"exists": False, "error": "max retries"}
+
+
+def es_query(endpoint, body=None):
+    """
+    Elasticsearch query with Basic Auth and retry.
+    Returns parsed JSON response or {"error": str}.
+
+    Uses public credentials from OpenDATASUS for COVID vaccination data.
+    """
+    credentials = base64.b64encode(
+        f"{ES_COVID_USER}:{ES_COVID_PASS}".encode()
+    ).decode()
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            req = urllib.request.Request(
+                endpoint,
+                method="POST" if body else "GET",
+                headers={
+                    "Authorization": f"Basic {credentials}",
+                    "Content-Type": "application/json",
+                },
+            )
+            if body:
+                data = json.dumps(body).encode("utf-8")
+            else:
+                data = None
+
+            with urllib.request.urlopen(req, data=data, timeout=ES_TIMEOUT) as resp:
+                return json.loads(resp.read())
+
+        except urllib.error.HTTPError as e:
+            error_body = ""
+            try:
+                error_body = e.read().decode("utf-8", errors="replace")[:200]
+            except Exception:
+                pass
+            if attempt < MAX_RETRIES:
+                time.sleep(RETRY_BACKOFF * attempt)
+                continue
+            return {"error": f"HTTP {e.code}: {error_body}"}
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            if attempt < MAX_RETRIES:
+                time.sleep(RETRY_BACKOFF * attempt)
+                continue
+            return {"error": f"network error: {e}"}
+
+    return {"error": "max retries"}
+
+
+def es_count_by_uf():
+    """
+    Query Elasticsearch API for COVID vaccination record count per UF.
+    Uses a terms aggregation on paciente_endereco_uf.
+
+    Returns:
+        {
+            "success": bool,
+            "total": int,              # total records in the index
+            "counts": {"AC": N, ...},  # record count per UF
+            "error": str | None,
+        }
+    """
+    body = {
+        "size": 0,
+        "track_total_hits": True,
+        "aggs": {
+            "by_uf": {
+                "terms": {
+                    "field": "paciente_endereco_uf.keyword",
+                    "size": 30,  # 27 UFs + margin
+                }
+            }
+        },
+    }
+
+    result = es_query(f"{ES_COVID_URL}/_search", body)
+
+    if "error" in result:
+        return {
+            "success": False,
+            "total": 0,
+            "counts": {},
+            "error": result["error"],
+        }
+
+    try:
+        total = result["hits"]["total"]["value"]
+        buckets = result["aggregations"]["by_uf"]["buckets"]
+        counts = {b["key"]: b["doc_count"] for b in buckets}
+        return {
+            "success": True,
+            "total": total,
+            "counts": counts,
+            "error": None,
+        }
+    except (KeyError, TypeError) as e:
+        return {
+            "success": False,
+            "total": 0,
+            "counts": {},
+            "error": f"Unexpected ES response structure: {e}",
+        }
 
 
 def ftp_list_pni():
@@ -277,6 +383,46 @@ def classify(source_exists, has_manifest, manifest_part, source_meta):
     return "in_sync", None
 
 
+def classify_covid(source_count, manifest_part):
+    """
+    Classify sync status for a COVID partition using record count comparison.
+    Returns (status, notes).
+
+    Unlike the generic classify(), this uses the Elasticsearch API record
+    count as the source signal instead of S3 ETags/sizes.
+    """
+    has_manifest = manifest_part is not None
+
+    if source_count is None and not has_manifest:
+        return "not_published", None
+
+    if source_count is not None and source_count > 0 and not has_manifest:
+        return "missing", f"Source has {source_count:,} records, not yet processed"
+
+    if (source_count is None or source_count == 0) and has_manifest:
+        return "extra", "In redistribution but not found at source"
+
+    # Both exist — compare record counts
+    manifest_records = manifest_part.get("total_records", 0)
+
+    if source_count > manifest_records:
+        diff = source_count - manifest_records
+        return "outdated", (
+            f"Source has {diff:,} new records "
+            f"({manifest_records:,} -> {source_count:,})"
+        )
+
+    if source_count < manifest_records:
+        # Source has fewer records — possible reprocessing or data correction
+        diff = manifest_records - source_count
+        return "outdated", (
+            f"Source has {diff:,} fewer records "
+            f"({manifest_records:,} -> {source_count:,})"
+        )
+
+    return "in_sync", None
+
+
 # ---------------------------------------------------------------------------
 # Dataset checkers
 # ---------------------------------------------------------------------------
@@ -379,8 +525,16 @@ def check_sipni_microdados(r2_client):
 
 def check_sipni_covid(r2_client):
     """
-    Check SI-PNI COVID microdata: S3 HEAD per UF × 5 CSV parts.
-    URL: .../SIPNI/COVID/uf/uf%3D{UF}/part-{IDX:05d}-{HASH}.c000.csv
+    Check SI-PNI COVID microdata via Elasticsearch API.
+
+    Instead of S3 HEAD requests (which break when the government republishes
+    CSVs with new Spark hashes), this queries the public Elasticsearch API
+    at imunizacao-es.saude.gov.br for record counts per UF and compares
+    against the manifest.
+
+    Source: https://opendatasus.saude.gov.br/dataset/covid-19-vacinacao
+    Index: desc-imunizacao
+    Auth: Basic (public credentials)
     """
     print("  sipni-covid: loading manifest...")
     manifest = load_manifest(r2_client, "sipni/covid/manifest.json")
@@ -392,45 +546,29 @@ def check_sipni_covid(r2_client):
 
     partitions = manifest.get("partitions", {})
 
+    # Single API call to get record counts per UF
+    print("  sipni-covid: querying Elasticsearch API...", end=" ", flush=True)
+    es_result = es_count_by_uf()
+
+    if not es_result["success"]:
+        print(f"FAILED: {es_result['error']}")
+        return {
+            "status": "check_failed",
+            "summary": {},
+            "details": [],
+            "error": f"Elasticsearch API failed: {es_result['error']}",
+        }
+
+    print(f"OK ({es_result['total']:,} total records)")
+
     details = []
     counters = {}
 
-    print("  sipni-covid: checking source UFs ", end="", flush=True)
     for uf in UFS:
-        # HEAD each of the 5 CSV parts
-        parts_meta = []
-        has_error = False
-        for idx in range(COVID_NUM_PARTS):
-            url = (f"{COVID_BASE_URL}/uf%3D{uf}/"
-                   f"part-{idx:05d}-{COVID_HASH_PUB}.c000.csv")
-            result = http_head(url)
-            parts_meta.append(result)
-            if result.get("error"):
-                has_error = True
-
-        existing_parts = [p for p in parts_meta if p.get("exists")]
-        source_exists = len(existing_parts) > 0
-
-        source = {
-            "exists": source_exists,
-            "parts_found": len(existing_parts),
-            "parts_expected": COVID_NUM_PARTS,
-        }
-        if source_exists:
-            source["size_bytes"] = sum(
-                p.get("size_bytes", 0) for p in existing_parts
-            )
-            # Concatenate ETags with | separator (matches pipeline format)
-            source["etag"] = "|".join(
-                p.get("etag", "") for p in parts_meta if p.get("exists")
-            )
-        if has_error:
-            source["error"] = "One or more parts failed"
-
+        source_count = es_result["counts"].get(uf)
         mpart = partitions.get(uf)
-        status, notes = classify(
-            source_exists, mpart is not None, mpart, source,
-        )
+
+        status, notes = classify_covid(source_count, mpart)
         counters[status] = counters.get(status, 0) + 1
 
         sym = {"in_sync": ".", "outdated": "!", "missing": "X",
@@ -440,7 +578,11 @@ def check_sipni_covid(r2_client):
         details.append({
             "partition": uf,
             "status": status,
-            "source": source,
+            "source": {
+                "type": "elasticsearch_api",
+                "endpoint": ES_COVID_URL,
+                "record_count": source_count,
+            },
             "redistribution": {
                 "exists": mpart is not None,
                 "total_records": mpart.get("total_records") if mpart else None,
@@ -467,7 +609,11 @@ def check_sipni_covid(r2_client):
 
     return {
         "status": overall,
-        "summary": {"total_checked": len(details), **counters},
+        "summary": {
+            "total_checked": len(details),
+            "source_total_records": es_result["total"],
+            **counters,
+        },
         "details": details,
     }
 
@@ -678,6 +824,8 @@ def main():
 
     # --- S3-based datasets (HTTP HEAD requests) ---
     results["sipni-microdados"] = check_sipni_microdados(r2_client)
+
+    # --- Elasticsearch-based datasets ---
     results["sipni-covid"] = check_sipni_covid(r2_client)
 
     # --- FTP-based datasets (single connection, reused) ---

@@ -4,9 +4,9 @@
 > Claude Code) que precise entender o projeto sem ter participado das conversas
 > anteriores. Ele é a fonte de verdade sobre decisões, arquitetura e estado atual.
 >
-> Última atualização: 2026-03-07 (v6 — SI-PNI Dicionários publicado (Fase 5
-> concluída); Recon do SIM e SINASC concluídos; decisão de arquitetura do
-> pacote R formalizada: `healthbR` unificado adotado como modelo definitivo)
+> Última atualização: 2026-03-09 (v7 — SINASC publicado (Fase 5: 85M
+> registros, 1994–2022); SIH publicado (Fase 5: 415M registros, 1992–2026);
+> 7 datasets no R2 + HF + dashboard de sincronização. SIM na Fase 1.)
 >
 > **Documentos relacionados:**  
 > - `strategy-expansion-pt.md` — Ciclo de vida de módulos, lições aprendidas,
@@ -940,10 +940,27 @@ healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 - [x] README publicado no R2; dataset card HF criado (`SidneyBissoli/sipni-dicionarios`)
 - [x] Exemplos R e Python testados
 
-### Publicação (parcialmente concluída)
+**SINASC (Nascidos Vivos):**
+- [x] R pipeline (read.dbc + arrow + rclone): `sinasc-pipeline-r.R`
+- [x] Bootstrap: 85M registros, 783 arquivos .dbc, 12 schemas históricos, 117 min
+- [x] Dados no R2: `sinasc/` particionado por ano/uf
+- [x] README no R2; dataset card HF (`SidneyBissoli/sinasc`)
+- [x] Registrado no sync_check.py e dashboard de sincronização
 
-- [x] READMEs em inglês criados e publicados no R2 (5 datasets, incluindo Dicionários)
-- [x] Dataset cards criados no Hugging Face (5 repos sob `SidneyBissoli/`)
+**SIH — AIH Reduzida (Internações Hospitalares):**
+- [x] R pipeline (read.dbc + arrow + rclone): `sih-pipeline-r.R`
+- [x] Bootstrap em 2 sprints: 415M registros, 11.011 arquivos .dbc, 14 schemas, ~30–33h
+- [x] Dados no R2: `sih/` particionado por ano/mes/uf (16,1 GiB)
+- [x] README no R2; dataset card HF (`SidneyBissoli/sih`)
+- [x] Registrado no sync_check.py e dashboard de sincronização
+
+### Recon (Fase 1 concluído)
+- [x] SIM (mortalidade) — Recon concluído 2026-03-07
+
+### Publicação
+
+- [x] READMEs em inglês criados e publicados no R2 (7 datasets)
+- [x] Dataset cards criados no Hugging Face (7 repos sob `SidneyBissoli/`)
 - [x] Token read-only público configurado no R2
 - [x] Exemplos de código R testados com os 5 datasets
 - [x] Licença definida: CC-BY 4.0
@@ -1013,9 +1030,7 @@ healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 
 ### Expansão (futuro — após lançamento e feedback)
 
-- [ ] SIM (Mortalidade) — primeiro módulo fora do SI-PNI (Recon concluído 07/mar/2026)
-- [ ] SINASC (Nascidos Vivos) — sinergia com SIM (Recon concluído 07/mar/2026)
-- [ ] SIH (Internações Hospitalares) — alta complexidade
+- [ ] SIM (Mortalidade) — Recon concluído 07/mar/2026; próximo módulo
 - [ ] API para consumidores não-R
 
 > **Sequência detalhada, critérios de prontidão e priorização:** ver
@@ -1049,6 +1064,8 @@ healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 | Hugging Face — SI-PNI Agregados Doses | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-doses` |
 | Hugging Face — SI-PNI Agregados Cobertura | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-cobertura` |
 | Hugging Face — SI-PNI Dicionários | `https://huggingface.co/datasets/SidneyBissoli/sipni-dicionarios` |
+| Hugging Face — SINASC | `https://huggingface.co/datasets/SidneyBissoli/sinasc` |
+| Hugging Face — SIH | `https://huggingface.co/datasets/SidneyBissoli/sih` |
 | HF Space — Sync Status Dashboard | `https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status` |
 | R2 endpoint (S3-compatível) | `https://<account-id>.r2.cloudflarestorage.com` |
 
@@ -1073,6 +1090,8 @@ healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 | `docs/sipni-agregados/exploration-pt.md` | Exploração dos agregados (doses) |
 | `docs/sipni-agregados/exploration-cobertura-pt.md` | Exploração dos agregados (cobertura) |
 | `docs/sipni-dicionarios/exploration-pt.md` | Exploração dos dicionários (formatos .cnv/.dbf, decisões de parsing) |
+| `docs/sinasc/exploration-pt.md` | Exploração do SINASC (12 schemas, mapeamento 1994–1995, decisões) |
+| `docs/sih/exploration-pt.md` | Exploração do SIH (14 schemas, CID-9/CID-10, 2 eras FTP) |
 
 ### Documentos técnicos de referência (arquivos do projeto)
 

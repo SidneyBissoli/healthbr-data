@@ -62,6 +62,7 @@ DATASET_LABELS = {
     "sipni-agregados-doses": "SI-PNI Aggregated \u2014 Doses (1994\u20132019)",
     "sipni-agregados-cobertura": "SI-PNI Aggregated \u2014 Coverage (1994\u20132019)",
     "sinasc": "SINASC \u2014 Live Births (1994\u20132022)",
+    "sih": "SIH \u2014 Hospital Admissions (1992\u20132026)",
 }
 
 
@@ -227,6 +228,34 @@ def build_agregados_df(details: list) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def build_sih_df(details: list) -> pd.DataFrame:
+    """Build DataFrame for SIH (year-month-UF partitions)."""
+    rows = []
+    for d in details:
+        partition = d["partition"]  # "YYYY-MM-UF"
+        parts = partition.split("-", 2)
+        year = parts[0]
+        month = parts[1] if len(parts) > 1 else ""
+        uf = parts[2] if len(parts) > 2 else ""
+        source = d.get("source", {})
+        redist = d.get("redistribution", {})
+        status = d.get("status", "")
+
+        rows.append({
+            "Year": year,
+            "Month": month,
+            "UF": uf,
+            "Source File": source.get("filename", "\u2014"),
+            "Source Size": fmt_size(source.get("size_bytes")),
+            "Redistributed Size": fmt_size(redist.get("total_size_bytes")),
+            "Records": f"{redist.get('total_records', 0):,}" if redist.get("total_records") else "\u2014",
+            "Status": STATUS_EMOJI.get(status, "\u2753"),
+            "Status Key": status,
+            "Notes": d.get("notes") or "",
+        })
+    return pd.DataFrame(rows)
+
+
 def render_status_filter(tab_key: str) -> list[str]:
     """Render a multiselect status filter and return selected status keys."""
     options = [
@@ -278,7 +307,7 @@ def render_dataset_tab(ds_key: str, build_fn):
     # Size / record summary — adapt to source type
     summary = ds.get("summary", {})
     is_es_source = any(
-        d.get("source", {}).get("type") == "elasticsearch_api"
+        d.get("source", {}).get("type") in ("elasticsearch_api", "baseline_fallback")
         for d in details
     )
 
@@ -359,6 +388,10 @@ with tabs[3]:
 with tabs[4]:
     render_dataset_tab("sinasc", build_agregados_df)
 
+# --- Tab 5: SIH ---
+with tabs[5]:
+    render_dataset_tab("sih", build_sih_df)
+
 # ---------------------------------------------------------------------------
 # Footer
 # ---------------------------------------------------------------------------
@@ -375,7 +408,7 @@ st.markdown(
 
 st.caption(
     "This dashboard compares official data published by Brazil's "
-    "Ministry of Health (SI-PNI, SINASC) with the [healthbr-data](https://huggingface.co/SidneyBissoli) "
+    "Ministry of Health (SI-PNI, SINASC, SIH) with the [healthbr-data](https://huggingface.co/SidneyBissoli) "
     "redistribution on Cloudflare R2. Updated weekly via GitHub Actions. "
     "Source code: [github.com/SidneyBissoli/healthbr-data](https://github.com/SidneyBissoli/healthbr-data)"
 )

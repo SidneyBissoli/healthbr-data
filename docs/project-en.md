@@ -5,9 +5,9 @@
 > in previous conversations. It is the source of truth on decisions,
 > architecture, and current state.
 >
-> Last updated: 2026-03-07 (v5 — aligned with project-pt.md v6: 5 SI-PNI
-> modules published; `healthbR` unified package architecture adopted;
-> SIM and SINASC recon complete)
+> Last updated: 2026-03-09 (v6 — SINASC published (Phase 5: 85M records,
+> 1994–2022); SIH published (Phase 5: 415M records, 1992–2026);
+> 7 datasets on R2 + HF + sync dashboard. SIM at Phase 1.)
 >
 > **Note:** The Portuguese version (`project-pt.md`) is the primary source
 > of truth. This English version is kept in sync for international
@@ -927,6 +927,8 @@ healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 | Hugging Face — SI-PNI Aggregated Doses | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-doses` |
 | Hugging Face — SI-PNI Aggregated Coverage | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-cobertura` |
 | Hugging Face — SI-PNI Dictionaries | `https://huggingface.co/datasets/SidneyBissoli/sipni-dicionarios` |
+| Hugging Face — SINASC | `https://huggingface.co/datasets/SidneyBissoli/sinasc` |
+| Hugging Face — SIH | `https://huggingface.co/datasets/SidneyBissoli/sih` |
 | HF Space — Sync Status Dashboard | `https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status` |
 | R2 endpoint (S3-compatible) | `https://<account-id>.r2.cloudflarestorage.com` |
 

@@ -90,21 +90,23 @@ Sys.setenv(
   AWS_DEFAULT_REGION    = "auto"
 )
 
-# Open a single year (fastest)
-ds <- open_dataset("s3://healthbr-data/sih/ano=2024/", format = "parquet")
+# Open a single partition (year/month/state)
+ds <- open_dataset(
+  "s3://healthbr-data/sih/ano=2024/mes=01/uf=SP/",
+  format = "parquet"
+)
 
 # Example: hospital admissions in São Paulo, Jan 2024, by diagnosis
 ds |>
-  filter(mes == "01", uf == "SP") |>
-  count(DIAG_PRINC) |>
-  arrange(desc(n)) |>
-  head(20) |>
-  collect()
+  collect() |>
+  count(DIAG_PRINC, sort = TRUE) |>
+  head(20)
 ```
 
-> **Important:** Point to year partitions (`ano=YYYY/`), not to the dataset
-> root. The root contains `README.md` and `manifest.json`, which Arrow
-> cannot read as Parquet files.
+> **Important:** Point to specific partitions (`ano=YYYY/mes=MM/uf=XX/`),
+> not to the dataset root. The root contains `README.md` and `manifest.json`,
+> which Arrow cannot read as Parquet files. You can also open broader paths
+> like `ano=YYYY/` or `ano=YYYY/mes=MM/` to load multiple partitions at once.
 
 ### Python (PyArrow)
 
@@ -119,24 +121,22 @@ s3 = fs.S3FileSystem(
     region="auto"
 )
 
-# Single year
+# Single partition (year/month/state)
 dataset = pds.dataset(
-    "healthbr-data/sih/ano=2024/",
+    "healthbr-data/sih/ano=2024/mes=01/uf=SP/",
     filesystem=s3,
-    format="parquet",
-    partitioning="hive"
+    format="parquet"
 )
 
 # Example: admissions in São Paulo, Jan 2024
-table = dataset.to_table(
-    filter=(pds.field("mes") == "01") & (pds.field("uf") == "SP")
-)
-print(table.to_pandas().head())
+df = dataset.to_table().to_pandas()
+print(df.head())
+print(f"Records: {len(df)}, Columns: {len(df.columns)}")
 ```
 
 > **Note:** These credentials are **read-only** and safe to use in scripts.
 > The bucket does not allow anonymous S3 access — credentials are required.
-> Point to year partitions, not the dataset root (see note above).
+> Point to specific partitions, not the dataset root (see note above).
 
 ## File structure
 

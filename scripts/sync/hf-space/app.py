@@ -2,10 +2,13 @@
 healthbr-data Sync Status Dashboard
 
 Streamlit app that visualizes the synchronization status between
-official SI-PNI data sources and the healthbr-data redistribution
-on Cloudflare R2.
+official data sources (SI-PNI, SINASC) and the healthbr-data
+redistribution on Cloudflare R2.
 
 Reads a static sync-status.json (updated weekly by GitHub Actions).
+
+NOTE: The canonical copy is src/app.py (used by Dockerfile).
+This root copy exists for local development compatibility.
 """
 
 import json
@@ -25,7 +28,8 @@ st.set_page_config(
 # Load data
 # ---------------------------------------------------------------------------
 
-STATUS_FILE = Path("sync-status.json")
+# In Docker, the working directory is /app and sync-status.json is in src/
+STATUS_FILE = Path(__file__).parent / "sync-status.json"
 
 if not STATUS_FILE.exists():
     st.error("sync-status.json not found. Dashboard not yet initialized.")
@@ -60,6 +64,7 @@ DATASET_LABELS = {
     "sipni-covid": "SI-PNI COVID",
     "sipni-agregados-doses": "SI-PNI Aggregated \u2014 Doses (1994\u20132019)",
     "sipni-agregados-cobertura": "SI-PNI Aggregated \u2014 Coverage (1994\u20132019)",
+    "sinasc": "SINASC \u2014 Live Births (1994\u20132022)",
 }
 
 
@@ -106,7 +111,7 @@ st.caption(f"Last checked: {fmt_timestamp(data.get('generated_at'))}")
 # Summary cards
 # ---------------------------------------------------------------------------
 
-cols = st.columns(4)
+cols = st.columns(len(DATASET_LABELS))
 datasets = data.get("datasets", {})
 
 for col, (ds_key, ds_label) in zip(cols, DATASET_LABELS.items()):
@@ -171,17 +176,25 @@ def build_microdata_df(details: list) -> pd.DataFrame:
 
 
 def build_covid_df(details: list) -> pd.DataFrame:
-    """Build DataFrame for COVID (UF partitions)."""
+    """Build DataFrame for COVID (UF partitions, Elasticsearch API source)."""
     rows = []
     for d in details:
         source = d.get("source", {})
         redist = d.get("redistribution", {})
         status = d.get("status", "")
 
+        # Source record count from Elasticsearch API
+        src_count = source.get("record_count")
+        src_records = f"{src_count:,}" if src_count else "\u2014"
+
+        # Redistribution record count from manifest
+        redist_count = redist.get("total_records")
+        redist_records = f"{redist_count:,}" if redist_count else "\u2014"
+
         rows.append({
             "UF": d["partition"],
-            "Source Parts": f"{source.get('parts_found', '\u2014')}/{source.get('parts_expected', '\u2014')}",
-            "Source Size": fmt_size(source.get("size_bytes")),
+            "Source Records": src_records,
+            "Redistributed Records": redist_records,
             "Redistributed Size": fmt_size(redist.get("total_size_bytes")),
             "Files": redist.get("output_file_count", "\u2014"),
             "Status": STATUS_EMOJI.get(status, "\u2753"),
@@ -265,30 +278,58 @@ def render_dataset_tab(ds_key: str, build_fn):
     if filter_keys:
         df = df[df["Status Key"].isin(filter_keys)]
 
-    # Size summary
+    # Size / record summary — adapt to source type
     summary = ds.get("summary", {})
-    total_source_bytes = sum(
-        d.get("source", {}).get("size_bytes", 0) or 0
+    is_es_source = any(
+        d.get("source", {}).get("type") == "elasticsearch_api"
         for d in details
-        if d.get("source", {}).get("exists")
-    )
-    total_redist_bytes = sum(
-        d.get("redistribution", {}).get("total_size_bytes", 0) or 0
-        for d in details
-        if d.get("redistribution", {}).get("exists")
     )
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric("Source Total", fmt_size(total_source_bytes))
-    with c2:
-        st.metric("Redistributed Total", fmt_size(total_redist_bytes))
-    with c3:
-        if total_redist_bytes > 0:
-            ratio = total_source_bytes / total_redist_bytes
-            st.metric("Compression Ratio", f"{ratio:.2f}x")
-        else:
-            st.metric("Compression Ratio", "\u2014")
+    if is_es_source:
+        # COVID: Elasticsearch API — show record counts, not source sizes
+        total_source_records = summary.get("source_total_records", 0)
+        total_redist_records = sum(
+            d.get("redistribution", {}).get("total_records", 0) or 0
+            for d in details
+            if d.get("redistribution", {}).get("exists")
+        )
+        total_redist_bytes = sum(
+            d.get("redistribution", {}).get("total_size_bytes", 0) or 0
+            for d in details
+            if d.get("redistribution", {}).get("exists")
+        )
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("Source Records", f"{total_source_records:,}")
+        with c2:
+            st.metric("Redistributed Total", fmt_size(total_redist_bytes))
+        with c3:
+            st.metric("Redistributed Records", f"{total_redist_records:,}")
+    else:
+        # S3/FTP sources — show source and redistributed sizes
+        total_source_bytes = sum(
+            d.get("source", {}).get("size_bytes", 0) or 0
+            for d in details
+            if d.get("source", {}).get("exists")
+        )
+        total_redist_bytes = sum(
+            d.get("redistribution", {}).get("total_size_bytes", 0) or 0
+            for d in details
+            if d.get("redistribution", {}).get("exists")
+        )
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("Source Total", fmt_size(total_source_bytes))
+        with c2:
+            st.metric("Redistributed Total", fmt_size(total_redist_bytes))
+        with c3:
+            if total_redist_bytes > 0 and total_source_bytes > 0:
+                ratio = total_source_bytes / total_redist_bytes
+                st.metric("Compression Ratio", f"{ratio:.2f}x")
+            else:
+                st.metric("Compression Ratio", "\u2014")
 
     # Table
     st.dataframe(
@@ -317,6 +358,10 @@ with tabs[2]:
 with tabs[3]:
     render_dataset_tab("sipni-agregados-cobertura", build_agregados_df)
 
+# --- Tab 4: SINASC ---
+with tabs[4]:
+    render_dataset_tab("sinasc", build_agregados_df)
+
 # ---------------------------------------------------------------------------
 # Footer
 # ---------------------------------------------------------------------------
@@ -332,8 +377,8 @@ st.markdown(
 )
 
 st.caption(
-    "This dashboard compares the official SI-PNI data published by Brazil's "
-    "Ministry of Health with the [healthbr-data](https://huggingface.co/datasets/SidneyBissoli/healthbr-data) "
+    "This dashboard compares official data published by Brazil's "
+    "Ministry of Health (SI-PNI, SINASC) with the [healthbr-data](https://huggingface.co/SidneyBissoli) "
     "redistribution on Cloudflare R2. Updated weekly via GitHub Actions. "
     "Source code: [github.com/SidneyBissoli/healthbr-data](https://github.com/SidneyBissoli/healthbr-data)"
 )

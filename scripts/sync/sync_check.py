@@ -457,6 +457,11 @@ def classify_covid(source_count, manifest_part):
     # Both exist — compare record counts
     manifest_records = manifest_part.get("total_records") or 0
 
+    # If manifest has no record count (retroactive manifests set it to None),
+    # we cannot compare. Treat as in_sync if the partition otherwise exists.
+    if manifest_records == 0:
+        return "in_sync", "Record count unavailable in manifest; size-based check only"
+
     if source_count > manifest_records:
         diff = source_count - manifest_records
         return "outdated", (

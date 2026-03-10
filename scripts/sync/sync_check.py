@@ -37,7 +37,13 @@ import boto3
 # ---------------------------------------------------------------------------
 
 R2_BUCKET = "healthbr-data"
-ENGINE_VERSION = "1.1.0"
+ENGINE_VERSION = "1.2.0"
+
+# COVID baseline file — stores last successful API counts per UF.
+# Used as fallback when the Elasticsearch API is unreachable (e.g.,
+# from GitHub Actions runners outside Brazil that get 403 Forbidden).
+# Updated automatically when the API succeeds; committed to the repo.
+COVID_BASELINE_FILENAME = "covid-baseline.json"
 
 # OpenDATASUS (microdata rotina)
 OPENDATASUS_BASE = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br"
@@ -182,7 +188,7 @@ def es_count_by_uf():
         "aggs": {
             "by_uf": {
                 "terms": {
-                    "field": "paciente_endereco_uf.keyword",
+                    "field": "paciente_endereco_uf",
                     "size": 30,  # 27 UFs + margin
                 }
             }
@@ -339,6 +345,52 @@ def load_manifest(r2_client, key):
     except Exception as e:
         print(f"  WARNING: cannot load {key}: {e}", file=sys.stderr)
         return None
+
+
+# ---------------------------------------------------------------------------
+# COVID baseline helpers
+# ---------------------------------------------------------------------------
+
+
+def load_covid_baseline(baseline_dir):
+    """
+    Load COVID baseline counts from covid-baseline.json.
+    Returns {"total": N, "counts": {"AC": N, ...}, "timestamp": str} or None.
+    """
+    path = Path(baseline_dir) / COVID_BASELINE_FILENAME
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if "counts" in data and isinstance(data["counts"], dict):
+            return data
+        return None
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"  WARNING: cannot load baseline: {e}", file=sys.stderr)
+        return None
+
+
+def save_covid_baseline(baseline_dir, total, counts):
+    """
+    Save COVID baseline counts to covid-baseline.json.
+    Called when the Elasticsearch API succeeds.
+    """
+    path = Path(baseline_dir) / COVID_BASELINE_FILENAME
+    data = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source": "elasticsearch_api",
+        "endpoint": ES_COVID_URL,
+        "total": total,
+        "counts": counts,
+    }
+    try:
+        path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"  sipni-covid: baseline saved to {path}")
+    except OSError as e:
+        print(f"  WARNING: cannot save baseline: {e}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -523,14 +575,17 @@ def check_sipni_microdados(r2_client):
     }
 
 
-def check_sipni_covid(r2_client):
+def check_sipni_covid(r2_client, baseline_dir):
     """
-    Check SI-PNI COVID microdata via Elasticsearch API.
+    Check SI-PNI COVID microdata via Elasticsearch API with baseline fallback.
 
-    Instead of S3 HEAD requests (which break when the government republishes
-    CSVs with new Spark hashes), this queries the public Elasticsearch API
-    at imunizacao-es.saude.gov.br for record counts per UF and compares
-    against the manifest.
+    Primary: queries the public Elasticsearch API at imunizacao-es.saude.gov.br
+    for record counts per UF and compares against the manifest.
+
+    Fallback: if the API is unreachable (e.g., 403 from non-Brazilian IPs),
+    loads the last successful counts from covid-baseline.json.
+
+    When the API succeeds, the baseline file is updated automatically.
 
     Source: https://opendatasus.saude.gov.br/dataset/covid-19-vacinacao
     Index: desc-imunizacao
@@ -546,29 +601,53 @@ def check_sipni_covid(r2_client):
 
     partitions = manifest.get("partitions", {})
 
-    # Single API call to get record counts per UF
+    # Try Elasticsearch API first
     print("  sipni-covid: querying Elasticsearch API...", end=" ", flush=True)
     es_result = es_count_by_uf()
+    source_type = "elasticsearch_api"
+    source_note = None
 
-    if not es_result["success"]:
+    if es_result["success"]:
+        print(f"OK ({es_result['total']:,} total records)")
+        # Save successful result as baseline for future fallback
+        save_covid_baseline(baseline_dir, es_result["total"], es_result["counts"])
+        source_counts = es_result["counts"]
+        source_total = es_result["total"]
+    else:
         print(f"FAILED: {es_result['error']}")
-        return {
-            "status": "check_failed",
-            "summary": {},
-            "details": [],
-            "error": f"Elasticsearch API failed: {es_result['error']}",
-        }
-
-    print(f"OK ({es_result['total']:,} total records)")
+        # Fallback to baseline
+        print("  sipni-covid: loading baseline fallback...", end=" ", flush=True)
+        baseline = load_covid_baseline(baseline_dir)
+        if baseline is None:
+            print("NOT FOUND")
+            return {
+                "status": "check_failed",
+                "summary": {},
+                "details": [],
+                "error": (
+                    f"Elasticsearch API failed: {es_result['error']}. "
+                    f"No baseline file found at {baseline_dir}/{COVID_BASELINE_FILENAME}"
+                ),
+            }
+        print(f"OK (baseline from {baseline.get('generated_at', 'unknown')})")
+        source_counts = baseline["counts"]
+        source_total = baseline.get("total", sum(baseline["counts"].values()))
+        source_type = "baseline_fallback"
+        source_note = f"API unavailable; using baseline from {baseline.get('generated_at', 'unknown')}"
 
     details = []
     counters = {}
 
     for uf in UFS:
-        source_count = es_result["counts"].get(uf)
+        source_count = source_counts.get(uf)
         mpart = partitions.get(uf)
 
         status, notes = classify_covid(source_count, mpart)
+        # Append baseline note if applicable
+        if source_note and notes:
+            notes = f"{notes} ({source_note})"
+        elif source_note:
+            notes = source_note
         counters[status] = counters.get(status, 0) + 1
 
         sym = {"in_sync": ".", "outdated": "!", "missing": "X",
@@ -579,7 +658,7 @@ def check_sipni_covid(r2_client):
             "partition": uf,
             "status": status,
             "source": {
-                "type": "elasticsearch_api",
+                "type": source_type,
                 "endpoint": ES_COVID_URL,
                 "record_count": source_count,
             },
@@ -611,7 +690,7 @@ def check_sipni_covid(r2_client):
         "status": overall,
         "summary": {
             "total_checked": len(details),
-            "source_total_records": es_result["total"],
+            "source_total_records": source_total,
             **counters,
         },
         "details": details,
@@ -812,7 +891,17 @@ def main():
         "--output", "-o", required=True,
         help="Path for sync-status.json output.",
     )
+    parser.add_argument(
+        "--baseline-dir", "-b",
+        default=str(Path(__file__).parent),
+        help=(
+            "Directory for covid-baseline.json (default: same as this script). "
+            "The baseline is loaded as fallback when the ES API is unreachable, "
+            "and updated automatically when the API succeeds."
+        ),
+    )
     args = parser.parse_args()
+    baseline_dir = Path(args.baseline_dir)
 
     r2_client = get_r2_client()
     now = datetime.now(timezone.utc)
@@ -825,8 +914,8 @@ def main():
     # --- S3-based datasets (HTTP HEAD requests) ---
     results["sipni-microdados"] = check_sipni_microdados(r2_client)
 
-    # --- Elasticsearch-based datasets ---
-    results["sipni-covid"] = check_sipni_covid(r2_client)
+    # --- Elasticsearch-based datasets (with baseline fallback) ---
+    results["sipni-covid"] = check_sipni_covid(r2_client, baseline_dir)
 
     # --- FTP-based datasets (single connection, reused) ---
     print("  Connecting to DATASUS FTP...")

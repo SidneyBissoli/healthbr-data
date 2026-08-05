@@ -87,14 +87,20 @@ Sys.setenv(
   AWS_DEFAULT_REGION    = "auto"
 )
 
-ds <- open_dataset("s3://healthbr-data/sinasc/", format = "parquet")
+# Open a single year (fastest)
+ds <- open_dataset("s3://healthbr-data/sinasc/ano=2022/", format = "parquet")
 
-# Example: live births in São Paulo, 2022
+# Example: live births in São Paulo, 2022, by sex
 ds |>
-  filter(ano == "2022", uf == "SP") |>
+  filter(uf == "SP") |>
   count(SEXO) |>
   collect()
+
 ```
+
+> **Important:** Point to year partitions (`ano=YYYY/`), not to the dataset
+> root. The root contains `README.md` and `manifest.json`, which Arrow
+> cannot read as Parquet files.
 
 ### Python (PyArrow)
 
@@ -109,21 +115,21 @@ s3 = fs.S3FileSystem(
     region="auto"
 )
 
+# Single year
 dataset = pds.dataset(
-    "healthbr-data/sinasc/",
+    "healthbr-data/sinasc/ano=2022/",
     filesystem=s3,
     format="parquet",
     partitioning="hive"
 )
-
-table = dataset.to_table(
-    filter=(pds.field("ano") == "2022") & (pds.field("uf") == "SP")
-)
+# Example: live births in São Paulo, 2022
+table = dataset.to_table(filter=(pds.field("uf") == "SP"))
 print(table.to_pandas().head())
 ```
 
 > **Note:** These credentials are **read-only** and safe to use in scripts.
 > The bucket does not allow anonymous S3 access — credentials are required.
+> Point to year partitions, not the dataset root (see note above).
 
 ## File structure
 

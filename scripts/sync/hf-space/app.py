@@ -281,7 +281,7 @@ def render_dataset_tab(ds_key: str, build_fn):
     # Size / record summary — adapt to source type
     summary = ds.get("summary", {})
     is_es_source = any(
-        d.get("source", {}).get("type") == "elasticsearch_api"
+        d.get("source", {}).get("type") in ("elasticsearch_api", "baseline_fallback")
         for d in details
     )
 

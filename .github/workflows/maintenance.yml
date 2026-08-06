@@ -47,7 +47,8 @@ jobs:
     env:
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       SERVER_NAME: healthbr-maint-${{ github.run_id }}
-      SERVER_TYPE: cpx41
+      # cpx42: 8 vCPU x86, 16 GB — o tipo disponível em nbg1 (cpx41 é só EUA)
+      SERVER_TYPE: cpx42
       SERVER_LOCATION: nbg1
       SNAPSHOT_SELECTOR: healthbr=maintenance
       # Tempo máximo aguardando a VPS desligar sozinha (minutos)

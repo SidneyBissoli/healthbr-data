@@ -7,7 +7,7 @@
 # (Ubuntu 24.04, x86 — nunca ARM), como root:
 #
 #   1. hcloud server create --name healthbr-snapshot-builder \
-#        --type cpx41 --image ubuntu-24.04 --location nbg1 \
+#        --type cpx42 --image ubuntu-24.04 --location nbg1 \
 #        --ssh-key <sua-chave>
 #   2. scp este script para a VPS e execute: bash setup-snapshot.sh
 #   3. Desligue e tire o snapshot ROTULADO (o maintenance.yml procura por ele):

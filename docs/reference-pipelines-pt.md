@@ -921,7 +921,7 @@ Segunda 03:00 UTC — sync-check.yml (GitHub Actions, já existente)
   ↓ comparison engine → sync-status.json → R2 + HF Space
   ↓ se missing/outdated > 0 em dataset automatizado
 maintenance.yml (GitHub Actions)
-  ↓ cria VPS Hetzner (cpx41, Nuremberg) a partir do snapshot
+  ↓ cria VPS Hetzner (cpx42, Nuremberg) a partir do snapshot
   │   rotulado healthbr=maintenance
   ↓ cloud-init: injeta credenciais + clona repo + executa
 scripts/maintenance/run-maintenance.sh (na VPS)
@@ -991,7 +991,7 @@ pl.read_parquet_metadata("part-0.parquet")["healthbr"]
 - **Guarda contra sucesso falso:** o workflow grava
   `{"status": "started"}` no `last-run.json` antes de criar a VPS; o
   verify só passa se o orquestrador tiver sobrescrito com `success`.
-- **Custo por rodada:** cpx41 por hora (~€0,04/h × duração) + centavos
+- **Custo por rodada:** cpx42 por hora (~€0,04/h × duração) + centavos
   de snapshot/mês. Sem rodadas quando não há deriva.
 - **SINASC — anos novos:** quando o DATASUS publicar um ano novo,
   atualizar `SINASC_YEAR_END` em `scripts/sync/sync_check.py` e (na

@@ -150,7 +150,7 @@ jobs:
             --type "$SERVER_TYPE" \
             --location "$SERVER_LOCATION" \
             --image "${{ steps.snapshot.outputs.image_id }}" \
-            --user-data-file user-data.yml \
+            --user-data-from-file user-data.yml \
             --label healthbr=maintenance-run
 
       - name: Summary

@@ -920,11 +920,12 @@ automaticamente uma VPS efêmera que roda os pipelines incrementais.
 Segunda 03:00 UTC — sync-check.yml (GitHub Actions, já existente)
   ↓ comparison engine → sync-status.json → R2 + HF Space
   ↓ se missing/outdated > 0 em dataset automatizado
-maintenance.yml (GitHub Actions)
+maintenance.yml (GitHub Actions — lançar-e-sair, ~2 min)
+  ↓ aborta se já existir VPS de manutenção ativa
   ↓ cria VPS Hetzner (cpx42, Nuremberg) a partir do snapshot
-  │   rotulado healthbr=maintenance
-  ↓ cloud-init: injeta credenciais + clona repo + executa
-scripts/maintenance/run-maintenance.sh (na VPS)
+  │   rotulado healthbr=maintenance — e TERMINA (não espera: o teto
+  │   de 6h/job do GitHub não pode limitar a duração da rodada)
+scripts/maintenance/run-maintenance.sh (na VPS, via cloud-init)
   ↓ prepare_maintenance.py: decide pipelines a rodar; poda do controle
   │   de versão as partições outdated de sih/sinasc (pipelines FTP pulam
   │   arquivos já registrados — sem a poda, revisões retroativas do
@@ -932,11 +933,11 @@ scripts/maintenance/run-maintenance.sh (na VPS)
   ↓ roda pipelines incrementais (sinasc → sipni-microdados →
   │   sipni-covid → sih)
   ↓ commita data/controle_versao_*.csv de volta ao GitHub (PAT)
-  ↓ grava maintenance/last-run.json + last-run.log no R2 e desliga
-maintenance.yml (continuação)
-  ↓ detecta poweroff → coleta log → DELETA a VPS (step always():
-  │   mesmo em falha/timeout, nenhum servidor fica órfão)
-  ↓ re-dispara sync-check → dashboard reflete o estado novo
+  │   └── esse push re-dispara o sync-check → dashboard atualizado
+  ↓ grava maintenance/last-run.json + last-run.log no R2
+  ↓ AUTO-DELEÇÃO: hcloud server delete $(hostname)
+maintenance-reaper.yml (cron a cada 3h — backstop)
+  ↓ deleta VPS de manutenção desligada ou com > 12h de vida
 ```
 
 ### Datasets automatizados
@@ -986,11 +987,12 @@ pl.read_parquet_metadata("part-0.parquet")["healthbr"]
 
 - **Rodada manual:** Actions → "Maintenance (on-demand VPS)" →
   Run workflow. Ou apenas rodar o sync-check, que dispara se necessário.
-- **Log da última rodada:** `r2:healthbr-data/maintenance/last-run.log`
-  (também impresso no log do workflow) e `last-run.json` (resumo).
-- **Guarda contra sucesso falso:** o workflow grava
-  `{"status": "started"}` no `last-run.json` antes de criar a VPS; o
-  verify só passa se o orquestrador tiver sobrescrito com `success`.
+- **Acompanhar uma rodada:** `r2:healthbr-data/maintenance/last-run.json`
+  (resumo; `started` → em andamento ou morta) e `last-run.log` (log
+  completo, gravado ao final). O commit dos controles pelo bot e o
+  sync-check subsequente confirmam a conclusão.
+- **Sinal de rodada morta:** `last-run.json` parado em
+  `{"status": "started"}` com a VPS já removida pelo reaper.
 - **Custo por rodada:** cpx42 por hora (~€0,04/h × duração) + centavos
   de snapshot/mês. Sem rodadas quando não há deriva.
 - **SINASC — anos novos:** quando o DATASUS publicar um ano novo,

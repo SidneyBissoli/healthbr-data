@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: '0 3 * * 1'  # Every Monday at 3:00 AM UTC
   workflow_dispatch:        # Manual trigger for testing
+  push:                     # Pós-manutenção: o push dos controles pela VPS
+    branches: [master]      # re-roda o check e atualiza o dashboard
+    paths:
+      - 'data/controle_versao_*.csv'
 
 permissions:
   contents: read
@@ -58,7 +62,10 @@ jobs:
       # missing/outdated, dispara a rodada de manutenção (VPS sob demanda).
       # Datasets estáticos (agregados, dicionários) ficam de fora — deriva
       # neles é anômala e pede inspeção manual.
+      # NUNCA dispara em evento push (o push vem da própria manutenção;
+      # disparar aqui criaria um loop VPS → push → sync-check → VPS).
       - name: Trigger maintenance if drift detected
+        if: github.event_name != 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -81,12 +88,8 @@ jobs:
             echo "Datasets automatizados em sincronia — manutenção desnecessária."
             exit 0
           fi
-          RUNNING=$(gh run list --workflow=maintenance.yml \
-            --status=in_progress --json databaseId --jq 'length')
-          if [ "$RUNNING" != "0" ]; then
-            echo "Deriva em: $PENDING — mas já há manutenção em andamento; não disparando outra."
-            exit 0
-          fi
+          # Se já houver VPS de manutenção ativa, o maintenance.yml aborta
+          # sozinho (step "Abort if a maintenance VPS already exists").
           echo "Deriva detectada em: $PENDING — disparando manutenção."
           gh workflow run maintenance.yml --ref "${GITHUB_REF_NAME}" \
             -f reason="auto: $PENDING"

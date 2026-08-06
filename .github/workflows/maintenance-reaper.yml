@@ -1,0 +1,59 @@
+# ==============================================================================
+# maintenance-reaper.yml — Rede de segurança contra VPS de manutenção órfãs
+# ==============================================================================
+#
+# A VPS de manutenção se auto-deleta ao terminar (ver maintenance.yml). Este
+# reaper cobre os casos em que isso falha: orquestrador travado, API fora do
+# ar no momento do delete, VPS desligada mas não removida (servidores parados
+# CONTINUAM sendo cobrados na Hetzner).
+#
+# Regras: deleta qualquer servidor com label healthbr=maintenance-run que
+#   (a) esteja desligado (off) — terminou mas não conseguiu se deletar; ou
+#   (b) exista há mais de 12 horas — nenhuma rodada legítima dura isso.
+# ==============================================================================
+
+name: Maintenance reaper
+
+on:
+  schedule:
+    - cron: '43 */3 * * *'   # a cada 3 horas
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  reap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      MAX_AGE_HOURS: 12
+
+    steps:
+      - name: Install hcloud CLI
+        run: |
+          curl -sL https://github.com/hetznercloud/cli/releases/latest/download/hcloud-linux-amd64.tar.gz \
+            | tar xz hcloud
+          sudo mv hcloud /usr/local/bin/
+
+      - name: Reap orphaned maintenance servers
+        run: |
+          NOW=$(date -u +%s)
+          hcloud server list --selector healthbr=maintenance-run -o json \
+            | jq -c '.[] | {name, status, created}' \
+            | while read -r srv; do
+            NAME=$(echo "$srv" | jq -r .name)
+            STATUS=$(echo "$srv" | jq -r .status)
+            CREATED=$(echo "$srv" | jq -r .created)
+            AGE_H=$(( (NOW - $(date -u -d "$CREATED" +%s)) / 3600 ))
+            if [ "$STATUS" = "off" ]; then
+              echo "REAP: $NAME está desligada (terminou sem se deletar) — removendo."
+              hcloud server delete "$NAME"
+            elif [ "$AGE_H" -ge "$MAX_AGE_HOURS" ]; then
+              echo "REAP: $NAME tem ${AGE_H}h (>= ${MAX_AGE_HOURS}h) — rodada travada, removendo."
+              hcloud server delete "$NAME"
+            else
+              echo "OK: $NAME ($STATUS, ${AGE_H}h) — dentro do esperado."
+            fi
+          done
+          echo "Reaper concluído."

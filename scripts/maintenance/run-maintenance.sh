@@ -12,8 +12,9 @@
 #   4. Commita os controles de versão atualizados de volta ao GitHub
 #   5. Publica um resumo da rodada em maintenance/last-run.json no R2
 #
-# O desligamento (shutdown) e o upload do log completo ficam a cargo do
-# cloud-init, para acontecerem mesmo se este script morrer no meio.
+# O upload do log completo e a AUTO-DELEÇÃO da VPS (hcloud server delete)
+# ficam a cargo do cloud-init, para acontecerem mesmo se este script morrer
+# no meio. O maintenance-reaper.yml é o backstop se até isso falhar.
 #
 # Pré-requisitos (garantidos pelo snapshot + cloud-init):
 #   - R + arrow + read.dbc + pacotes do setup (reference-pipelines-pt.md, §2)

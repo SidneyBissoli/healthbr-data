@@ -876,6 +876,7 @@ Parquet tem exatamente as colunas que o `read.dbc()` retorna.
 
 **Sprints independentes:** A variável `SPRINT` no script controla o
 escopo (1 = era moderna 2008+, 2 = era antiga 1992–2007, 3 = full).
+Sobrescrevível pela env var `SIH_SPRINT` (a manutenção automatizada usa 3).
 O Sprint 2 acumula no mesmo controle de versão e manifesto do Sprint 1.
 
 **Nomenclatura de arquivos .dbc:** Padrão `RD{UF}{AA}{MM}.dbc` onde
@@ -896,8 +897,7 @@ nohup Rscript sih-pipeline-r.R > sih-sprint1.log 2>&1 &
 tail -f sih-sprint1.log
 
 # Sprint 2 (era antiga, 1992–2007) — após Sprint 1
-sed -i 's/^SPRINT <- 1/SPRINT <- 2/' sih-pipeline-r.R
-nohup Rscript sih-pipeline-r.R > sih-sprint2.log 2>&1 &
+SIH_SPRINT=2 nohup Rscript sih-pipeline-r.R > sih-sprint2.log 2>&1 &
 tail -f sih-sprint2.log
 
 # Monitorar
@@ -908,4 +908,102 @@ ps aux | grep sih-pipeline
 
 ---
 
-*Última atualização: 09/mar/2026 — Adicionada seção 14 (pipeline SIH).*
+## 15. MANUTENÇÃO AUTOMATIZADA (VPS SOB DEMANDA)
+
+Fecha o ciclo entre detecção de deriva e atualização dos dados: o
+sync-check semanal detecta partições `missing`/`outdated` e dispara
+automaticamente uma VPS efêmera que roda os pipelines incrementais.
+
+### Arquitetura
+
+```
+Segunda 03:00 UTC — sync-check.yml (GitHub Actions, já existente)
+  ↓ comparison engine → sync-status.json → R2 + HF Space
+  ↓ se missing/outdated > 0 em dataset automatizado
+maintenance.yml (GitHub Actions)
+  ↓ cria VPS Hetzner (cpx41, Nuremberg) a partir do snapshot
+  │   rotulado healthbr=maintenance
+  ↓ cloud-init: injeta credenciais + clona repo + executa
+scripts/maintenance/run-maintenance.sh (na VPS)
+  ↓ prepare_maintenance.py: decide pipelines a rodar; poda do controle
+  │   de versão as partições outdated de sih/sinasc (pipelines FTP pulam
+  │   arquivos já registrados — sem a poda, revisões retroativas do
+  │   Ministério nunca seriam reprocessadas)
+  ↓ roda pipelines incrementais (sinasc → sipni-microdados →
+  │   sipni-covid → sih)
+  ↓ commita data/controle_versao_*.csv de volta ao GitHub (PAT)
+  ↓ grava maintenance/last-run.json + last-run.log no R2 e desliga
+maintenance.yml (continuação)
+  ↓ detecta poweroff → coleta log → DELETA a VPS (step always():
+  │   mesmo em falha/timeout, nenhum servidor fica órfão)
+  ↓ re-dispara sync-check → dashboard reflete o estado novo
+```
+
+### Datasets automatizados
+
+| Dataset | Detecção de atualização | Forçar reprocessamento |
+|---------|------------------------|------------------------|
+| sinasc | poda do controle (FTP não tem ETag) | via prepare_maintenance.py |
+| sih | poda do controle (idem; `SIH_SPRINT=3`) | via prepare_maintenance.py |
+| sipni-microdados | o próprio pipeline (ETag por mês) | automático |
+| sipni-covid | o próprio pipeline (ETag por UF) | automático |
+
+Agregados (1994–2019) e dicionários são estáticos e ficam fora da
+automação — deriva neles é anômala e pede inspeção manual.
+
+### Metadados de proveniência embutidos (pipeline_version 1.1.0)
+
+Desde a versão 1.1.0, cada Parquet gravado pelos 4 pipelines dinâmicos
+carrega, no schema metadata do Arrow (chave `healthbr`, valor JSON):
+`dataset`, `source_url`, `source_file`, hash MD5 da fonte,
+`source_size_bytes`, `download_date`, `pipeline_script` e
+`pipeline_version`. Arquivos do bootstrap (1.0.0) não têm o metadado;
+ganham no reprocessamento natural das revisões da fonte (backfill
+oportunista). Leitura:
+
+```r
+arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
+```
+
+```python
+pl.read_parquet_metadata("part-0.parquet")["healthbr"]
+```
+
+### Setup (uma vez)
+
+1. **Snapshot da imagem base:** seguir o cabeçalho de
+   `scripts/maintenance/setup-snapshot.sh` (criar VPS builder → rodar o
+   script → snapshot com label `healthbr=maintenance` → deletar builder).
+   Refazer o snapshot quando a stack mudar (novo pacote R, etc.).
+2. **Secrets no GitHub** (Settings → Secrets → Actions), além dos já
+   usados pelo sync-check (`R2_*`, `HF_TOKEN`):
+   - `HCLOUD_TOKEN` — Hetzner Cloud Console → projeto → Security →
+     API Tokens → Generate (Read & Write).
+   - `MAINT_GH_PAT` — fine-grained PAT com Contents: Read and write
+     neste repo (para o commit dos controles de versão pela VPS).
+
+### Operação
+
+- **Rodada manual:** Actions → "Maintenance (on-demand VPS)" →
+  Run workflow. Ou apenas rodar o sync-check, que dispara se necessário.
+- **Log da última rodada:** `r2:healthbr-data/maintenance/last-run.log`
+  (também impresso no log do workflow) e `last-run.json` (resumo).
+- **Guarda contra sucesso falso:** o workflow grava
+  `{"status": "started"}` no `last-run.json` antes de criar a VPS; o
+  verify só passa se o orquestrador tiver sobrescrito com `success`.
+- **Custo por rodada:** cpx41 por hora (~€0,04/h × duração) + centavos
+  de snapshot/mês. Sem rodadas quando não há deriva.
+- **SINASC — anos novos:** quando o DATASUS publicar um ano novo,
+  atualizar `SINASC_YEAR_END` em `scripts/sync/sync_check.py` e (na
+  rodada da VPS) a env var `SINASC_ANO_FIM` — ver comentário no
+  pipeline. Sem isso o ano novo não é detectado nem processado.
+- **sipni-covid:** só roda se `data/controle_versao_covid.csv` existir
+  no repo (sem ele o pipeline reprocessaria os ~272 GB do zero). O
+  controle do bootstrap vive na VPS antiga em `/root/data/` — commitá-lo
+  ao repo habilita a automação para esse dataset.
+
+---
+
+*Última atualização: 05/ago/2026 — Adicionada seção 15 (manutenção
+automatizada); metadados de proveniência embutidos (pipelines 1.1.0);
+`SPRINT` do SIH sobrescrevível via env var.*

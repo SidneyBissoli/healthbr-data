@@ -21,6 +21,7 @@
 import os
 import sys
 import csv
+import json
 import time
 import hashlib
 import subprocess
@@ -28,14 +29,20 @@ import shutil
 import urllib.request
 import urllib.error
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ==============================================================================
 # CONFIGURAÇÃO
 # ==============================================================================
 
 DIR_TEMP     = Path("/root/temp_pipeline_covid")
-CONTROLE_CSV = Path("/root/data/controle_versao_covid.csv")
+# Overridable so the maintenance automation can point to the repo checkout
+CONTROLE_CSV = Path(os.environ.get(
+    'CONTROLE_CSV_COVID', '/root/data/controle_versao_covid.csv'))
+
+# Embedded in each Parquet's schema metadata and in the manifest.
+# 1.1.0: provenance metadata embedded in Parquet files.
+PIPELINE_VERSION = "1.1.0"
 
 RCLONE_REMOTE = "r2"
 R2_BUCKET     = "healthbr-data"
@@ -207,8 +214,14 @@ def preparar_df(df):
     )
 
 
-def gravar_particionado(df, sufixo, dir_staging):
-    """Grava DataFrame polars como Parquet particionado por ano/mes/uf."""
+def gravar_particionado(df, sufixo, dir_staging, meta_json=None):
+    """Grava DataFrame polars como Parquet particionado por ano/mes/uf.
+
+    meta_json (str) é embutido como schema metadata sob a chave "healthbr",
+    de modo que cada arquivo carrega a própria proveniência mesmo copiado
+    para fora do contexto repo/R2. Requer polars >= 1.9; em versões
+    anteriores grava sem metadata.
+    """
     import polars as pl
 
     dir_staging = Path(dir_staging)
@@ -221,16 +234,23 @@ def gravar_particionado(df, sufixo, dir_staging):
         part_dir = dir_staging / f"ano={a}" / f"mes={m}" / f"uf={u}"
         part_dir.mkdir(parents=True, exist_ok=True)
 
-        part_df.drop(['ano', 'mes', 'uf']).write_parquet(
-            str(part_dir / f"part-{sufixo}.parquet")
-        )
+        out = str(part_dir / f"part-{sufixo}.parquet")
+        sub = part_df.drop(['ano', 'mes', 'uf'])
+        if meta_json:
+            try:
+                sub.write_parquet(out, metadata={'healthbr': meta_json})
+            except TypeError:
+                sub.write_parquet(out)
+        else:
+            sub.write_parquet(out)
 
 
 # ==============================================================================
 # PROCESSAMENTO: UMA PARTE CSV
 # ==============================================================================
 
-def processar_parte_csv(csv_path, uf_fonte, parte_idx, dir_staging):
+def processar_parte_csv(csv_path, uf_fonte, parte_idx, dir_staging,
+                        meta_json=None):
     """Processa uma parte CSV → Parquet particionado.
 
     Arquivos < 3 GB: leitura completa com polars (rápido).
@@ -259,7 +279,7 @@ def processar_parte_csv(csv_path, uf_fonte, parte_idx, dir_staging):
         n_valid = len(df)
 
         sufixo = f"{uf_fonte}-{parte_idx:05d}"
-        gravar_particionado(df, sufixo, dir_staging)
+        gravar_particionado(df, sufixo, dir_staging, meta_json)
 
         return n_valid
 
@@ -285,7 +305,7 @@ def processar_parte_csv(csv_path, uf_fonte, parte_idx, dir_staging):
             n_total += n_batch
 
             sufixo = f"{uf_fonte}-{parte_idx:05d}-{batch_num:05d}"
-            gravar_particionado(df, sufixo, dir_staging)
+            gravar_particionado(df, sufixo, dir_staging, meta_json)
 
             print(f"        Batch {batch_num}: +{n_batch:,} "
                   f"| total {n_total:,}")
@@ -336,7 +356,19 @@ def processar_uf(uf, info_servidor):
 
         # 2. Processar CSV → Parquet
         t0 = time.time()
-        n = processar_parte_csv(csv_path, uf, parte_idx, dir_staging)
+        prov_json = json.dumps({
+            'dataset': R2_PREFIX,
+            'source_url': url,
+            'source_file': url.rsplit('/', 1)[-1],
+            'source_etag': parte_info['etag'],
+            'source_size_bytes': parte_info['content_length'],
+            'download_date': datetime.now(timezone.utc).strftime(
+                '%Y-%m-%dT%H:%M:%SZ'),
+            'pipeline_script': 'scripts/pipeline/sipni-covid-pipeline.py',
+            'pipeline_version': PIPELINE_VERSION,
+        })
+        n = processar_parte_csv(csv_path, uf, parte_idx, dir_staging,
+                                meta_json=prov_json)
         n_total += n
         proc_time = time.time() - t0
         print(f"    Processado: {n:,} registros em {proc_time:.1f}s")

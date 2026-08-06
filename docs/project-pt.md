@@ -4,9 +4,11 @@
 > Claude Code) que precise entender o projeto sem ter participado das conversas
 > anteriores. Ele é a fonte de verdade sobre decisões, arquitetura e estado atual.
 >
-> Última atualização: 2026-03-09 (v7 — SINASC publicado (Fase 5: 85M
-> registros, 1994–2022); SIH publicado (Fase 5: 415M registros, 1992–2026);
-> 7 datasets no R2 + HF + dashboard de sincronização. SIM na Fase 1.)
+> Última atualização: 2026-08-05 (v8 — manutenção automatizada: sync-check
+> semanal dispara VPS Hetzner efêmera que roda os pipelines incrementais
+> quando há deriva; metadados de proveniência embutidos nos Parquets
+> (pipelines 1.1.0). v7: SINASC e SIH publicados; 7 datasets no R2 + HF +
+> dashboard de sincronização. SIM na Fase 1.)
 >
 > **Documentos relacionados:**  
 > - `strategy-expansion-pt.md` — Ciclo de vida de módulos, lições aprendidas,
@@ -137,11 +139,12 @@ Este projeto oferece:
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                                                                  │
-│  1. VPS (Hetzner, €4/mês)                                        │
-│     ├── Cron mensal: git pull + Rscript                          │
+│  1. VPS (Hetzner, efêmera — criada sob demanda pelo sync-check)  │
+│     ├── Disparo: deriva detectada no check semanal (GH Actions)  │
 │     ├── Baixa fontes brutas (DATASUS FTP + OpenDATASUS S3)       │
 │     ├── Converte para Parquet particionado                       │
-│     └── Sobe para R2 via rclone                                  │
+│     ├── Sobe para R2 via rclone                                  │
+│     └── Destruída ao fim da rodada (custo só quando há trabalho) │
 │                                                                  │
 │  2. Cloudflare R2 (armazenamento primário)                       │
 │     └── Serve Parquets via protocolo S3                          │
@@ -953,6 +956,18 @@ healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 - [x] Dados no R2: `sih/` particionado por ano/mes/uf (16,1 GiB)
 - [x] README no R2; dataset card HF (`SidneyBissoli/sih`)
 - [x] Registrado no sync_check.py e dashboard de sincronização
+
+**Manutenção automatizada (ago/2026):**
+- [x] Gatilho condicional no sync-check: deriva → dispara maintenance.yml
+- [x] Workflow maintenance.yml: cria VPS Hetzner efêmera a partir de
+  snapshot, roda pipelines incrementais, deleta a VPS (watchdog always())
+- [x] Orquestrador `scripts/maintenance/run-maintenance.sh` +
+  `prepare_maintenance.py` (poda controle das partições outdated)
+- [x] Metadados de proveniência embutidos nos Parquets (pipelines 1.1.0):
+  chave `healthbr` no schema metadata com source_url, hash da fonte,
+  data de download e versão do pipeline; backfill oportunista via
+  revisões naturais da fonte
+- [x] Documentação: seção 15 do `reference-pipelines-pt.md`
 
 ### Recon (Fase 1 concluído)
 - [x] SIM (mortalidade) — Recon concluído 2026-03-07

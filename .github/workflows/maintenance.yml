@@ -1,0 +1,191 @@
+# ==============================================================================
+# maintenance.yml — Manutenção sob demanda em VPS Hetzner efêmera
+# ==============================================================================
+#
+# Disparado pelo sync-check.yml quando o comparison engine detecta partições
+# missing/outdated nos datasets automatizados (ou manualmente via
+# workflow_dispatch). Fluxo:
+#
+#   1. Cria uma VPS a partir do snapshot rotulado healthbr=maintenance
+#      (imagem pré-configurada — ver scripts/maintenance/setup-snapshot.sh)
+#   2. O cloud-init clona o repo e executa run-maintenance.sh, que roda os
+#      pipelines incrementais e desliga a máquina ao terminar
+#   3. O workflow aguarda o desligamento, coleta o log e SEMPRE deleta a VPS
+#      (watchdog: mesmo em falha ou timeout, nenhum servidor fica órfão)
+#   4. Re-dispara o sync-check para o dashboard refletir o estado novo
+#
+# Secrets necessários (além dos já usados pelo sync-check):
+#   HCLOUD_TOKEN — token da API Hetzner Cloud (permissão read+write)
+#   MAINT_GH_PAT — fine-grained PAT com push no repo (commit dos controles)
+# ==============================================================================
+
+name: Maintenance (on-demand VPS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Motivo da rodada (livre; registrado no log)'
+        required: false
+        default: 'manual'
+
+# Nunca duas VPS de manutenção ao mesmo tempo
+concurrency:
+  group: maintenance
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    # Deve exceder o VPS_TIMEOUT_MIN abaixo com folga
+    timeout-minutes: 420
+
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      SERVER_NAME: healthbr-maint-${{ github.run_id }}
+      SERVER_TYPE: cpx41
+      SERVER_LOCATION: nbg1
+      SNAPSHOT_SELECTOR: healthbr=maintenance
+      # Tempo máximo aguardando a VPS desligar sozinha (minutos)
+      VPS_TIMEOUT_MIN: 360
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install hcloud CLI
+        run: |
+          curl -sL https://github.com/hetznercloud/cli/releases/latest/download/hcloud-linux-amd64.tar.gz \
+            | tar xz hcloud
+          sudo mv hcloud /usr/local/bin/
+          hcloud version
+
+      - name: Find maintenance snapshot
+        id: snapshot
+        run: |
+          IMAGE_ID=$(hcloud image list --type snapshot \
+            --selector "$SNAPSHOT_SELECTOR" -o json \
+            | jq -r 'sort_by(.created) | last | .id // empty')
+          if [ -z "$IMAGE_ID" ]; then
+            echo "ERRO: nenhum snapshot com label $SNAPSHOT_SELECTOR."
+            echo "Crie a imagem base com scripts/maintenance/setup-snapshot.sh."
+            exit 1
+          fi
+          echo "Snapshot: $IMAGE_ID"
+          echo "image_id=$IMAGE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Render cloud-init user data
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          MAINT_GH_PAT: ${{ secrets.MAINT_GH_PAT }}
+        run: |
+          cat > user-data.yml <<EOF
+          #cloud-config
+          write_files:
+            - path: /root/maint.env
+              permissions: "0600"
+              content: |
+                export R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+                export R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+                export R2_ENDPOINT=${R2_ENDPOINT}
+                export GH_PAT=${MAINT_GH_PAT}
+          runcmd:
+            - |
+              bash -c '
+              set -x
+              source /root/maint.env
+              rclone config create r2 s3 provider Cloudflare \
+                access_key_id "\$R2_ACCESS_KEY_ID" \
+                secret_access_key "\$R2_SECRET_ACCESS_KEY" \
+                endpoint "\$R2_ENDPOINT" >/dev/null
+              git clone "https://x-access-token:\${GH_PAT}@github.com/${{ github.repository }}.git" /root/healthbr-data
+              bash /root/healthbr-data/scripts/maintenance/run-maintenance.sh >> /root/maintenance.log 2>&1
+              rclone copyto /root/maintenance.log r2:healthbr-data/maintenance/last-run.log
+              shutdown -h now'
+          EOF
+          echo "user-data.yml gerado ($(wc -l < user-data.yml) linhas)"
+
+      # Sobrescreve o resumo da rodada anterior ANTES de criar a VPS: se a
+      # manutenção morrer sem gravar o dela, o verify lê "started" e falha,
+      # em vez de ler um "success" antigo e passar por engano.
+      - name: Mark run as started
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          jq -n --arg run_id "${{ github.run_id }}" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{status: "started", run_id: $run_id, timestamp: $ts}' \
+            | aws s3 cp - s3://healthbr-data/maintenance/last-run.json \
+              --endpoint-url "${{ secrets.R2_ENDPOINT }}"
+
+      - name: Create VPS
+        run: |
+          hcloud server create \
+            --name "$SERVER_NAME" \
+            --type "$SERVER_TYPE" \
+            --location "$SERVER_LOCATION" \
+            --image "${{ steps.snapshot.outputs.image_id }}" \
+            --user-data-from-file user-data.yml \
+            --label healthbr=maintenance-run
+          echo "VPS $SERVER_NAME criada; aguardando pipelines..."
+
+      - name: Wait for VPS to power off
+        run: |
+          DEADLINE=$(( $(date +%s) + VPS_TIMEOUT_MIN * 60 ))
+          while true; do
+            STATUS=$(hcloud server describe "$SERVER_NAME" -o json | jq -r .status)
+            NOW=$(date +%s)
+            if [ "$STATUS" = "off" ]; then
+              echo "VPS desligou — manutenção terminou."
+              break
+            fi
+            if [ "$NOW" -ge "$DEADLINE" ]; then
+              echo "TIMEOUT: VPS ainda '$STATUS' após ${VPS_TIMEOUT_MIN}min."
+              echo "O step de deleção (always) vai destruí-la mesmo assim."
+              exit 1
+            fi
+            sleep 60
+          done
+
+      - name: Fetch maintenance log and summary
+        if: always()
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          echo "=== maintenance/last-run.json ==="
+          aws s3 cp s3://healthbr-data/maintenance/last-run.json - \
+            --endpoint-url "${{ secrets.R2_ENDPOINT }}" || true
+          echo ""
+          echo "=== últimas 200 linhas do log ==="
+          aws s3 cp s3://healthbr-data/maintenance/last-run.log - \
+            --endpoint-url "${{ secrets.R2_ENDPOINT }}" | tail -200 || true
+
+      - name: Delete VPS (watchdog)
+        if: always()
+        run: |
+          hcloud server delete "$SERVER_NAME" \
+            && echo "VPS $SERVER_NAME deletada." \
+            || echo "AVISO: falha ao deletar (já removida?). Verifique o painel Hetzner."
+
+      - name: Verify run succeeded
+        run: |
+          STATUS=$(aws s3 cp s3://healthbr-data/maintenance/last-run.json - \
+            --endpoint-url "${{ secrets.R2_ENDPOINT }}" | jq -r .status)
+          echo "Status da rodada: $STATUS"
+          [ "$STATUS" = "success" ]
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+
+      - name: Re-run sync-check to refresh dashboard
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run sync-check.yml --ref "${{ github.ref_name }}"

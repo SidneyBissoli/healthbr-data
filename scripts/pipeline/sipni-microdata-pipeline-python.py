@@ -28,7 +28,7 @@ import shutil
 import urllib.request
 import urllib.error
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # ==============================================================================
@@ -36,7 +36,13 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 # ==============================================================================
 
 DIR_TEMP     = Path("/root/temp_pipeline")
-CONTROLE_CSV = Path("/root/data/controle_versao_microdata.csv")
+# Overridable so the maintenance automation can point to the repo checkout
+CONTROLE_CSV = Path(os.environ.get(
+    'CONTROLE_CSV_MICRODADOS', '/root/data/controle_versao_microdata.csv'))
+
+# Embedded in each Parquet's schema metadata and in the manifest.
+# 1.1.0: provenance metadata embedded in Parquet files.
+PIPELINE_VERSION = "1.1.0"
 
 RCLONE_REMOTE = "r2"
 R2_BUCKET     = "healthbr-data"
@@ -157,8 +163,14 @@ def read_ndjson_as_strings(path):
     return pl.read_ndjson(path, schema=schema)
 
 
-def gravar_particionado(df, sufixo, dir_staging):
-    """Grava DataFrame polars como Parquet particionado por ano/mes/uf."""
+def gravar_particionado(df, sufixo, dir_staging, meta_json=None):
+    """Grava DataFrame polars como Parquet particionado por ano/mes/uf.
+
+    meta_json (str) é embutido como schema metadata sob a chave "healthbr",
+    de modo que cada arquivo carrega a própria proveniência mesmo copiado
+    para fora do contexto repo/R2. Requer polars >= 1.9; em versões
+    anteriores grava sem metadata.
+    """
     import polars as pl
 
     dir_staging = Path(dir_staging)
@@ -171,9 +183,15 @@ def gravar_particionado(df, sufixo, dir_staging):
         part_dir = dir_staging / f"ano={a}" / f"mes={m}" / f"uf={u}"
         part_dir.mkdir(parents=True, exist_ok=True)
 
-        part_df.drop(['ano', 'mes', 'uf']).write_parquet(
-            str(part_dir / f"part-{sufixo}.parquet")
-        )
+        out = str(part_dir / f"part-{sufixo}.parquet")
+        sub = part_df.drop(['ano', 'mes', 'uf'])
+        if meta_json:
+            try:
+                sub.write_parquet(out, metadata={'healthbr': meta_json})
+            except TypeError:
+                sub.write_parquet(out)
+        else:
+            sub.write_parquet(out)
 
 
 def preparar_df(df):
@@ -217,7 +235,8 @@ def preparar_df(df):
 # PROCESSAMENTO: ARQUIVOS PEQUENOS (< 1.5GB) — jq in-memory + polars
 # ==============================================================================
 
-def processar_parte_pequena(zip_path_str, json_nome, parte_idx, dir_staging_str):
+def processar_parte_pequena(zip_path_str, json_nome, parte_idx, dir_staging_str,
+                            meta_json=None):
     """
     Worker para partes pequenas (< 1.5GB cada).
     Roda em processo separado via ProcessPoolExecutor.
@@ -264,7 +283,7 @@ def processar_parte_pequena(zip_path_str, json_nome, parte_idx, dir_staging_str)
         df = preparar_df(df)
         n_valid = len(df)
         sufixo = f"{parte_idx:05d}"
-        gravar_particionado(df, sufixo, dir_staging)
+        gravar_particionado(df, sufixo, dir_staging, meta_json)
 
         return n_valid
 
@@ -280,7 +299,7 @@ def processar_parte_pequena(zip_path_str, json_nome, parte_idx, dir_staging_str)
 # PROCESSAMENTO: ARQUIVOS GRANDES (>= 1.5GB) — jq --stream + batches
 # ==============================================================================
 
-def processar_parte_grande(json_path, dir_staging, part_idx=1):
+def processar_parte_grande(json_path, dir_staging, part_idx=1, meta_json=None):
     """
     Para JSONs grandes (2025+): jq --stream com memória constante.
 
@@ -328,7 +347,7 @@ def processar_parte_grande(json_path, dir_staging, part_idx=1):
             n_total += n_batch
 
             sufixo = f"{part_idx:02d}-{batch_num:05d}"
-            gravar_particionado(df, sufixo, dir_staging)
+            gravar_particionado(df, sufixo, dir_staging, meta_json)
 
             print(f"      Batch {batch_num}: +{n_batch:,.0f} "
                   f"| total {n_total:,.0f}")
@@ -347,7 +366,7 @@ def processar_parte_grande(json_path, dir_staging, part_idx=1):
         n_total += len(df)
 
         sufixo = f"{part_idx:02d}-{batch_num:05d}"
-        gravar_particionado(df, sufixo, dir_staging)
+        gravar_particionado(df, sufixo, dir_staging, meta_json)
 
     proc.wait()
 
@@ -393,6 +412,19 @@ def processar_mes(ano, mes, info):
 
     hash_zip = md5_file(zip_path)
 
+    prov_json = json.dumps({
+        'dataset': R2_PREFIX,
+        'source_url': url,
+        'source_file': nome_zip,
+        'source_etag': info['etag'],
+        'source_hash_md5_zip': hash_zip,
+        'source_size_bytes': info['content_length'],
+        'download_date': datetime.now(timezone.utc).strftime(
+            '%Y-%m-%dT%H:%M:%SZ'),
+        'pipeline_script': 'scripts/pipeline/sipni-microdata-pipeline-python.py',
+        'pipeline_version': PIPELINE_VERSION,
+    })
+
     # --- 2. Listar partes ---
     with zipfile.ZipFile(zip_path) as zf:
         json_entries = sorted(
@@ -428,7 +460,7 @@ def processar_mes(ano, mes, info):
             for i, nome in enumerate(json_nomes, 1):
                 f = executor.submit(
                     processar_parte_pequena,
-                    str(zip_path), nome, i, str(dir_staging)
+                    str(zip_path), nome, i, str(dir_staging), prov_json
                 )
                 futures[f] = i
 
@@ -455,7 +487,8 @@ def processar_mes(ano, mes, info):
                 zf.extract(nome, dir_json)
 
             json_path = dir_json / nome
-            n = processar_parte_grande(json_path, dir_staging, part_idx=i)
+            n = processar_parte_grande(json_path, dir_staging, part_idx=i,
+                                       meta_json=prov_json)
             n_total += n
 
             # Liberar

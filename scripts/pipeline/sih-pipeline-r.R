@@ -63,7 +63,12 @@ pacman::p_load(
 #'   1 = Era moderna (2008–present) — default, run first
 #'   2 = Era antiga  (1992–2007)    — run after Sprint 1
 #'   3 = Full (1992–present)        — both eras in one run
-SPRINT <- 1
+#' Overridable via env var SIH_SPRINT (the maintenance automation uses 3).
+SPRINT <- as.integer(Sys.getenv("SIH_SPRINT", "1"))
+
+#' Embedded in each Parquet's schema metadata and in the manifest.
+#' 1.1.0: provenance metadata embedded in Parquet files.
+PIPELINE_VERSION <- "1.1.0"
 
 DIR_TEMP     <- file.path(tempdir(), "sih_pipeline")
 CONTROLE_CSV <- "data/controle_versao_sih.csv"
@@ -77,16 +82,17 @@ RCLONE_REMOTE <- "r2"
 R2_BUCKET     <- "healthbr-data"
 R2_PREFIX     <- "sih"
 
-# Period (adjusted by sprint)
+# Period (adjusted by sprint; upper bound follows the current year so the
+# maintenance automation picks up new months without editing this file)
 if (SPRINT == 1) {
   ANO_INICIO <- 2008
-  ANO_FIM    <- 2026
+  ANO_FIM    <- as.integer(format(Sys.Date(), "%Y"))
 } else if (SPRINT == 2) {
   ANO_INICIO <- 1992
   ANO_FIM    <- 2007
 } else {
   ANO_INICIO <- 1992
-  ANO_FIM    <- 2026
+  ANO_FIM    <- as.integer(format(Sys.Date(), "%Y"))
 }
 
 # Months
@@ -230,14 +236,24 @@ ler_dbc_como_character <- function(caminho) {
 # ==============================================================================
 
 #' Write Parquet in Hive partition ano=/mes=/uf=/
-gravar_parquet <- function(df, ano, mes, uf, dir_staging) {
+#'
+#' `meta` (named list) is embedded as Arrow schema metadata under the key
+#' "healthbr" (JSON string), so each file carries its own provenance even
+#' when copied outside the repository/R2 context.
+gravar_parquet <- function(df, ano, mes, uf, dir_staging, meta = NULL) {
   dir_part <- file.path(dir_staging,
                         paste0("ano=", ano),
                         paste0("mes=", mes),
                         paste0("uf=", uf))
   dir_create(dir_part)
   caminho <- file.path(dir_part, "part-0.parquet")
-  arrow::write_parquet(df, caminho)
+  tbl <- arrow::arrow_table(df)
+  if (!is.null(meta)) {
+    tbl$metadata$healthbr <- as.character(
+      jsonlite::toJSON(meta, auto_unbox = TRUE)
+    )
+  }
+  arrow::write_parquet(tbl, caminho)
   caminho
 }
 
@@ -373,8 +389,18 @@ processar_arquivo <- function(uf, ano, mes, controle) {
   tamanho         <- file.info(destino_dbc)$size
 
   # Write Parquet to staging
+  meta <- list(
+    dataset           = R2_PREFIX,
+    source_url        = url,
+    source_file       = nome,
+    source_hash_md5   = hash_md5,
+    source_size_bytes = tamanho,
+    download_date     = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+    pipeline_script   = "scripts/pipeline/sih-pipeline-r.R",
+    pipeline_version  = PIPELINE_VERSION
+  )
   dir_staging     <- file.path(DIR_TEMP, "staging_parquet")
-  caminho_parquet <- gravar_parquet(df, ano, mes, uf, dir_staging)
+  caminho_parquet <- gravar_parquet(df, ano, mes, uf, dir_staging, meta)
 
   n_colunas_parquet <- ncol(arrow::read_parquet(caminho_parquet, as_data_frame = FALSE))
 

@@ -65,6 +65,10 @@ pacman::p_load(
 
 # --- Configurações ------------------------------------------------------------
 
+#' Embutida no schema metadata de cada Parquet e no manifesto.
+#' 1.1.0: metadados de proveniência embutidos nos Parquets.
+PIPELINE_VERSION <- "1.1.0"
+
 DIR_TEMP     <- file.path(tempdir(), "sinasc_pipeline")
 CONTROLE_CSV <- "data/controle_versao_sinasc.csv"
 
@@ -77,9 +81,11 @@ RCLONE_REMOTE <- "r2"
 R2_BUCKET     <- "healthbr-data"
 R2_PREFIX     <- "sinasc"
 
-# Período
+# Período — ANO_FIM sobrescrevível por env var quando o DATASUS publicar
+# novos anos (a automação de manutenção usa SINASC_ANO_FIM; lembrar de
+# atualizar também SINASC_YEAR_END em scripts/sync/sync_check.py)
 ANO_INICIO <- 1994
-ANO_FIM    <- 2022
+ANO_FIM    <- as.integer(Sys.getenv("SINASC_ANO_FIM", "2022"))
 
 # UFs (27 estados)
 UFS <- c(
@@ -302,11 +308,21 @@ ler_dbc_como_character <- function(caminho, ano) {
 # ==============================================================================
 
 #' Gravar Parquet em partição Hive ano=/uf=/
-gravar_parquet <- function(df, ano, uf, dir_staging) {
+#'
+#' `meta` (lista nomeada) é embutida como schema metadata do Arrow sob a
+#' chave "healthbr" (string JSON), de modo que cada arquivo carrega a
+#' própria proveniência mesmo copiado para fora do contexto repo/R2.
+gravar_parquet <- function(df, ano, uf, dir_staging, meta = NULL) {
   dir_part <- file.path(dir_staging, paste0("ano=", ano), paste0("uf=", uf))
   dir_create(dir_part)
   caminho <- file.path(dir_part, "part-0.parquet")
-  arrow::write_parquet(df, caminho)
+  tbl <- arrow::arrow_table(df)
+  if (!is.null(meta)) {
+    tbl$metadata$healthbr <- as.character(
+      jsonlite::toJSON(meta, auto_unbox = TRUE)
+    )
+  }
+  arrow::write_parquet(tbl, caminho)
   caminho
 }
 
@@ -437,8 +453,18 @@ processar_arquivo <- function(uf, ano, controle) {
   tamanho           <- file.info(destino_dbc)$size
 
   # Gravar Parquet no staging
+  meta <- list(
+    dataset           = R2_PREFIX,
+    source_url        = url,
+    source_file       = nome,
+    source_hash_md5   = hash_md5,
+    source_size_bytes = tamanho,
+    download_date     = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+    pipeline_script   = "scripts/pipeline/sinasc-pipeline-r.R",
+    pipeline_version  = PIPELINE_VERSION
+  )
   dir_staging <- file.path(DIR_TEMP, "staging_parquet")
-  caminho_parquet <- gravar_parquet(df, ano, uf, dir_staging)
+  caminho_parquet <- gravar_parquet(df, ano, uf, dir_staging, meta)
 
   n_colunas_parquet <- ncol(arrow::read_parquet(caminho_parquet, as_data_frame = FALSE))
 

@@ -5,6 +5,10 @@ on:
     - cron: '0 3 * * 1'  # Every Monday at 3:00 AM UTC
   workflow_dispatch:        # Manual trigger for testing
 
+permissions:
+  contents: read
+  actions: write   # disparar maintenance.yml quando houver deriva
+
 jobs:
   sync-check:
     runs-on: ubuntu-latest
@@ -49,3 +53,40 @@ jobs:
           git add src/sync-status.json
           git commit -m "Update sync status $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
           git push
+
+      # Manutenção condicional: se algum dataset automatizado tem partições
+      # missing/outdated, dispara a rodada de manutenção (VPS sob demanda).
+      # Datasets estáticos (agregados, dicionários) ficam de fora — deriva
+      # neles é anômala e pede inspeção manual.
+      - name: Trigger maintenance if drift detected
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PENDING=$(python - <<'EOF'
+          import json
+          AUTOMATED = ["sinasc", "sih", "sipni-microdados", "sipni-covid"]
+          data = json.load(open("sync-status.json"))
+          pending = []
+          for key in AUTOMATED:
+              ds = data.get("datasets", {}).get(key, {})
+              if ds.get("status") == "check_failed":
+                  continue
+              s = ds.get("summary", {})
+              if s.get("missing", 0) > 0 or s.get("outdated", 0) > 0:
+                  pending.append(key)
+          print(",".join(pending))
+          EOF
+          )
+          if [ -z "$PENDING" ]; then
+            echo "Datasets automatizados em sincronia — manutenção desnecessária."
+            exit 0
+          fi
+          RUNNING=$(gh run list --workflow=maintenance.yml \
+            --status=in_progress --json databaseId --jq 'length')
+          if [ "$RUNNING" != "0" ]; then
+            echo "Deriva em: $PENDING — mas já há manutenção em andamento; não disparando outra."
+            exit 0
+          fi
+          echo "Deriva detectada em: $PENDING — disparando manutenção."
+          gh workflow run maintenance.yml --ref "${GITHUB_REF_NAME}" \
+            -f reason="auto: $PENDING"

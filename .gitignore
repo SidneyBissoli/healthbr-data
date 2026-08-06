@@ -28,3 +28,5 @@ credentials*
 
 # Exploration data (temporary working files)
 data/exploration/
+__pycache__/
+*.pyc

@@ -151,6 +151,7 @@ jobs:
             --location "$SERVER_LOCATION" \
             --image "${{ steps.snapshot.outputs.image_id }}" \
             --user-data-from-file user-data.yml \
+            --ssh-key hetzner-sipni \
             --label healthbr=maintenance-run
 
       - name: Summary

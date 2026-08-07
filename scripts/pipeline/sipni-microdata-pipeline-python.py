@@ -27,6 +27,7 @@ import subprocess
 import shutil
 import urllib.request
 import urllib.error
+import multiprocessing
 from pathlib import Path
 from datetime import datetime, timezone
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -465,7 +466,15 @@ def processar_mes(ano, mes, info):
         # === MODO PARALELO: múltiplas partes pequenas ===
         print(f"  Modo paralelo: {N_WORKERS} workers (jq + polars)")
 
-        with ProcessPoolExecutor(max_workers=N_WORKERS) as executor:
+        # spawn (não fork): o processo principal já criou threads (boto3 do
+        # manifest); fork após threads pode herdar locks presos e deadlockar
+        # — foi o modo de falha da rodada de 2026-08-06 (travou em ago/2026).
+        # O timeout do as_completed é a segunda linha de defesa: um worker
+        # preso vira exceção do mês (capturada no main), não um travamento
+        # eterno do pipeline.
+        ctx = multiprocessing.get_context('spawn')
+        with ProcessPoolExecutor(max_workers=N_WORKERS,
+                                 mp_context=ctx) as executor:
             futures = {}
             for i, nome in enumerate(json_nomes, 1):
                 f = executor.submit(
@@ -475,7 +484,7 @@ def processar_mes(ano, mes, info):
                 futures[f] = i
 
             done = 0
-            for future in as_completed(futures):
+            for future in as_completed(futures, timeout=7200):
                 n = future.result()
                 n_total += n
                 done += 1

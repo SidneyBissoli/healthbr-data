@@ -74,15 +74,20 @@ else
   # --- 3. Rodar pipelines -----------------------------------------------------
   for ds in $DATASETS; do
     log "--- Pipeline: $ds ---"
+    # timeout: um pipeline travado (FTP preso, worker morto) vira falha
+    # registrada em vez de rodada eterna; com os checkpoints, o custo de
+    # um kill é só o lote em andamento
     case "$ds" in
       sinasc)
-        Rscript scripts/pipeline/sinasc-pipeline-r.R
+        timeout --kill-after=5m 4h Rscript scripts/pipeline/sinasc-pipeline-r.R
         ;;
       sih)
-        SIH_SPRINT=3 Rscript scripts/pipeline/sih-pipeline-r.R
+        SIH_SPRINT=3 timeout --kill-after=5m 14h \
+          Rscript scripts/pipeline/sih-pipeline-r.R
         ;;
       sipni-microdados)
         CONTROLE_CSV_MICRODADOS="$REPO/data/controle_versao_microdata.csv" \
+          timeout --kill-after=5m 14h \
           python3 scripts/pipeline/sipni-microdata-pipeline-python.py
         ;;
       sipni-covid)
@@ -94,6 +99,7 @@ else
           continue
         fi
         CONTROLE_CSV_COVID="$REPO/data/controle_versao_covid.csv" \
+          timeout --kill-after=5m 14h \
           python3 scripts/pipeline/sipni-covid-pipeline.py
         ;;
       *)

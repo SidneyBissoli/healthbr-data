@@ -10,8 +10,11 @@
 #        --type cpx42 --image ubuntu-24.04 --location nbg1 \
 #        --ssh-key <sua-chave>
 #   2. scp este script para a VPS e execute: bash setup-snapshot.sh
-#   3. Desligue e tire o snapshot ROTULADO (o maintenance.yml procura por ele):
-#        hcloud server poweroff healthbr-snapshot-builder
+#   3. Desligue GRACIOSAMENTE e tire o snapshot ROTULADO:
+#        hcloud server shutdown healthbr-snapshot-builder
+#        (aguarde status "off" — NUNCA use `poweroff`: é corte de energia e
+#         deixa o page cache sem flush; o snapshot de 2026-08-05 nasceu com
+#         read.dbc/readr truncados exatamente por isso)
 #        hcloud server create-image healthbr-snapshot-builder \
 #          --type snapshot --description "healthbr maintenance base" \
 #          --label healthbr=maintenance
@@ -53,5 +56,8 @@ echo "=== Verificação ==="
 jq --version
 rclone --version | head -1
 python3 -c "import polars, boto3; print('polars', polars.__version__)"
-Rscript -e "suppressMessages({library(arrow); library(read.dbc)}); cat('R arrow + read.dbc OK\n')"
-echo "=== TUDO INSTALADO — desligue e tire o snapshot (ver cabeçalho) ==="
+Rscript -e "suppressMessages({library(arrow); library(read.dbc); library(readr); library(dplyr); library(jsonlite)}); cat('R stack completa OK\n')"
+
+# Flush do page cache — cinto e suspensório junto com o shutdown gracioso
+sync
+echo "=== TUDO INSTALADO — desligue GRACIOSAMENTE e tire o snapshot (ver cabeçalho) ==="

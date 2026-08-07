@@ -33,8 +33,11 @@ export DEBIAN_FRONTEND=noninteractive
 
 # --- Stack base: R, jq, rclone, python ---------------------------------------
 apt update
+# libuv1-dev: dependência de sistema do pacote R fs — sem ela o fs falha
+# silenciosamente na compilação e os pipelines R morrem no p_load (causa
+# da falha da rodada de 2026-08-07)
 apt install -y r-base r-base-dev libcurl4-openssl-dev libssl-dev \
-  libxml2-dev jq python3-pip git
+  libxml2-dev libuv1-dev jq python3-pip git
 curl https://rclone.org/install.sh | bash
 pip3 install polars boto3 --break-system-packages
 
@@ -56,7 +59,10 @@ echo "=== Verificação ==="
 jq --version
 rclone --version | head -1
 python3 -c "import polars, boto3; print('polars', polars.__version__)"
-Rscript -e "suppressMessages({library(arrow); library(read.dbc); library(readr); library(dplyr); library(jsonlite)}); cat('R stack completa OK\n')"
+# Verificação carrega a UNIÃO dos pacotes de todos os pipelines R — um
+# install.packages que falhou silenciosamente precisa aparecer AQUI, não
+# no primeiro p_load em produção
+Rscript -e "suppressMessages({library(pacman); library(read.dbc); library(arrow); library(dplyr); library(readr); library(fs); library(glue); library(curl); library(digest); library(jsonlite); library(foreign); library(here)}); cat('R stack completa OK (12 pacotes)\n')"
 
 # Flush do page cache — cinto e suspensório junto com o shutdown gracioso
 sync

@@ -33,6 +33,19 @@ RODADOS=()
 
 log() { echo "[$(date -u +%H:%M:%S)] $*"; }
 
+# Sobe o log parcial e os controles para o R2. Chamado após cada pipeline:
+# o log fica observável DURANTE a rodada e sobrevive a qualquer morte da
+# VPS (o upload do cloud-init ao final é só backup), e os checkpoints dos
+# controles ficam garantidos mesmo se o upload interno do pipeline falhar.
+publicar_progresso() {
+  rclone copyto /root/maintenance.log "$R2_REMOTE/maintenance/last-run.log" \
+    2>/dev/null || log "AVISO: upload do log parcial falhou"
+  for csv in data/controle_versao_*.csv; do
+    rclone copyto "$csv" "$R2_REMOTE/maintenance/checkpoints/$(basename "$csv")" \
+      2>/dev/null || true
+  done
+}
+
 cd "$REPO" || { echo "FATAL: repo não encontrado em $REPO"; exit 1; }
 
 log "=== Manutenção healthbr-data — $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
@@ -115,6 +128,7 @@ else
       FALHAS+=("$ds")
       log "--- $ds: FALHOU (seguindo para o próximo) ---"
     fi
+    publicar_progresso
   done
 
   # --- 4. Commitar controles de versão ---------------------------------------
@@ -156,6 +170,7 @@ jq -n \
   > /root/last-run.json
 
 rclone copyto /root/last-run.json "$R2_REMOTE/maintenance/last-run.json"
+publicar_progresso
 
 log "=== Concluído: status=$STATUS, duração=${T_TOTAL}s ==="
 [ "$STATUS" = "success" ]

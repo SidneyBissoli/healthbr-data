@@ -39,10 +39,11 @@ log() { echo "[$(date -u +%H:%M:%S)] $*"; }
 # controles ficam garantidos mesmo se o upload interno do pipeline falhar.
 publicar_progresso() {
   rclone copyto /root/maintenance.log "$R2_REMOTE/maintenance/last-run.log" \
-    2>/dev/null || log "AVISO: upload do log parcial falhou"
+    --s3-no-check-bucket 2>/dev/null \
+    || log "AVISO: upload do log parcial falhou"
   for csv in data/controle_versao_*.csv; do
     rclone copyto "$csv" "$R2_REMOTE/maintenance/checkpoints/$(basename "$csv")" \
-      2>/dev/null || true
+      --s3-no-check-bucket 2>/dev/null || true
   done
 }
 
@@ -169,7 +170,8 @@ jq -n \
     failures: ($falhas | split(" ") | map(select(. != "")))}' \
   > /root/last-run.json
 
-rclone copyto /root/last-run.json "$R2_REMOTE/maintenance/last-run.json"
+rclone copyto /root/last-run.json "$R2_REMOTE/maintenance/last-run.json" \
+  --s3-no-check-bucket
 publicar_progresso
 
 log "=== Concluído: status=$STATUS, duração=${T_TOTAL}s ==="

@@ -188,7 +188,8 @@ salvar_controle <- function(df) {
     system2("rclone",
             c("copyto", shQuote(CONTROLE_CSV),
               shQuote(glue("{RCLONE_REMOTE}:{R2_BUCKET}/maintenance/",
-                           "checkpoints/{basename(CONTROLE_CSV)}"))),
+                           "checkpoints/{basename(CONTROLE_CSV)}")),
+              "--s3-no-check-bucket"),
             stdout = FALSE, stderr = FALSE),
     error = function(e) NULL
   ))

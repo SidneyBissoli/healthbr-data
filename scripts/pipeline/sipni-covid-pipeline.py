@@ -133,7 +133,8 @@ def salvar_controle(rows):
         subprocess.run(
             ['rclone', 'copyto', str(CONTROLE_CSV),
              f'{RCLONE_REMOTE}:{R2_BUCKET}/maintenance/checkpoints/'
-             f'{CONTROLE_CSV.name}'],
+             f'{CONTROLE_CSV.name}',
+             '--s3-no-check-bucket'],
             capture_output=True)
     except OSError:
         pass

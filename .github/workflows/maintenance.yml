@@ -138,7 +138,7 @@ jobs:
                 endpoint "\$R2_ENDPOINT" >/dev/null
               git clone "https://x-access-token:\${GH_PAT}@github.com/${{ github.repository }}.git" /root/healthbr-data
               bash /root/healthbr-data/scripts/maintenance/run-maintenance.sh >> /root/maintenance.log 2>&1
-              rclone copyto /root/maintenance.log r2:healthbr-data/maintenance/last-run.log
+              rclone copyto /root/maintenance.log r2:healthbr-data/maintenance/last-run.log --s3-no-check-bucket
               hcloud server delete "\$(hostname)" || shutdown -h now'
           EOF
           echo "user-data.yml gerado ($(wc -l < user-data.yml) linhas)"

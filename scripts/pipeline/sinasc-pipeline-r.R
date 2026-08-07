@@ -198,6 +198,16 @@ carregar_controle <- function() {
 salvar_controle <- function(df) {
   dir_create(dirname(CONTROLE_CSV))
   readr::write_csv(df, CONTROLE_CSV)
+  # Checkpoint no R2: uma rodada interrompida retoma daqui em vez de refazer
+  # o trabalho (restaurado por run-maintenance.sh; limpo após sucesso)
+  invisible(tryCatch(
+    system2("rclone",
+            c("copyto", shQuote(CONTROLE_CSV),
+              shQuote(glue("{RCLONE_REMOTE}:{R2_BUCKET}/maintenance/",
+                           "checkpoints/{basename(CONTROLE_CSV)}"))),
+            stdout = FALSE, stderr = FALSE),
+    error = function(e) NULL
+  ))
 }
 
 # ==============================================================================

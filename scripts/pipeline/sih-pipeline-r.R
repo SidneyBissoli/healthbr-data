@@ -182,6 +182,16 @@ carregar_controle <- function() {
 salvar_controle <- function(df) {
   dir_create(dirname(CONTROLE_CSV))
   readr::write_csv(df, CONTROLE_CSV)
+  # Checkpoint no R2: uma rodada interrompida retoma daqui em vez de refazer
+  # horas de trabalho (restaurado por run-maintenance.sh; limpo após sucesso)
+  invisible(tryCatch(
+    system2("rclone",
+            c("copyto", shQuote(CONTROLE_CSV),
+              shQuote(glue("{RCLONE_REMOTE}:{R2_BUCKET}/maintenance/",
+                           "checkpoints/{basename(CONTROLE_CSV)}"))),
+            stdout = FALSE, stderr = FALSE),
+    error = function(e) NULL
+  ))
 }
 
 # ==============================================================================
@@ -214,6 +224,32 @@ baixar_dbc <- function(url, destino, tentativas = 5) {
     }
   }
   return(FALSE)
+}
+
+#' Prefetch pending .dbc files for a month over parallel FTP connections
+#'
+#' The FTP round-trip dominates SIH wall-clock (~30-60s/file with the CPU
+#' idle). Forked workers require unix; on Windows this is a no-op and the
+#' sequential fallback in processar_arquivo() downloads anything missing —
+#' which also covers any file whose prefetch failed.
+prefetch_mes <- function(ano, mes, controle, conexoes = 4) {
+  if (.Platform$OS.type != "unix") return(invisible(NULL))
+
+  pendentes <- UFS[!vapply(
+    UFS,
+    function(uf) info_arquivo(uf, ano, mes)$nome %in% controle$arquivo,
+    logical(1)
+  )]
+  if (length(pendentes) == 0) return(invisible(NULL))
+
+  dir_create(DIR_TEMP)
+  invisible(parallel::mclapply(pendentes, function(uf) {
+    arq     <- info_arquivo(uf, ano, mes)
+    destino <- file.path(DIR_TEMP, arq$nome)
+    if (!file_exists(destino) || file.info(destino)$size == 0) {
+      baixar_dbc(arq$url, destino)
+    }
+  }, mc.cores = conexoes))
 }
 
 # ==============================================================================
@@ -362,10 +398,12 @@ processar_arquivo <- function(uf, ano, mes, controle) {
   dir_create(DIR_TEMP)
   destino_dbc <- file.path(DIR_TEMP, nome)
 
-  # Download
-  ok <- baixar_dbc(url, destino_dbc)
-  if (!ok) {
-    return(list(status = "unavailable", n = 0))
+  # Download (no-op se o prefetch paralelo já trouxe o arquivo)
+  if (!file_exists(destino_dbc) || file.info(destino_dbc)$size == 0) {
+    ok <- baixar_dbc(url, destino_dbc)
+    if (!ok) {
+      return(list(status = "unavailable", n = 0))
+    }
   }
 
   # Read and transform
@@ -494,6 +532,8 @@ for (ano in ANO_INICIO:ANO_FIM) {
   registros_no_ano <- 0
 
   for (mes in MESES) {
+    prefetch_mes(ano, mes, controle)
+
     for (uf in UFS) {
 
       resultado <- processar_arquivo(uf, ano, mes, controle)

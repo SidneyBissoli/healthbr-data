@@ -117,6 +117,16 @@ def salvar_controle(rows):
         w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
         w.writerows(rows)
+    # Checkpoint no R2: rodada interrompida retoma daqui em vez de refazer
+    # o trabalho (restaurado por run-maintenance.sh; limpo após sucesso)
+    try:
+        subprocess.run(
+            ['rclone', 'copyto', str(CONTROLE_CSV),
+             f'{RCLONE_REMOTE}:{R2_BUCKET}/maintenance/checkpoints/'
+             f'{CONTROLE_CSV.name}'],
+            capture_output=True)
+    except OSError:
+        pass
 
 
 def classificar_mes(ano, mes, info, controle):

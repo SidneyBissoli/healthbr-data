@@ -993,6 +993,17 @@ pl.read_parquet_metadata("part-0.parquet")["healthbr"]
   sync-check subsequente confirmam a conclusão.
 - **Sinal de rodada morta:** `last-run.json` parado em
   `{"status": "started"}` com a VPS já removida pelo reaper.
+- **Checkpoints (retomada após interrupção):** cada pipeline sobe seu
+  controle de versão para `maintenance/checkpoints/` no R2 a cada lote
+  concluído (SIH/SINASC: por ano; microdados/COVID: por mês/UF). Uma
+  rodada nova restaura os checkpoints existentes antes de começar — só
+  refaz o lote em andamento no momento da morte, não a rodada inteira.
+  Após uma rodada 100% concluída e commitada, o diretório é limpo.
+- **Downloads FTP paralelos (SIH):** `prefetch_mes()` baixa os .dbc
+  pendentes do mês com 4 conexões concorrentes (`parallel::mclapply`,
+  só em unix) antes do processamento sequencial — o gargalo do SIH é a
+  latência do FTP, não a CPU. Arquivos cujo prefetch falhar caem no
+  download sequencial com retry de sempre.
 - **Custo por rodada:** cpx42 por hora (~€0,04/h × duração) + centavos
   de snapshot/mês. Sem rodadas quando não há deriva.
 - **SINASC — anos novos:** quando o DATASUS publicar um ano novo,

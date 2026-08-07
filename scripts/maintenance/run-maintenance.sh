@@ -45,6 +45,20 @@ if ! rclone copyto "$R2_REMOTE/sync-status.json" /root/sync-status.json; then
   exit 1
 fi
 
+# --- 1b. Restaurar checkpoints de rodada interrompida -------------------------
+# Os pipelines sobem o controle de versão para maintenance/checkpoints/ a cada
+# lote concluído. Se existem checkpoints, a rodada anterior morreu no meio —
+# eles estão estritamente à frente do repo e evitam refazer horas de trabalho.
+# (Após uma rodada 100% ok, o passo 4b limpa o diretório.)
+
+for csv in controle_versao_sinasc.csv controle_versao_sih.csv \
+           controle_versao_microdata.csv controle_versao_covid.csv; do
+  if [ -n "$(rclone lsf "$R2_REMOTE/maintenance/checkpoints/$csv" 2>/dev/null)" ]; then
+    rclone copyto "$R2_REMOTE/maintenance/checkpoints/$csv" "data/$csv" \
+      && log "Checkpoint restaurado: $csv (rodada anterior interrompida)"
+  fi
+done
+
 # --- 2. Plano de trabalho -----------------------------------------------------
 
 log "Determinando datasets pendentes..."
@@ -108,6 +122,14 @@ else
       || { FALHAS+=("git-push"); log "ERRO: push dos controles falhou"; }
   else
     log "Controles de versão sem mudanças."
+  fi
+
+  # --- 4b. Limpar checkpoints (só quando a rodada fechou 100%) ---------------
+  if [ ${#FALHAS[@]} -eq 0 ]; then
+    rclone purge "$R2_REMOTE/maintenance/checkpoints" 2>/dev/null || true
+    log "Checkpoints limpos (rodada completa e commitada)."
+  else
+    log "Rodada com falhas — checkpoints preservados para a próxima retomar."
   fi
 fi
 

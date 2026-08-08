@@ -343,6 +343,12 @@ update_manifest_r2 <- function(ano, dir_staging, controle) {
       }
     }
 
+    # Partição sem arquivos no staging = não reprocessada nesta rodada; a
+    # entrada existente do manifest continua válida. Sem este guard, o
+    # sum() abaixo recebe list() vazio e aborta com "invalid 'type' (list)"
+    # — foi o que deixou o manifest defasado na rodada de 2026-08-08.
+    if (length(output_files) == 0) next
+
     manifest$partitions[[partition_key]] <- list(
       source_url           = info_arquivo(row$uf, row$ano, row$mes)$url,
       source_size_bytes    = as.integer(row$tamanho_bytes),

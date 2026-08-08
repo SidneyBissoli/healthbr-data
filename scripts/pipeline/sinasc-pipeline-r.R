@@ -382,6 +382,11 @@ update_manifest_r2 <- function(ano, dir_staging, controle) {
       }
     }
 
+    # Partição sem arquivos no staging = não reprocessada nesta rodada; a
+    # entrada existente do manifest continua válida. Sem este guard, o
+    # sum() abaixo recebe list() vazio e aborta com "invalid 'type' (list)".
+    if (length(output_files) == 0) next
+
     manifest$partitions[[partition_key]] <- list(
       source_url         = info_arquivo(row$uf, row$ano)$url,
       source_size_bytes  = as.integer(row$tamanho_bytes),

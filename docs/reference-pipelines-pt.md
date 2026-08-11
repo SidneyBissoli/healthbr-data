@@ -1004,6 +1004,14 @@ pl.read_parquet_metadata("part-0.parquet")["healthbr"]
   só em unix) antes do processamento sequencial — o gargalo do SIH é a
   latência do FTP, não a CPU. Arquivos cujo prefetch falhar caem no
   download sequencial com retry de sempre.
+- **Persistência por mês (SIH):** o pipeline sobe dados + manifesto +
+  controle ao fim de **cada mês** (não de cada ano). O SIH é publicado
+  mensalmente e o FTP do DATASUS é frequentemente lento: com consolidação
+  anual, uma rodada morta dentro de um ano incompleto perdia todas as
+  horas gastas nele (aconteceu 3× em ago/2026). Agora cada mês concluído
+  é durável imediatamente e a rodada seguinte retoma do mês exato.
+  `update_manifest_r2()` aceita `mes` para atualizar só as partições
+  daquele mês.
 - **Custo por rodada:** cpx42 por hora (~€0,04/h × duração) + centavos
   de snapshot/mês. Sem rodadas quando não há deriva.
 - **SINASC — anos novos:** quando o DATASUS publicar um ano novo,

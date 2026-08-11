@@ -295,7 +295,11 @@ gravar_parquet <- function(df, ano, mes, uf, dir_staging, meta = NULL) {
 }
 
 #' Update manifest.json on R2
-update_manifest_r2 <- function(ano, dir_staging, controle) {
+#'
+#' `mes` (optional) restricts the update to a single month — the pipeline
+#' persists month by month, so scanning the whole year on every call would
+#' be wasted work.
+update_manifest_r2 <- function(ano, dir_staging, controle, mes = NULL) {
   manifest_key <- glue("{R2_PREFIX}/manifest.json")
   manifest_r2  <- glue("{RCLONE_REMOTE}:{R2_BUCKET}/{manifest_key}")
   tmp_manifest <- file.path(DIR_TEMP, "manifest.json")
@@ -318,6 +322,9 @@ update_manifest_r2 <- function(ano, dir_staging, controle) {
   })
 
   rows_this_year <- controle |> filter(ano == !!ano)
+  if (!is.null(mes)) {
+    rows_this_year <- rows_this_year |> filter(mes == !!mes)
+  }
 
   for (i in seq_len(nrow(rows_this_year))) {
     row <- rows_this_year[i, ]
@@ -367,7 +374,8 @@ update_manifest_r2 <- function(ano, dir_staging, controle) {
   system2("rclone", c("copyto", shQuote(tmp_manifest), shQuote(manifest_r2),
                        "--transfers", "16", "--checkers", "32",
                        "--s3-no-check-bucket"))
-  cat(glue("  manifest: updated ({nrow(rows_this_year)} partitions for year {ano})"), "\n")
+  escopo <- if (is.null(mes)) glue("year {ano}") else glue("{ano}-{mes}")
+  cat(glue("  manifest: updated ({nrow(rows_this_year)} partitions, {escopo})"), "\n")
 }
 
 #' Upload staging dir to R2
@@ -532,14 +540,19 @@ for (ano in ANO_INICIO:ANO_FIM) {
   cat(glue("YEAR {ano} — {era}"), "\n")
   cat(strrep("-", 70), "\n")
 
-  if (dir_exists(dir_staging)) fs::dir_delete(dir_staging)
-  dir_create(dir_staging)
-
   novos_no_ano     <- 0
   registros_no_ano <- 0
 
   for (mes in MESES) {
+    # Staging por mês: a persistência acontece ao fim de cada mês, então o
+    # diretório é zerado aqui para o upload conter só o mês corrente
+    if (dir_exists(dir_staging)) fs::dir_delete(dir_staging)
+    dir_create(dir_staging)
+
     prefetch_mes(ano, mes, controle)
+
+    novos_no_mes     <- 0
+    registros_no_mes <- 0
 
     for (uf in UFS) {
 
@@ -567,6 +580,8 @@ for (ano in ANO_INICIO:ANO_FIM) {
                "({resultado$n_colunas_fonte} src cols, ",
                "{resultado$n_colunas_parquet} pq cols)"), "\n")
 
+      novos_no_mes      <- novos_no_mes + 1
+      registros_no_mes  <- registros_no_mes + resultado$n
       novos_no_ano      <- novos_no_ano + 1
       registros_no_ano  <- registros_no_ano + resultado$n
       n_total_registros <- n_total_registros + resultado$n
@@ -589,28 +604,38 @@ for (ano in ANO_INICIO:ANO_FIM) {
         filter(arquivo != resultado$nome) |>
         bind_rows(novo_registro)
     }
-  }
 
-  # Upload the completed year
-  if (novos_no_ano > 0) {
-    cat(glue("\n  Uploading year {ano}: {novos_no_ano} files, ",
-             "{format(registros_no_ano, big.mark = '.')} rows..."), "\n")
-
-    tryCatch({
-      upload_para_r2(dir_staging)
-      cat(glue("  Upload {ano} done."), "\n")
+    # --- Persist the month as soon as it closes -------------------------------
+    # Per month, not per year: SIH is published monthly, the DATASUS FTP is
+    # frequently slow, and a run killed inside an incomplete year used to lose
+    # every hour spent in it. Consolidating here means each month's work is
+    # durable (data + manifest + version control) the moment it finishes.
+    if (novos_no_mes > 0) {
+      cat(glue("\n  Persisting {ano}-{mes}: {novos_no_mes} files, ",
+               "{format(registros_no_mes, big.mark = '.')} rows..."), "\n")
 
       tryCatch({
-        update_manifest_r2(ano, dir_staging, controle)
-      }, error = function(e) {
-        cat(glue("  manifest: WARNING - failed: {e$message}"), "\n")
-      })
-    }, error = function(e) {
-      cat(glue("  ERROR upload {ano}: {e$message}"), "\n")
-      n_erros <<- n_erros + 1
-    })
+        upload_para_r2(dir_staging)
 
-    salvar_controle(controle)
+        tryCatch({
+          update_manifest_r2(ano, dir_staging, controle, mes = mes)
+          cat(glue("  {ano}-{mes}: uploaded + manifest updated."), "\n")
+        }, error = function(e) {
+          cat(glue("  manifest: WARNING - failed: {e$message}"), "\n")
+        })
+      }, error = function(e) {
+        cat(glue("  ERROR upload {ano}-{mes}: {e$message}"), "\n")
+        n_erros <<- n_erros + 1
+      })
+
+      # Checkpoint (local + R2) — a próxima rodada retoma daqui
+      salvar_controle(controle)
+    }
+  }
+
+  if (novos_no_ano > 0) {
+    cat(glue("\n  YEAR {ano} done: {novos_no_ano} files, ",
+             "{format(registros_no_ano, big.mark = '.')} rows"), "\n")
   } else {
     cat("  No new files in this year.\n")
   }

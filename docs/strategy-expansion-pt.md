@@ -757,12 +757,12 @@ Estes módulos expandem o projeto para além da vacinação. Só devem ser
 iniciados quando o core SI-PNI estiver completo (todos os submódulos
 acima nas fases 5 ou 6).
 
-#### SIM (Mortalidade) — 🔍 FASE 1 CONCLUÍDA
+#### SIM (Mortalidade) — 🔍 FASE 2 CONCLUÍDA (Fase 3 proposta)
 
 | Propriedade | Valor |
 |-------------|-------|
 | Prefixo R2 | `sim/` |
-| Fase atual | **1 (Recon concluído — 07/mar/2026)** |
+| Fase atual | **2 concluída / 3 proposta (18/ago/2026)** — ver `docs/sim/exploration-pt.md`; pipeline rascunhado em `scripts/pipeline/sim-pipeline-r.R` (`sim/dores/` + `sim/dofet/`) |
 | Fontes identificadas | **Duas vias complementares** |
 | — FTP DATASUS (principal) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SIM/CID10/DORES/` — arquivos `.dbc` por UF × ano (DO = óbitos não fetais); padrão `DO{UF}{AAAA}.dbc`; CID-10 (1996–presente) |
 | — FTP DATASUS (óbitos fetais) | `ftp://ftp.datasus.gov.br/dissemin/publicos/SIM/CID10/DOFET/` — arquivos `.dbc` anuais de óbitos fetais (`DF{UF}{AAAA}.dbc`) |

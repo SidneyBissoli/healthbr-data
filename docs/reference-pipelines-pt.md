@@ -993,13 +993,17 @@ maintenance-reaper.yml (cron a cada 3h — backstop)
 Agregados (1994–2019) e dicionários são estáticos e ficam fora da
 automação — deriva neles é anômala e pede inspeção manual.
 
-### Metadados de proveniência embutidos (pipeline_version 1.1.0)
+### Metadados de proveniência embutidos (pipeline_version 1.1.0 / 1.2.0)
 
 Desde a versão 1.1.0, cada Parquet gravado pelos 4 pipelines dinâmicos
 carrega, no schema metadata do Arrow (chave `healthbr`, valor JSON):
 `dataset`, `source_url`, `source_file`, hash MD5 da fonte,
 `source_size_bytes`, `download_date`, `pipeline_script` e
-`pipeline_version`. Arquivos do bootstrap (1.0.0) não têm o metadado;
+`pipeline_version`. Desde a 1.2.0 (18/ago/2026) também `git_commit`, e o
+manifesto e o CSV de controle passam a registrar `source_hash_md5`,
+`pipeline_script`, `pipeline_version` e `git_commit` por partição/arquivo —
+política completa em `docs/policy-reproducibility-pt.md` (reprodutibilidade
+obrigatória; sem versionamento de dados; sem retenção de brutos). Arquivos do bootstrap (1.0.0) não têm o metadado;
 ganham no reprocessamento natural das revisões da fonte (backfill
 oportunista). Leitura:
 

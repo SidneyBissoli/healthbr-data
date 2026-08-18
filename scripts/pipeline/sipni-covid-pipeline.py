@@ -42,7 +42,28 @@ CONTROLE_CSV = Path(os.environ.get(
 
 # Embedded in each Parquet's schema metadata and in the manifest.
 # 1.1.0: provenance metadata embedded in Parquet files.
-PIPELINE_VERSION = "1.1.0"
+PIPELINE_VERSION = "1.2.0"  # 1.2.0: git_commit no metadado/manifesto
+
+def _git_commit():
+    """Commit git do código em execução (reprodutibilidade). Env
+    HEALTHBR_GIT_COMMIT tem precedência; senão git rev-parse HEAD; senão unknown."""
+    import os as _os, subprocess as _sp
+    env = _os.environ.get("HEALTHBR_GIT_COMMIT", "")
+    if env:
+        return env
+    try:
+        r = _sp.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                    timeout=10, cwd=_os.path.dirname(_os.path.abspath(__file__)))
+        sha = r.stdout.strip()
+        if r.returncode == 0 and len(sha) == 40:
+            return sha
+    except Exception:
+        pass
+    return "unknown"
+
+
+GIT_COMMIT = _git_commit()
+
 
 RCLONE_REMOTE = "r2"
 R2_BUCKET     = "healthbr-data"
@@ -377,6 +398,7 @@ def processar_uf(uf, info_servidor):
                 '%Y-%m-%dT%H:%M:%SZ'),
             'pipeline_script': 'scripts/pipeline/sipni-covid-pipeline.py',
             'pipeline_version': PIPELINE_VERSION,
+            'git_commit': GIT_COMMIT,
         })
         n = processar_parte_csv(csv_path, uf, parte_idx, dir_staging,
                                 meta_json=prov_json)
@@ -420,6 +442,11 @@ def processar_uf(uf, info_servidor):
                 staging_dir=dir_staging,
                 r2_prefix=R2_PREFIX,
                 total_records=n_total,
+                provenance={
+                    'pipeline_script': 'scripts/pipeline/sipni-covid-pipeline.py',
+                    'pipeline_version': PIPELINE_VERSION,
+                    'git_commit': GIT_COMMIT,
+                },
             )
         else:
             print("  manifest: skipped (R2 env vars not set)")

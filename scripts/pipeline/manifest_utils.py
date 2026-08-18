@@ -12,6 +12,7 @@ See: docs/implementation-synchronization.md, Etapa 5 for context.
 import hashlib
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -67,6 +68,28 @@ def upload_manifest(r2_client, bucket: str, key: str, manifest: dict):
     print(f"  manifest: uploaded {key} ({len(body)} bytes)")
 
 
+def git_commit() -> str:
+    """Commit git do código em execução (reprodutibilidade).
+
+    Env HEALTHBR_GIT_COMMIT tem precedência; senão `git rev-parse HEAD` no
+    diretório deste arquivo; senão "unknown".
+    """
+    env = os.environ.get("HEALTHBR_GIT_COMMIT", "")
+    if env:
+        return env
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parent,
+            capture_output=True, text=True, timeout=10,
+        )
+        sha = out.stdout.strip()
+        if out.returncode == 0 and len(sha) == 40:
+            return sha
+    except Exception:
+        pass
+    return "unknown"
+
+
 def sha256_file(path) -> str:
     """Compute SHA-256 hash of a file."""
     h = hashlib.sha256()
@@ -108,6 +131,7 @@ def update_manifest_partition(
     staging_dir: Path,
     r2_prefix: str,
     total_records: int,
+    provenance: dict | None = None,
 ):
     """
     Load manifest, update a single partition, and upload back to R2.
@@ -127,6 +151,9 @@ def update_manifest_partition(
     staging_dir : Local directory containing output Parquet files
     r2_prefix : R2 prefix for output files (e.g., "sipni/microdados")
     total_records : Total number of records processed
+    provenance : Optional dict merged into the partition entry — e.g.
+        {"source_hash_md5", "pipeline_script", "pipeline_version",
+        "git_commit"} — and, for the last three, into the manifest header.
     """
     manifest = load_manifest(r2_client, bucket, manifest_key)
 
@@ -143,5 +170,10 @@ def update_manifest_partition(
         "total_records": total_records,
         "total_size_bytes": total_size,
     }
+    if provenance:
+        manifest["partitions"][partition_key].update(provenance)
+        for k in ("pipeline_version", "git_commit"):
+            if k in provenance:
+                manifest[k] = provenance[k]
 
     upload_manifest(r2_client, bucket, manifest_key, manifest)

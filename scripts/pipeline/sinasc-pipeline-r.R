@@ -67,7 +67,22 @@ pacman::p_load(
 
 #' Embutida no schema metadata de cada Parquet e no manifesto.
 #' 1.1.0: metadados de proveniência embutidos nos Parquets.
-PIPELINE_VERSION <- "1.1.0"
+#' 1.2.0: git_commit no metadado, no manifesto e no controle; MD5 da fonte e
+#'        identidade do pipeline no manifesto (reprodutibilidade).
+PIPELINE_VERSION <- "1.2.0"
+
+#' Commit git do código que gerou os dados (reprodutibilidade). Resolvido do
+#' repo em que o script roda; a manutenção/bootstrap sempre clonam o repo,
+#' então há commit. Fora de um repo, use a env HEALTHBR_GIT_COMMIT.
+resolver_git_commit <- function() {
+  env <- Sys.getenv("HEALTHBR_GIT_COMMIT", "")
+  if (nzchar(env)) return(env)
+  out <- tryCatch(suppressWarnings(system2("git", c("rev-parse", "HEAD"),
+                                           stdout = TRUE, stderr = TRUE)),
+                  error = function(e) character(0))
+  if (length(out) >= 1 && grepl("^[0-9a-f]{40}$", out[1])) out[1] else "unknown"
+}
+GIT_COMMIT <- resolver_git_commit()
 
 DIR_TEMP     <- file.path(tempdir(), "sinasc_pipeline")
 CONTROLE_CSV <- "data/controle_versao_sinasc.csv"
@@ -390,16 +405,22 @@ update_manifest_r2 <- function(ano, dir_staging, controle) {
     manifest$partitions[[partition_key]] <- list(
       source_url         = info_arquivo(row$uf, row$ano)$url,
       source_size_bytes  = as.integer(row$tamanho_bytes),
+      source_hash_md5    = row$hash_md5,
       source_etag        = NULL,
       source_last_modified = NULL,
       processing_timestamp = row$data_processamento,
+      pipeline_script    = "scripts/pipeline/sinasc-pipeline-r.R",
+      pipeline_version   = PIPELINE_VERSION,
+      git_commit         = GIT_COMMIT,
       output_files       = output_files,
       total_records      = as.integer(row$n_registros),
       total_size_bytes   = sum(sapply(output_files, function(f) f$size_bytes))
     )
   }
 
-  manifest$last_updated <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+  manifest$last_updated     <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+  manifest$pipeline_version <- PIPELINE_VERSION
+  manifest$git_commit       <- GIT_COMMIT
 
   jsonlite::write_json(manifest, tmp_manifest, auto_unbox = TRUE, pretty = TRUE)
   system2("rclone", c("copyto", shQuote(tmp_manifest), shQuote(manifest_r2),
@@ -477,7 +498,8 @@ processar_arquivo <- function(uf, ano, controle) {
     source_size_bytes = tamanho,
     download_date     = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
     pipeline_script   = "scripts/pipeline/sinasc-pipeline-r.R",
-    pipeline_version  = PIPELINE_VERSION
+    pipeline_version  = PIPELINE_VERSION,
+    git_commit        = GIT_COMMIT
   )
   dir_staging <- file.path(DIR_TEMP, "staging_parquet")
   caminho_parquet <- gravar_parquet(df, ano, uf, dir_staging, meta)
@@ -599,7 +621,9 @@ for (ano in ANO_INICIO:ANO_FIM) {
       n_colunas_parquet  = resultado$n_colunas_parquet,
       hash_md5           = resultado$hash_md5,
       tamanho_bytes      = resultado$tamanho,
-      data_processamento = as.character(Sys.time())
+      data_processamento = as.character(Sys.time()),
+      pipeline_version   = PIPELINE_VERSION,
+      git_commit         = GIT_COMMIT
     )
 
     controle <- controle |>

@@ -249,6 +249,26 @@ preserved as-is; ICD-9 codes (1992–1997) are not converted to ICD-10.
 217.8M records, ~18h) + Sprint 2 (1992–2007, 5,155 files, 197.6M records,
 ~12–15h). Total: 11,011 files, 415,372,502 records, 16.1 GiB on R2.
 
+## Reproducibility & provenance
+
+Every Parquet file written by pipeline version ≥ 1.1.0 carries a JSON
+provenance record in its schema metadata (key `healthbr`): `source_url`,
+`source_file`, `source_hash_md5`, `source_size_bytes`, `download_date`,
+`pipeline_script`, `pipeline_version` and (≥ 1.2.0) `git_commit`. The same
+facts are recorded per partition in `manifest.json` (plus SHA-256 and record
+count of each output file) and per source file in the version-control CSV in
+the GitHub repository. Together they let anyone re-derive a partition from
+the Ministry's original file and the exact code commit, and verify that the
+copy they hold is intact. Data are **not** versioned: the R2 copy is the
+latest publication; revisions by the Ministry replace files. Files from the
+initial bootstrap (pipeline 1.0.0) lack the embedded record; use
+`manifest.json` for those. Full policy and audit recipe:
+[docs/policy-reproducibility-pt.md](https://github.com/SidneyBissoli/healthbr-data/blob/master/docs/policy-reproducibility-pt.md).
+
+```r
+arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
+```
+
 ## Known limitations
 
 1. **Government data, not ours.** Values are preserved exactly as in the

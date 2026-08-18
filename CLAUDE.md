@@ -30,9 +30,13 @@ and bump its "Última atualização" footer.
   hyphens (`sipni-covid`, `sih-rd`) are used outside R2 — sync-status keys, HF repos, CSV
   names. Never nest a sub-dataset directly under a prefix that already holds `ano=` dirs
   (Arrow would recurse into it).
-- Each dynamic pipeline embeds provenance in the Parquet schema metadata (key `healthbr`,
-  JSON: source_url, md5, download_date, pipeline_version). Bump `PIPELINE_VERSION` when
-  output changes.
+- **Reproducibility is mandatory, versioning is not** (`docs/policy-reproducibility-pt.md`):
+  every Parquet carries `healthbr` schema metadata (source_url, source MD5/size,
+  download_date, pipeline_script, pipeline_version, git_commit); the manifest and the
+  control CSV record the same facts. Bump `PIPELINE_VERSION` when output changes. Data
+  are overwritten on source revision — no `_history/`, no raw-file retention (the
+  `_raw/` mirror is a bootstrap aid, deleted afterwards). Run pipelines from a git clone
+  (or set `HEALTHBR_GIT_COMMIT`); `git_commit = "unknown"` in production is a defect.
 
 ## Datasets and pipelines
 

@@ -135,6 +135,7 @@ Pesquisadores (R, Python, ou qualquer ferramenta compatível com Parquet)
   [EN](guides/quick-guide-en.R)
 - [Harmonização: agregados ↔ microdados (PT)](docs/harmonization-pt.md)
 - [Referência de pipelines e manutenção automatizada (PT)](docs/reference-pipelines-pt.md)
+- [Política de reprodutibilidade, rastreabilidade e auditabilidade (PT)](docs/policy-reproducibility-pt.md)
 - [Cards dos datasets (EN/PT)](guides/dataset-cards/)
 
 ## Apoie o projeto

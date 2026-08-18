@@ -134,6 +134,7 @@ Researchers (R, Python, or any Parquet-compatible tool)
   [EN](guides/quick-guide-en.R)
 - [Harmonization: aggregates ↔ microdata (PT)](docs/harmonization-pt.md)
 - [Pipeline reference and automated maintenance (PT)](docs/reference-pipelines-pt.md)
+- [Reproducibility, traceability and audit policy (PT)](docs/policy-reproducibility-pt.md)
 - [Dataset cards (EN/PT)](guides/dataset-cards/)
 
 ## Supporting the project

@@ -301,7 +301,7 @@ arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
 
 | Dataset | Period | Records | Link |
 |---------|--------|---------|------|
-| SIH SP (professional services / acts per admission) | 1997–present | ~1B+ (est.) | [sih-sp](https://huggingface.co/datasets/SidneyBissoli/sih-sp) |
+| SIH SP (professional services / acts per admission) | 1997–present | ~3,199M | [sih-sp](https://huggingface.co/datasets/SidneyBissoli/sih-sp) |
 | SINASC (live births) | 1994–2022 | 85M+ | [sinasc](https://huggingface.co/datasets/SidneyBissoli/sinasc) |
 | SI-PNI Microdados (vaccination) | 2020–present | 736M+ | [sipni-microdados](https://huggingface.co/datasets/SidneyBissoli/sipni-microdados) |
 | SI-PNI COVID (vaccination) | 2021–present | 608M+ | [sipni-covid](https://huggingface.co/datasets/SidneyBissoli/sipni-covid) |

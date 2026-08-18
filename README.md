@@ -22,7 +22,7 @@ admissions) in 3 lines of R or Python code.
 | SI-PNI Official dictionaries (reference tables) | `sipni/dicionarios/` | 6 tables | 2019 snapshot | ✅ Available |
 | SINASC Live births (microdata) | `sinasc/` | ~85M | 1994–2022 | ✅ Available |
 | SIH Hospital admissions — AIH reduzida (RD, microdata) | `sih/rd/` | ~415M | 1992–present | ✅ Available |
-| SIH Professional services — acts per admission (SP, microdata) | `sih/sp/` | ~1B+ (est.) | 1997–present | 🔧 Bootstrapping |
+| SIH Professional services — acts per admission (SP, microdata) | `sih/sp/` | ~3.20B | 1997–present | ✅ Available |
 
 Datasets that receive new data from the Ministry (SI-PNI routine, SI-PNI
 COVID, SINASC, SIH) are refreshed by an automated weekly sync check that
@@ -124,7 +124,7 @@ Researchers (R, Python, or any Parquet-compatible tool)
 - ✅ Automated maintenance (weekly sync check + on-demand VPS)
 - 📋 R package `healthbR` for integrated access
 - 📋 Harmonized vaccination coverage time series (1994–present)
-- 🔮 New information systems (SIM; SIH SP/RJ/ER files)
+- 🔮 New information systems (SIM; SIH RJ/ER files)
 
 ## Documentation
 

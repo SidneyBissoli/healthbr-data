@@ -36,11 +36,6 @@ to the admission-level **RD** dataset
 
 **Part of the [healthbr-data](https://huggingface.co/SidneyBissoli) project** — open redistribution of Brazilian public health data.
 
-> **Status:** bootstrap in progress (started 2026-08). Partitions appear
-> month by month as they are processed; check `manifest.json` or the
-> [sync dashboard](https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status)
-> for current coverage.
-
 ## Summary
 
 | Item | Detail |
@@ -49,7 +44,7 @@ to the admission-level **RD** dataset
 | **Temporal coverage** | Jul/1997–2026 (SP files do not exist before 1997) |
 | **Geographic coverage** | All 27 Brazilian states (by state of processing) |
 | **Granularity** | One row per act/procedure inside an admission (~11 rows per AIH) |
-| **Volume** | ~1B+ records estimated (9,412 .dbc files, ~54 GiB compressed at source) |
+| **Volume** | 3,198,639,792 records (9,410 .dbc files, 32.0 GiB Parquet on R2; 52.5 GiB compressed at source) |
 | **Format** | Apache Parquet, partitioned by `ano/mes/uf` |
 | **Data types** | All fields stored as `string` (preserves original format) |
 | **Update frequency** | Monthly (source publishes ~2–3 months after competency month) |
@@ -78,7 +73,7 @@ feitas no RD — no SP essas informações aparecem repetidas em cada ato.
 | **Fonte oficial** | FTP DATASUS / Ministério da Saúde |
 | **Cobertura temporal** | jul/1997–2026 (não há arquivos SP antes de 1997) |
 | **Granularidade** | Uma linha por ato/procedimento dentro da internação (~11 por AIH) |
-| **Volume** | ~1 bi+ registros estimados (9.412 arquivos .dbc, ~54 GiB comprimidos na fonte) |
+| **Volume** | 3.198.639.792 registros (9.410 arquivos .dbc, 32,0 GiB em Parquet no R2; 52,5 GiB comprimidos na fonte) |
 | **Formato** | Apache Parquet, particionado por `ano/mes/uf` |
 | **Atualização** | Mensal (fonte publica ~2–3 meses após o mês de competência) |
 
@@ -231,8 +226,17 @@ Jul/1997). Files are named `SP{UF}{YY}{MM}.dbc`.
 `character` → Parquet (`arrow::write_parquet()`) → upload to R2 (`rclone`).
 Same pipeline as RD, selected with `SIH_TIPO=SP`. No value transformations
 — field values are published exactly as provided by the Ministry of Health.
-Each Parquet file carries provenance metadata (source URL, MD5, download
-date, pipeline version) in its schema metadata under the key `healthbr`.
+
+**Bootstrap:** 2026-08-18, pipeline 1.2.0, single run over both eras
+(`SIH_SPRINT=3`) reading a temporary raw mirror of the FTP on R2
+(`SIH_FONTE=r2`, deleted afterwards). Modern era (2008–2026): 5,991
+files, 2,551,706,767 records; legacy era (Jul/1997–2007): 3,419 files,
+646,933,025 records. Total: 9,410 files, 3,198,639,792 records,
+32.0 GiB on R2, ~9 h single-thread on a Hetzner cpx42. Last month at
+bootstrap: 2026-06; later months are added by the weekly maintenance. Two
+source files exist on the FTP but contain no records (`SPAP0710.dbc`,
+`SPAC0909.dbc`) and are therefore absent from R2; the Roraima gap
+documented for RD (no files Jul/1997–May/2000) applies to SP as well.
 
 ## Reproducibility & provenance
 
@@ -245,9 +249,9 @@ count of each output file) and per source file in the version-control CSV in
 the GitHub repository. Together they let anyone re-derive a partition from
 the Ministry's original file and the exact code commit, and verify that the
 copy they hold is intact. Data are **not** versioned: the R2 copy is the
-latest publication; revisions by the Ministry replace files. Files from the
-initial bootstrap (pipeline 1.0.0) lack the embedded record; use
-`manifest.json` for those. Full policy and audit recipe:
+latest publication; revisions by the Ministry replace files. **Every** SP
+file carries a native embedded record (no backfill was needed — the whole
+dataset was bootstrapped with pipeline 1.2.0). Full policy and audit recipe:
 [docs/policy-reproducibility-pt.md](https://github.com/SidneyBissoli/healthbr-data/blob/master/docs/policy-reproducibility-pt.md).
 
 ```r
@@ -301,4 +305,4 @@ arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
 
 ---
 
-*Last updated: 2026-08-17 (bootstrap in progress)*
+*Last updated: 2026-08-18 (bootstrap complete)*

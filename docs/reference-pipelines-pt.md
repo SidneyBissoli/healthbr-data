@@ -891,6 +891,22 @@ escopo (1 = era moderna 2008+, 2 = era antiga 1992–2007, 3 = full).
 Sobrescrevível pela env var `SIH_SPRINT` (a manutenção automatizada usa 3).
 O Sprint 2 acumula no mesmo controle de versão e manifesto do Sprint 1.
 
+**Paralelismo por UF (`SIH_WORKERS`):** por padrão (1) o pipeline processa
+um `.dbc` por vez — é o modo da manutenção mensal, onde poucos arquivos por
+rodada e o FTP lento dominam. Com `SIH_WORKERS=N` (unix; no Windows cai para
+1) as UFs pendentes de cada mês são processadas em N workers forkados
+(`parallel::mclapply`, `mc.preschedule = FALSE`); cada worker devolve o
+mesmo resultado do caminho sequencial e só o processo pai atualiza
+contadores, controle e circuit breaker (o motivo do download volta no
+resultado). A persistência continua sequencial no pai, uma vez por mês.
+Vale para bootstraps/backfills a partir do espelho R2, onde
+`read.dbc` + `write_parquet` (CPU) dominam: o bootstrap do SP (18/ago/2026)
+fez ~9.400 arquivos em ~8 h single-thread numa cpx42 (8 vCPU). Memória:
+cada worker segura o data frame de um arquivo (SP do estado de SP moderno
+≈ 2–3 GB de pico) — manter ≤ 4 em 16 GB. Um worker que morrer (OOM, falha
+no `read.dbc`) aparece no log como `ERROR in worker` e conta em `n_erros`;
+o arquivo fica pendente para a próxima rodada.
+
 **Nomenclatura de arquivos .dbc:** Padrão `{TIPO}{UF}{AA}{MM}.dbc` onde
 `AA` = ano com 2 dígitos (ex: `RDDF2401.dbc` = DF, jan/2024;
 `SPDF9708.dbc` = SP, DF, ago/1997). Ambas as eras usam o mesmo padrão de
@@ -938,8 +954,8 @@ SIH_SPRINT=2 nohup Rscript sih-pipeline-r.R > sih-sprint2.log 2>&1 &
 
 # SP — bootstrap completo (1997–presente) a partir do espelho bruto no R2
 #   (antes, no PC: bash scripts/maintenance/mirror-sih-raw.sh SP)
-SIH_TIPO=SP SIH_SPRINT=3 SIH_FONTE=r2 nohup Rscript sih-pipeline-r.R > sih-sp.log 2>&1 &
-tail -f sih-sprint2.log
+SIH_TIPO=SP SIH_SPRINT=3 SIH_FONTE=r2 SIH_WORKERS=4 nohup Rscript sih-pipeline-r.R > sih-sp.log 2>&1 &
+tail -f sih-sp.log
 
 # Monitorar
 grep -c "rows" sih-sprint1.log
@@ -1003,9 +1019,12 @@ carrega, no schema metadata do Arrow (chave `healthbr`, valor JSON):
 manifesto e o CSV de controle passam a registrar `source_hash_md5`,
 `pipeline_script`, `pipeline_version` e `git_commit` por partição/arquivo —
 política completa em `docs/policy-reproducibility-pt.md` (reprodutibilidade
-obrigatória; sem versionamento de dados; sem retenção de brutos). Arquivos do bootstrap (1.0.0) não têm o metadado;
-ganham no reprocessamento natural das revisões da fonte (backfill
-oportunista). Leitura:
+obrigatória; sem versionamento de dados; sem retenção de brutos). Arquivos
+do bootstrap 1.0.0 do SIH RD e do SINASC receberam o metadado por backfill
+em 18/ago/2026 (`scripts/maintenance/backfill-metadata.py`: regrava só o
+schema metadata, `git_commit` inferido e marcado `git_commit_inferred`,
+manifesto/CSV sincronizados — detalhes na política §5); os do SI-PNI 1.0.0
+ganham no reprocessamento natural das revisões da fonte. Leitura:
 
 ```r
 arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
@@ -1014,6 +1033,13 @@ arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
 ```python
 pl.read_parquet_metadata("part-0.parquet")["healthbr"]
 ```
+
+Todos os dataset cards (`guides/dataset-cards/`) trazem a seção
+"Reproducibility & provenance" apontando para a política (18/ago/2026). Os
+cards são publicados no HF (README do repo de dataset) e no R2
+(`<prefixo>/README.md`) por `scripts/maintenance/publish-cards.py <ids>|--all`
+(`--only hf|r2`, `--dry-run`); o mapeamento id → repo HF / prefixo R2 está no
+próprio script.
 
 ### Setup (uma vez)
 
@@ -1091,7 +1117,10 @@ pl.read_parquet_metadata("part-0.parquet")["healthbr"]
 
 ---
 
-*Última atualização: 17/ago/2026 — SIH vira namespace (`sih/rd/`,
+*Última atualização: 18/ago/2026 — `SIH_WORKERS` (UFs de um mês em
+paralelo, opt-in), `publish-cards.py`, seção de reprodutibilidade em todos os
+cards, `backfill-metadata.py` (metadado nos Parquets 1.0.0 do SIH RD/SINASC);
+17/ago: SIH vira namespace (`sih/rd/`,
 `sih/sp/`), pipeline parametrizado por `SIH_TIPO`, submódulo SP; circuit
 breaker do FTP no SIH + inspect-last-run.sh; SIH persiste por mês (11/ago); seção 15 (manutenção
 automatizada); metadados de proveniência embutidos (pipelines 1.1.0);

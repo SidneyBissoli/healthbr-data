@@ -43,6 +43,12 @@
 #   Sprint 3:           Both eras (used by the maintenance automation)
 #   Set SPRINT below (or env SIH_SPRINT) to control scope.
 #
+# Runtime knobs (env): SIH_TIPO (RD|SP), SIH_SPRINT (1|2|3), SIH_FONTE
+#   (ftp|r2 — raw mirror, bootstraps), SIH_WORKERS (1 = sequential; N =
+#   UFs of each month processed in N forked workers, unix only), and the
+#   FTP circuit breaker SIH_FTP_FALHAS_LIMIAR / SIH_FTP_PROBE_TENTATIVAS /
+#   SIH_FTP_PROBE_ESPERA (see below).
+#
 # Sources (TIPO = RD | SP):
 #   Era moderna: ftp://.../SIHSUS/200801_/Dados/{TIPO}{UF}{AAMM}.dbc
 #   Era antiga:  ftp://.../SIHSUS/199201_200712/Dados/{TIPO}{UF}{AAMM}.dbc
@@ -106,6 +112,20 @@ CFG <- TIPO_CFG[[TIPO]]
 #'   the same file's.
 FONTE <- tolower(Sys.getenv("SIH_FONTE", "ftp"))
 if (!FONTE %in% c("ftp", "r2")) stop(glue::glue("SIH_FONTE invalido: '{FONTE}' (ftp|r2)"))
+
+#' WORKERS: parallel processing of the UFs of a month (env var SIH_WORKERS)
+#'   1 (default) = sequential, one .dbc at a time (what the monthly
+#'       maintenance uses — few files per run, the FTP is the bottleneck).
+#'   N > 1 = parallel::mclapply over the pending UFs of each month (unix
+#'       only; forced to 1 on Windows). Worth it for bootstraps/backfills
+#'       from the R2 mirror, where read.dbc + write_parquet (CPU) dominate:
+#'       the SP bootstrap of 2026-08 ran ~9.400 files in ~8 h single-thread
+#'       on a cpx42 (8 vCPU). Each worker holds one file's data frame in
+#'       memory (a modern SP file for the state of SP peaks at ~2–3 GB), so
+#'       keep it ≤ 4 on 16 GB. Persistence (upload, manifest, control CSV)
+#'       stays sequential in the parent, once per month, unchanged.
+WORKERS <- max(1L, suppressWarnings(as.integer(Sys.getenv("SIH_WORKERS", "1"))), na.rm = TRUE)
+if (.Platform$OS.type != "unix") WORKERS <- 1L
 
 #' Embedded in each Parquet's schema metadata and in the manifest.
 #' 1.1.0: provenance metadata embedded in Parquet files.
@@ -631,9 +651,12 @@ processar_arquivo <- function(uf, ano, mes, controle, prefetch = character(0)) {
       return(list(status = "ftp_down", n = 0))
     }
     dl <- baixar_dbc(url, destino_dbc)
+    # Feeds the circuit breaker when running in the parent process; a forked
+    # worker (SIH_WORKERS > 1) cannot touch the parent's state, so the motive
+    # is also returned and the parent registers it.
     registrar_resultado_ftp(dl$motivo)
     if (!dl$ok) {
-      return(list(status = "unavailable", n = 0))
+      return(list(status = "unavailable", n = 0, ftp_motivo = dl$motivo))
     }
   }
 
@@ -714,6 +737,7 @@ cat("\n")
 cat(glue("Temp:     {DIR_TEMP}"), "\n")
 cat(glue("Source:   {if (FONTE == 'r2') paste0('R2 raw mirror ', R2_RAW_PREFIX, '/') else 'DATASUS FTP'}"), "\n")
 cat(glue("Dest:     {RCLONE_REMOTE}:{R2_BUCKET}/{R2_PREFIX}/"), "\n")
+cat(glue("Workers:  {WORKERS} (SIH_WORKERS; UFs of a month in parallel when > 1)"), "\n")
 cat(glue("Period:   {ANO_INICIO}-{ANO_FIM}"), "\n")
 cat(glue("UFs:      {length(UFS)} states"), "\n")
 cat(glue("Months:   {length(MESES)} per year"), "\n\n")
@@ -783,12 +807,51 @@ for (ano in ANO_INICIO:ANO_FIM) {
     novos_no_mes     <- 0
     registros_no_mes <- 0
 
+    # SIH_WORKERS > 1: process the month's UFs in forked workers. Each worker
+    # returns the same result list as the sequential path; the parent alone
+    # updates counters, `controle` and the FTP breaker below. A worker that
+    # dies (OOM, segfault in read.dbc) surfaces as a try-error → "error".
+    resultados_par <- NULL
+    if (WORKERS > 1) {
+      pendentes <- UFS[!vapply(
+        UFS, function(uf) info_arquivo(uf, ano, mes)$nome %in% controle$arquivo,
+        logical(1))]
+      if (length(pendentes) > 0) {
+        res <- parallel::mclapply(
+          pendentes,
+          function(uf) processar_arquivo(uf, ano, mes, controle, prefetch),
+          mc.cores = min(WORKERS, length(pendentes)), mc.preschedule = FALSE)
+        names(res) <- pendentes
+        resultados_par <- lapply(res, function(r) {
+          if (is.list(r) && !is.null(r$status)) r
+          else list(status = "error", n = 0,
+                    msg = trimws(gsub("\\s+", " ", paste(as.character(r), collapse = " "))))
+        })
+      }
+    }
+
     for (uf in UFS) {
 
-      resultado <- processar_arquivo(uf, ano, mes, controle, prefetch)
+      resultado <- if (!is.null(resultados_par) && uf %in% names(resultados_par)) {
+        resultados_par[[uf]]
+      } else if (WORKERS > 1) {
+        list(status = "unchanged", n = 0)   # not pending → already in controle
+      } else {
+        processar_arquivo(uf, ano, mes, controle, prefetch)
+      }
+
+      if (WORKERS > 1 && !is.null(resultado$ftp_motivo)) {
+        registrar_resultado_ftp(resultado$ftp_motivo)
+      }
 
       if (resultado$status == "unchanged") {
         n_inalterados <- n_inalterados + 1
+        next
+      }
+
+      if (resultado$status == "error") {
+        cat(glue("  {info_arquivo(uf, ano, mes)$nome}: ERROR in worker: {resultado$msg}"), "\n")
+        n_erros <- n_erros + 1
         next
       }
 

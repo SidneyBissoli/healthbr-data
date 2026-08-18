@@ -180,6 +180,25 @@ empty). Bootstrap time: 44 minutes for 2,762,327 records.
 → upload to R2 (`rclone`). No transformations are applied. Consolidated
 files (UF, BR, IG prefixes) were excluded.
 
+## Reproducibility & provenance
+
+This is a static, closed series (source no longer updated by the Ministry),
+converted once by pipeline version 1.0.0. Provenance is recorded per partition
+in `manifest.json` on R2 (source URL, MD5 and size, processing timestamp,
+output file paths and sizes, record count) and per source file in
+`data/controle_versao_sipni_agregados_cobertura.csv` in the GitHub repository
+(MD5, size, record and column counts). The Parquet files themselves do **not**
+carry the embedded `healthbr` metadata record used by the dynamic datasets;
+use `manifest.json` to check size and record count of a copy and to locate the
+original .dbf on the DATASUS FTP. The pipeline is a deterministic function of
+the source (all fields read as text, no value transformation), so any
+partition can be regenerated from the original file and the pipeline script at
+the commit recorded in the repository history. Data are **not** versioned: the
+R2 copy is the latest publication; revisions by the Ministry replace files,
+and the history of *what* was published *when* lives in the version-control
+CSV's git log. Full policy and audit recipe:
+[docs/policy-reproducibility-pt.md](https://github.com/SidneyBissoli/healthbr-data/blob/master/docs/policy-reproducibility-pt.md).
+
 ## Known limitations
 
 1. **Government data, not ours.** Values are preserved exactly as in the

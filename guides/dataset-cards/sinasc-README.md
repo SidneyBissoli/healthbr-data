@@ -237,6 +237,30 @@ as provided by the Ministry of Health.
 **Bootstrap:** 783 files, 85,033,402 records, 0 errors, 117 minutes on
 Hetzner CX21.
 
+## Reproducibility & provenance
+
+Every Parquet file written by pipeline version ≥ 1.1.0 carries a JSON
+provenance record in its schema metadata (key `healthbr`): `source_url`,
+`source_file`, `source_hash_md5`, `source_size_bytes`, `download_date`,
+`pipeline_script`, `pipeline_version` and (≥ 1.2.0) `git_commit`. The same
+facts are recorded per partition in `manifest.json` (plus SHA-256 and record
+count of each output file) and per source file in
+`data/controle_versao_sinasc.csv` in the GitHub repository. Together they let
+anyone re-derive a partition from the Ministry's original file and the exact
+code commit, and verify that the copy they hold is intact. Files from the
+initial bootstrap (pipeline 1.0.0, 2026-03) received the record afterwards by
+a metadata-only rewrite (2026-08-18): same content, `pipeline_version` kept as
+1.0.0, `git_commit` inferred from the repository history and flagged
+`git_commit_inferred: true` (see `metadata_backfill` inside the record). Data
+are **not** versioned: the R2 copy is the latest publication; revisions by the
+Ministry replace files, and the history of *what* was published *when* lives
+in the version-control CSV's git log. Full policy and audit recipe:
+[docs/policy-reproducibility-pt.md](https://github.com/SidneyBissoli/healthbr-data/blob/master/docs/policy-reproducibility-pt.md).
+
+```r
+arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
+```
+
 ## Known limitations
 
 1. **Government data, not ours.** Values are preserved exactly as in the

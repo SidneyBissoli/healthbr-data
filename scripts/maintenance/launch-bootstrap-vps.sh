@@ -13,7 +13,9 @@
 #   bash scripts/maintenance/launch-bootstrap-vps.sh <nome> '<comando>' [tipo]
 #
 #   bash scripts/maintenance/launch-bootstrap-vps.sh sih-sp \
-#     'SIH_TIPO=SP SIH_SPRINT=3 SIH_FONTE=r2 Rscript scripts/pipeline/sih-pipeline-r.R'
+#     'SIH_TIPO=SP SIH_SPRINT=3 SIH_FONTE=r2 SIH_WORKERS=4 Rscript scripts/pipeline/sih-pipeline-r.R'
+#   (SIH_WORKERS=N processa as UFs de cada mês em N workers — cpx42 tem
+#   8 vCPU/16 GB; ≤ 4 para o SP, cujos arquivos grandes chegam a 2–3 GB em RAM)
 #
 # O comando roda com cwd na raiz do repo clonado (branch master), com o
 # rclone remote "r2" configurado, e o log fica observável em

@@ -261,8 +261,11 @@ the GitHub repository. Together they let anyone re-derive a partition from
 the Ministry's original file and the exact code commit, and verify that the
 copy they hold is intact. Data are **not** versioned: the R2 copy is the
 latest publication; revisions by the Ministry replace files. Files from the
-initial bootstrap (pipeline 1.0.0) lack the embedded record; use
-`manifest.json` for those. Full policy and audit recipe:
+initial bootstrap (pipeline 1.0.0, 2026-03) received the record afterwards
+by a metadata-only rewrite (2026-08-18): same content, `pipeline_version`
+kept as 1.0.0, `git_commit` inferred from the repository history and flagged
+`git_commit_inferred: true` (see `metadata_backfill` inside the record). Full
+policy and audit recipe:
 [docs/policy-reproducibility-pt.md](https://github.com/SidneyBissoli/healthbr-data/blob/master/docs/policy-reproducibility-pt.md).
 
 ```r

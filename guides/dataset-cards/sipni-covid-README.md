@@ -172,16 +172,40 @@ No transformations are applied — values are published exactly as provided
 by the Ministry of Health.
 
 **Note on CSV artifacts:** Unlike the routine vaccination data (which has
-JSON available), COVID data exists only as CSV. Fields with external
-standards (IBGE codes, CNES codes, ZIP codes, race/ethnicity) have been
-corrected using deterministic rules. Fields depending on internal SI-PNI
-dictionaries remain as-is pending dictionary availability.
+JSON available), COVID data exists only as CSV. The source CSVs quote every
+field, so leading zeros and codes are intact; the pipeline reads all columns
+as text (`infer_schema_length=0`) and applies **no** correction — IBGE/CNES
+codes, ZIP codes and dictionary-coded fields are published exactly as
+serialized by the Ministry.
+
+## Reproducibility & provenance
+
+Every Parquet file written by pipeline version ≥ 1.1.0 carries a JSON
+provenance record in its schema metadata (key `healthbr`): `source_url`,
+`source_file`, `source_etag` (the OpenDATASUS S3 object hash — the source
+publishes no separate MD5), `source_size_bytes`, `download_date`,
+`pipeline_script`, `pipeline_version` and (≥ 1.2.0) `git_commit`. The same
+facts are recorded per partition in `manifest.json` (plus SHA-256 and record
+count of each output file) and per source file in
+`data/controle_versao_covid.csv` in the GitHub repository. Together they let
+anyone re-derive a partition from the Ministry's original file and the exact
+code commit, and verify that the copy they hold is intact. Files from the
+initial bootstrap (pipeline 1.0.0) lack the embedded record; files
+(re)processed since 2026-08 by the automated maintenance carry it — use
+`manifest.json` for the others. Data are **not** versioned: the R2 copy is the
+latest publication; revisions by the Ministry replace files, and the history
+of *what* was published *when* lives in the version-control CSV's git log.
+Full policy and audit recipe:
+[docs/policy-reproducibility-pt.md](https://github.com/SidneyBissoli/healthbr-data/blob/master/docs/policy-reproducibility-pt.md).
+
+```r
+arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
+```
 
 ## Known limitations
 
 1. **Government data, not ours.** Errors in the original data are
-   intentionally preserved. No cleaning or correction is applied beyond
-   deterministic fixes for known CSV serialization artifacts.
+   intentionally preserved. No cleaning or correction is applied.
 2. **Variable completeness.** Many fields have optional reporting.
 3. **All fields are strings.** Type casting must be done by the user.
 4. **Invalid dates.** Records with vaccination dates outside 2021–present

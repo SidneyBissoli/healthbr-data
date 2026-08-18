@@ -37,6 +37,8 @@ and bump its "Última atualização" footer.
   are overwritten on source revision — no `_history/`, no raw-file retention (the
   `_raw/` mirror is a bootstrap aid, deleted afterwards). Run pipelines from a git clone
   (or set `HEALTHBR_GIT_COMMIT`); `git_commit = "unknown"` in production is a defect.
+  Parquets from the 1.0.0 bootstraps of SIH RD / SINASC got their metadata via
+  `scripts/maintenance/backfill-metadata.py` (metadata-only rewrite, `git_commit_inferred`).
 
 ## Datasets and pipelines
 
@@ -66,7 +68,8 @@ Shared mechanics every pipeline follows:
 - SIH: one script for both file types — `SIH_TIPO=RD|SP` picks prefix/CSV/first year
   (RD 1992, SP 1997; both eras share the FTP naming `{TIPO}{UF}{AAMM}.dbc`; SP has 3
   schemas 16/18/36 cols, RD 14 schemas). `SIH_SPRINT` env (1 = 2008+, 2 = old era, 3 =
-  both; maintenance uses 3);
+  both; maintenance uses 3); `SIH_WORKERS=N` processes the UFs of a month in N forked
+  workers (unix only, default 1 — use for bootstraps/backfills from the R2 mirror);
   persists **per month** (upload + manifest + CSV checkpoint); has an FTP circuit breaker
   (`SIH_FTP_FALHAS_LIMIAR`/`SIH_FTP_PROBE_TENTATIVAS`/`SIH_FTP_PROBE_ESPERA`) that exits
   **75** when the DATASUS FTP is down — the orchestrator treats 75 as "resume next run",
@@ -125,6 +128,9 @@ rclone cat r2:healthbr-data/maintenance/last-run.json
 HC=/c/Users/SIDNEY/AppData/Local/Microsoft/WinGet/Packages/HetznerCloud.CLI_Microsoft.Winget.Source_8wekyb3d8bbwe/hcloud.exe
 "$HC" --context healthbr server list --selector healthbr=maintenance-run
 ssh -o StrictHostKeyChecking=no root@<ip>   # maint VPS reuse IPs → known_hosts warnings are expected
+
+# Publish dataset cards (guides/dataset-cards/) to HF + R2 after editing them
+python scripts/maintenance/publish-cards.py sih-sp sinasc      # or --all, --only hf|r2, --dry-run
 
 # Rebuild the maintenance snapshot after changing the R/Python stack
 # (follow the header of scripts/maintenance/setup-snapshot.sh)

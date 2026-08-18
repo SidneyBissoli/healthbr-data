@@ -81,17 +81,27 @@ meta$source_url; meta$source_hash_md5; meta$git_commit; meta$pipeline_version
 
 ## 5. Limitações conhecidas (declaradas, não escondidas)
 
-- **Arquivos do bootstrap com `pipeline_version` 1.0.0** (mar/2026: SIH RD,
-  SINASC, parte do SI-PNI) não têm metadado embutido; para eles a
-  rastreabilidade vem do manifesto + CSV de controle (que têm o MD5 da
-  fonte). Ganham o metadado no reprocessamento natural quando o Ministério
-  revisa a fonte (backfill oportunista). **Pendência aberta (18/ago/2026):**
-  resolver de forma completa mais adiante — provavelmente um passo de
-  backfill de metadado sem reprocessar a fonte (regravar o Parquet com o
-  mesmo conteúdo + `healthbr` montado a partir do CSV/manifesto e do commit
-  do bootstrap, rotulado como backfill), começando pelos módulos `.dbc`
-  (SIH RD, SINASC), onde a reconstrução é integral. Decisão adiada
-  deliberadamente até o bootstrap do SIH SP terminar.
+- **Arquivos do bootstrap com `pipeline_version` 1.0.0** (mar/2026) não
+  nasceram com metadado embutido. **Resolvido para os módulos `.dbc`
+  (18/ago/2026)**: `scripts/maintenance/backfill-metadata.py` regrava só o
+  schema metadata dos Parquets do SIH RD e do SINASC (conteúdo verificado
+  igual via `pyarrow` `equals()` antes de subir), montando o registro
+  `healthbr` a partir do CSV de controle + manifesto: `pipeline_version`
+  **original** (1.0.0; ou 1.1.0 nos que já tinham registro sem commit),
+  `download_date` = timestamp de processamento do CSV, `git_commit`
+  **inferido** (último commit do script ≤ timestamp de processamento; se o
+  bootstrap precedeu o 1º commit do script — caso do SIH RD `020ee5c` e do
+  SINASC `ac2ff96`, scripts idênticos até a 1.1.0 —, esse 1º commit) e
+  marcado com `git_commit_inferred: true` + bloco `metadata_backfill`
+  (quando, por qual script/commit, com que base). Manifesto (SHA-256 novo,
+  `git_commit_inferred`, `metadata_backfilled_at`) e CSV (`pipeline_version`,
+  `git_commit`) recebem os mesmos valores — a regra dos três artefatos vale
+  também para o backfill. O SHA-256 dos arquivos muda (rodapé regravado);
+  o conteúdo lógico não. Um auditor deve tratar `git_commit_inferred` como
+  "melhor evidência", não como registro contemporâneo.
+  **Ainda em aberto**: SI-PNI microdados/COVID 1.0.0 — os microdados são
+  regravados nas revisões da fonte (backfill oportunista) e o COVID não tem
+  metadado de fonte utilizável no manifesto; ficam para depois.
 - **Sem versão anterior dos dados**: se o Ministério revisar um arquivo,
   a versão anterior deixa de existir no R2 (e no FTP). O que resta dela é o
   registro (MD5, contagem, data) no histórico git do CSV e no manifesto

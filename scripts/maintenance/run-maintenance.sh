@@ -88,6 +88,17 @@ if [ -z "$DATASETS" ]; then
 else
   # --- 3. Rodar pipelines -----------------------------------------------------
   for ds in $DATASETS; do
+    # Guarda: um bootstrap desse módulo em VPS dedicada (launch-bootstrap-vps.sh,
+    # label modulo=<ds>) escreve no mesmo prefixo — nunca rodar em paralelo
+    if [ -n "${HCLOUD_TOKEN:-}" ] && command -v hcloud >/dev/null 2>&1; then
+      N_BOOT=$(hcloud server list --selector "healthbr=bootstrap,modulo=$ds" -o json 2>/dev/null \
+                 | jq length 2>/dev/null || echo 0)
+      if [ "${N_BOOT:-0}" != "0" ]; then
+        log "--- $ds: bootstrap em andamento em VPS dedicada — pulando nesta rodada ---"
+        FALHAS+=("$ds(bootstrap-em-andamento)")
+        continue
+      fi
+    fi
     log "--- Pipeline: $ds ---"
     # timeout: um pipeline travado (FTP preso, worker morto) vira falha
     # registrada em vez de rodada eterna; com os checkpoints, o custo de

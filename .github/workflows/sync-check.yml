@@ -54,7 +54,11 @@ jobs:
           cd hf-space
           git config user.name "healthbr-sync-bot"
           git config user.email "noreply@healthbr-data.org"
-          git add src/sync-status.json
+          # O HF rejeita arquivos > 10 MiB fora do LFS; o sync-status.json
+          # passou desse tamanho com o sih-sp (9.6k partições)
+          git lfs install --local
+          git lfs track "src/sync-status.json"
+          git add .gitattributes src/sync-status.json
           git commit -m "Update sync status $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
           git push
 

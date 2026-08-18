@@ -99,9 +99,21 @@ meta$source_url; meta$source_hash_md5; meta$git_commit; meta$pipeline_version
   também para o backfill. O SHA-256 dos arquivos muda (rodapé regravado);
   o conteúdo lógico não. Um auditor deve tratar `git_commit_inferred` como
   "melhor evidência", não como registro contemporâneo.
-  **Ainda em aberto**: SI-PNI microdados/COVID 1.0.0 — os microdados são
-  regravados nas revisões da fonte (backfill oportunista) e o COVID não tem
-  metadado de fonte utilizável no manifesto; ficam para depois.
+  **SI-PNI COVID**: resolvido por **reprocessamento total** (18/ago/2026,
+  pipeline 1.2.1) — o manifesto retroativo não tinha metadado de fonte, e a
+  fonte havia sido republicada (23/jul/2026, hash novo; a antiga sumiu do S3),
+  então só reprocessar dava proveniência íntegra; todos os Parquets, o
+  manifesto (ETags, SHA-256) e o CSV têm registro nativo. **Ainda em aberto**:
+  SI-PNI *rotina* 1.0.0 (60 meses) — CSV/manifesto têm URL, ETag, MD5 do zip e
+  tamanho por fonte, então o backfill é integral; pendente estender o
+  `backfill-metadata.py` para N arquivos por partição.
+- **Como ler o metadado**: em R, `arrow::read_parquet(f, as_data_frame =
+  FALSE)$metadata$healthbr` funciona para todos os arquivos. Em Python,
+  para os arquivos escritos pelo polars (SI-PNI) o registro está no
+  key-value metadata do rodapé e **não** aparece em `read_schema()`/
+  `read_table().schema` do pyarrow — use
+  `pyarrow.parquet.read_metadata(f).metadata[b"healthbr"]` ou
+  `polars.read_parquet_metadata(f)["healthbr"]`.
 - **Sem versão anterior dos dados**: se o Ministério revisar um arquivo,
   a versão anterior deixa de existir no R2 (e no FTP). O que resta dela é o
   registro (MD5, contagem, data) no histórico git do CSV e no manifesto

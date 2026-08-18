@@ -37,7 +37,7 @@ for efficient analytical access. Each row represents one administered dose.
 | **Temporal coverage** | January 2021 – present |
 | **Geographic coverage** | All 5,570 Brazilian municipalities |
 | **Granularity** | Individual record (one row per administered dose) |
-| **Volume** | 608M+ records |
+| **Volume** | 608,311,394 records (publication of 2026-07-23) |
 | **Format** | Apache Parquet, partitioned by `ano/mes/uf` |
 | **Data types** | All fields stored as `string` (preserves leading zeros) |
 | **Update frequency** | Monthly |
@@ -164,8 +164,13 @@ include:
 
 ## Source and processing
 
-**Original source:** CSV files by state from OpenDATASUS (Ministry of Health
-S3 bucket, 27 states × 5 parts = 135 files, ~292 GB uncompressed).
+**Original source:** CSV files by state published by the Ministry of Health
+on the open-data portal ([dadosabertos.saude.gov.br](https://dadosabertos.saude.gov.br/dataset/covid-19-vacinacao),
+formerly OpenDATASUS) and served from an S3 bucket: 27 states × 5 parts =
+135 files, ~292 GB uncompressed. Each republication gets a new "publication
+hash" in the file names and the previous files disappear from S3; the
+current copy on R2 comes from the publication of **2026-07-23**
+(`0656f017-…`), fully reprocessed on 2026-08-18.
 
 **Processing:** CSV → Parquet (via `polars`) → upload to R2 (via `rclone`).
 No transformations are applied — values are published exactly as provided
@@ -189,10 +194,10 @@ facts are recorded per partition in `manifest.json` (plus SHA-256 and record
 count of each output file) and per source file in
 `data/controle_versao_covid.csv` in the GitHub repository. Together they let
 anyone re-derive a partition from the Ministry's original file and the exact
-code commit, and verify that the copy they hold is intact. Files from the
-initial bootstrap (pipeline 1.0.0) lack the embedded record; files
-(re)processed since 2026-08 by the automated maintenance carry it — use
-`manifest.json` for the others. Data are **not** versioned: the R2 copy is the
+code commit, and verify that the copy they hold is intact. **Every** file
+carries a native record: the whole dataset was reprocessed from the Ministry's
+2026-07-23 publication on 2026-08-18 with pipeline 1.2.1 (nothing from the
+2026-03 bootstrap remains). Data are **not** versioned: the R2 copy is the
 latest publication; revisions by the Ministry replace files, and the history
 of *what* was published *when* lives in the version-control CSV's git log.
 Full policy and audit recipe:
@@ -233,4 +238,4 @@ arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
 
 ---
 
-*Last updated: 2026-02-28*
+*Last updated: 2026-08-18 (full reprocessing from the 2026-07-23 publication)*

@@ -1052,6 +1052,8 @@ arrow::read_parquet("part-0.parquet", as_data_frame = FALSE)$metadata$healthbr
 
 ```python
 pl.read_parquet_metadata("part-0.parquet")["healthbr"]
+# ou: pyarrow.parquet.read_metadata(f).metadata[b"healthbr"]  — NÃO read_schema():
+# nos arquivos escritos pelo polars o registro fica só no key-value do rodapé
 ```
 
 Todos os dataset cards (`guides/dataset-cards/`) trazem a seção

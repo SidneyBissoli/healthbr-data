@@ -37,7 +37,7 @@ import boto3
 # ---------------------------------------------------------------------------
 
 R2_BUCKET = "healthbr-data"
-ENGINE_VERSION = "1.4.0"
+ENGINE_VERSION = "1.4.1"
 
 # COVID baseline file — stores last successful API counts per UF.
 # Used as fallback when the Elasticsearch API is unreachable (e.g.,
@@ -316,7 +316,13 @@ def ftp_list_sinasc():
                         except ValueError:
                             pass
                     if size is not None:
-                        files[name] = size
+                        # Diretórios listados em ordem de precedência (era
+                        # moderna primeiro): um nome repetido na era antiga
+                        # (ex.: ANT/DNRES/DNAC2014.dbc, 2018, tamanho
+                        # diferente) NÃO pode sobrescrever o da moderna —
+                        # o pipeline baixa da moderna, e o engine marcava
+                        # 'outdated' para sempre.
+                        files.setdefault(name, size)
 
             ftp.quit()
             return {"success": True, "files": files, "error": None}
@@ -363,7 +369,13 @@ def ftp_list_sih():
                         except ValueError:
                             pass
                     if size is not None:
-                        files[name] = size
+                        # Diretórios listados em ordem de precedência (era
+                        # moderna primeiro): um nome repetido na era antiga
+                        # (ex.: ANT/DNRES/DNAC2014.dbc, 2018, tamanho
+                        # diferente) NÃO pode sobrescrever o da moderna —
+                        # o pipeline baixa da moderna, e o engine marcava
+                        # 'outdated' para sempre.
+                        files.setdefault(name, size)
 
             ftp.quit()
             return {"success": True, "files": files, "error": None}

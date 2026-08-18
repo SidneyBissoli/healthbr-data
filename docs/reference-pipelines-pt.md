@@ -905,10 +905,21 @@ Três schemas: 16 cols (1997–~2005: `SP_CGCHOSP`, `SP_PTSP_NF`), 18 cols
 (~2006–2007: `SP_GESTOR`+`SP_CNES` substituem o CGC; `SP_PTSP`/`SP_NF`
 separados) e 36 cols (2008+, estável: +CBO/documento do profissional,
 `SP_CIDPRI`/`SP_CIDSEC`, complexidade, financiamento, `SEQUENCIA`/`REMESSA`).
-Amostra AC jan/2024: 4.315 AIH → 49.338 linhas (11,4 por AIH). Bootstrap
-estimado ~3× o Sprint 1 do RD, dominado pelo FTP; feito em VPS dedicada
-(não pela manutenção), com persistência mensal + breaker permitindo
-retomada entre sessões.
+Amostra AC jan/2024: 4.315 AIH → 49.338 linhas (11,4 por AIH).
+
+**Bootstrap via espelho bruto (`SIH_FONTE=r2`):** medido em 17/ago/2026, o
+FTP do DATASUS entrega ~2,7 MiB/s e conecta sempre a partir do Brasil, mas
+~0,85 MiB/s com timeouts frequentes a partir da VPS em Nuremberg (a rodada
+de manutenção daquele dia queimou 9 h em 780 tentativas). Para o SP (54 GiB)
+o bootstrap usa duas etapas: (1) no PC, `scripts/maintenance/mirror-sih-raw.sh SP`
+lista o FTP, baixa em paralelo, confere tamanho e sobe para
+`r2:healthbr-data/_raw/sih/sp/` (retomável; ~7,5 MiB/s ponta a ponta,
+upload sobreposto ao download do lote seguinte); (2) na VPS,
+`SIH_TIPO=SP SIH_SPRINT=3 SIH_FONTE=r2 Rscript sih-pipeline-r.R` lê os
+`.dbc` do espelho via `rclone copyto` em vez do FTP — mesma lógica de
+retry/breaker, `source_url` e MD5 continuam os do arquivo original. O
+espelho pode ser apagado após o bootstrap (`rclone purge r2:healthbr-data/_raw/sih/sp`);
+a manutenção mensal segue no modo `ftp` (poucos arquivos por rodada).
 
 **Lacunas históricas:** 19 arquivos da era antiga não existem no FTP.
 15 são de Roraima (jul/1995–mai/2000), estado com informatização tardia.
@@ -925,8 +936,9 @@ tail -f sih-sprint1.log
 # RD — Sprint 2 (era antiga, 1992–2007) — após Sprint 1
 SIH_SPRINT=2 nohup Rscript sih-pipeline-r.R > sih-sprint2.log 2>&1 &
 
-# SP — bootstrap completo (1997–presente), retomável entre sessões
-SIH_TIPO=SP SIH_SPRINT=3 nohup Rscript sih-pipeline-r.R > sih-sp.log 2>&1 &
+# SP — bootstrap completo (1997–presente) a partir do espelho bruto no R2
+#   (antes, no PC: bash scripts/maintenance/mirror-sih-raw.sh SP)
+SIH_TIPO=SP SIH_SPRINT=3 SIH_FONTE=r2 nohup Rscript sih-pipeline-r.R > sih-sp.log 2>&1 &
 tail -f sih-sprint2.log
 
 # Monitorar

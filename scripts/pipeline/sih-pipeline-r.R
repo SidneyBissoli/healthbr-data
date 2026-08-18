@@ -95,6 +95,18 @@ if (!TIPO %in% names(TIPO_CFG)) {
 }
 CFG <- TIPO_CFG[[TIPO]]
 
+#' FONTE: where the .dbc files are fetched from (env var SIH_FONTE)
+#'   ftp = DATASUS FTP directly (default; used by the monthly maintenance)
+#'   r2  = raw mirror at r2:healthbr-data/_raw/sih/<tipo>/ — populated from a
+#'         machine in Brazil by scripts/maintenance/mirror-sih-raw.sh. Used for
+#'         bootstraps: the FTP throttles/drops connections from Europe (0.85
+#'         MiB/s with frequent timeouts vs 2.7 MiB/s and instant connects
+#'         from Brazil), while R2 → Hetzner is fast and reliable.
+#'   Provenance is unaffected: source_url stays the FTP URL and the MD5 is
+#'   the same file's.
+FONTE <- tolower(Sys.getenv("SIH_FONTE", "ftp"))
+if (!FONTE %in% c("ftp", "r2")) stop(glue::glue("SIH_FONTE invalido: '{FONTE}' (ftp|r2)"))
+
 #' Embedded in each Parquet's schema metadata and in the manifest.
 #' 1.1.0: provenance metadata embedded in Parquet files.
 PIPELINE_VERSION <- "1.1.0"
@@ -110,6 +122,7 @@ FTP_ANTIGA  <- "ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/199201_200712/
 RCLONE_REMOTE <- "r2"
 R2_BUCKET     <- "healthbr-data"
 R2_PREFIX     <- CFG$r2_prefix   # "sih/rd" | "sih/sp"
+R2_RAW_PREFIX <- glue::glue("_raw/sih/{tolower(TIPO)}")   # espelho bruto (SIH_FONTE=r2)
 
 # Period (adjusted by sprint; upper bound follows the current year so the
 # maintenance automation picks up new months without editing this file)
@@ -250,7 +263,24 @@ classificar_erro_ftp <- function(msg) {
             msg, ignore.case = TRUE)) "missing" else "transient"
 }
 
-#' Download .dbc from FTP with retry and stall detection
+#' Fetch one .dbc from the raw R2 mirror (SIH_FONTE=r2). Returns NULL on
+#' success or an error message shaped so classificar_erro_ftp() understands
+#' it ("not found" → missing; anything else → transient).
+baixar_dbc_r2 <- function(nome, destino) {
+  origem <- glue("{RCLONE_REMOTE}:{R2_BUCKET}/{R2_RAW_PREFIX}/{nome}")
+  out <- suppressWarnings(system2("rclone", c("copyto", shQuote(origem), shQuote(destino),
+                                              "--retries", "3", "--low-level-retries", "5"),
+                                  stdout = TRUE, stderr = TRUE))
+  st <- attr(out, "status") %||% 0L
+  if (st == 0L && file_exists(destino) && file.info(destino)$size > 0) return(NULL)
+  msg <- paste(out, collapse = " ")
+  if (grepl("not found|directory not found|object not found", msg, ignore.case = TRUE)) {
+    return(glue("Remote file not found [r2 mirror]: {nome} does not exist"))
+  }
+  glue("rclone copyto failed (status {st}): {substr(msg, 1, 200)}")
+}
+
+#' Download .dbc (FTP, or R2 mirror when SIH_FONTE=r2) with retry
 #'
 #' Returns list(ok = logical, motivo = "ok" | "missing" | "transient").
 #' A "missing" answer aborts the retry loop immediately.
@@ -258,17 +288,21 @@ baixar_dbc <- function(url, destino, tentativas = 5) {
   motivo <- "transient"
   for (i in seq_len(tentativas)) {
     erro <- NULL
-    tryCatch({
-      curl::curl_download(
-        url, destino, quiet = TRUE,
-        handle = curl::new_handle(
-          connecttimeout  = 60,
-          timeout         = 600,
-          low_speed_limit = 1000,
-          low_speed_time  = 120
+    if (FONTE == "r2") {
+      erro <- baixar_dbc_r2(basename(url), destino)
+    } else {
+      tryCatch({
+        curl::curl_download(
+          url, destino, quiet = TRUE,
+          handle = curl::new_handle(
+            connecttimeout  = 60,
+            timeout         = 600,
+            low_speed_limit = 1000,
+            low_speed_time  = 120
+          )
         )
-      )
-    }, error = function(e) erro <<- e$message)
+      }, error = function(e) erro <<- e$message)
+    }
 
     if (is.null(erro) && file_exists(destino) && file.info(destino)$size > 0) {
       return(list(ok = TRUE, motivo = "ok"))
@@ -311,8 +345,14 @@ registrar_resultado_ftp <- function(motivos) {
   invisible(.ftp$falhas_seguidas)
 }
 
-#' Lightweight liveness probe: list the modern-era directory
+#' Lightweight liveness probe: list the modern-era FTP directory (or, with
+#' SIH_FONTE=r2, the raw mirror prefix)
 ftp_responde <- function(url = FTP_MODERNA) {
+  if (FONTE == "r2") {
+    st <- suppressWarnings(system2("rclone", c("lsf", shQuote(glue("{RCLONE_REMOTE}:{R2_BUCKET}/{R2_RAW_PREFIX}/")),
+                                               "--max-depth", "1"), stdout = FALSE, stderr = FALSE))
+    return(identical(st, 0L))
+  }
   tryCatch({
     curl::curl_fetch_memory(url, handle = curl::new_handle(
       connecttimeout = 30, timeout = 120, dirlistonly = TRUE))
@@ -644,6 +684,7 @@ verificar_rclone()
 cat("\n")
 
 cat(glue("Temp:     {DIR_TEMP}"), "\n")
+cat(glue("Source:   {if (FONTE == 'r2') paste0('R2 raw mirror ', R2_RAW_PREFIX, '/') else 'DATASUS FTP'}"), "\n")
 cat(glue("Dest:     {RCLONE_REMOTE}:{R2_BUCKET}/{R2_PREFIX}/"), "\n")
 cat(glue("Period:   {ANO_INICIO}-{ANO_FIM}"), "\n")
 cat(glue("UFs:      {length(UFS)} states"), "\n")

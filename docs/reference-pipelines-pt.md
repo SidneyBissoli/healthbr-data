@@ -937,7 +937,7 @@ scripts/maintenance/run-maintenance.sh (na VPS, via cloud-init)
   ↓ grava maintenance/last-run.json + last-run.log no R2
   ↓ AUTO-DELEÇÃO: hcloud server delete $(hostname)
 maintenance-reaper.yml (cron a cada 3h — backstop)
-  ↓ deleta VPS de manutenção desligada ou com > 12h de vida
+  ↓ deleta VPS de manutenção desligada ou com > 36h de vida
 ```
 
 ### Datasets automatizados
@@ -1025,6 +1025,6 @@ pl.read_parquet_metadata("part-0.parquet")["healthbr"]
 
 ---
 
-*Última atualização: 05/ago/2026 — Adicionada seção 15 (manutenção
+*Última atualização: 17/ago/2026 — SIH persiste por mês (11/ago); seção 15 (manutenção
 automatizada); metadados de proveniência embutidos (pipelines 1.1.0);
 `SPRINT` do SIH sobrescrevível via env var.*

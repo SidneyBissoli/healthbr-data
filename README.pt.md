@@ -8,8 +8,8 @@ formato analítico moderno.
 O **healthbr-data** redistribui dados públicos de saúde do Sistema Único
 de Saúde (SUS) em formato Apache Parquet, com acesso gratuito via protocolo
 S3, atualizações mensais automatizadas e documentação completa. Comece a
-analisar mais de 500 milhões de registros de vacinação em 3 linhas de
-código R ou Python.
+analisar mais de 1,9 bilhão de registros de saúde (vacinação, nascidos
+vivos, internações) em 3 linhas de código R ou Python.
 
 ## Datasets disponíveis
 
@@ -19,6 +19,17 @@ código R ou Python.
 | SI-PNI Vacinação COVID (microdados) | `sipni/covid/microdados/` | ~608M | 2021–presente | ✅ Disponível |
 | SI-PNI Agregados históricos (doses) | `sipni/agregados/doses/` | ~84M | 1994–2019 | ✅ Disponível |
 | SI-PNI Agregados históricos (cobertura) | `sipni/agregados/cobertura/` | ~2,8M | 1994–2019 | ✅ Disponível |
+| SI-PNI Dicionários oficiais (tabelas de referência) | `sipni/dicionarios/` | 6 tabelas | snapshot 2019 | ✅ Disponível |
+| SINASC Nascidos vivos (microdados) | `sinasc/` | ~85M | 1994–2022 | ✅ Disponível |
+| SIH Internações hospitalares — AIH reduzida (microdados) | `sih/` | ~415M | 1992–presente | ✅ Disponível |
+
+Os datasets que recebem dados novos do Ministério (SI-PNI rotina, SI-PNI
+COVID, SINASC, SIH) são atualizados por uma verificação semanal
+automatizada de sincronia, que lança uma VPS efêmera de processamento
+apenas quando detecta deriva. Cada dataset tem um card completo em
+[`guides/dataset-cards/`](guides/dataset-cards/) e há um painel de
+sincronia ao vivo no
+[Hugging Face](https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status).
 
 ## Início rápido
 
@@ -92,10 +103,10 @@ Dicionários e documentação são publicados separadamente como referência.
 ## Arquitetura
 
 ```
-Ministério da Saúde (JSON/CSV/DBF)
-        ↓ pipeline automatizado
-VPS Hetzner (processamento)
-        ↓ jq + polars + rclone
+Ministério da Saúde (JSON/CSV/DBF/DBC)
+        ↓ verificação semanal (GitHub Actions) → VPS efêmera sob demanda
+VPS Hetzner (processamento; se auto-deleta ao terminar)
+        ↓ jq + polars (Python) / read.dbc + arrow (R) + rclone
 Cloudflare R2 (armazenamento S3, egress gratuito)
         ↓ Arrow / DuckDB
 Pesquisadores (R, Python, ou qualquer ferramenta compatível com Parquet)
@@ -107,10 +118,13 @@ Pesquisadores (R, Python, ou qualquer ferramenta compatível com Parquet)
 - ✅ Microdados de vacinação COVID (SI-PNI COVID), 2021–presente — 608M+ registros
 - ✅ Agregados históricos — doses aplicadas (SI-PNI), 1994–2019 — 84M+ registros
 - ✅ Agregados históricos — cobertura vacinal (SI-PNI), 1994–2019 — 2,8M+ registros
-- 🔧 Dicionários oficiais do Ministério da Saúde
+- ✅ Dicionários oficiais do SI-PNI (tabelas de referência)
+- ✅ Microdados de nascidos vivos (SINASC), 1994–2022 — 85M+ registros
+- ✅ Microdados de internações hospitalares (SIH, AIH reduzida), 1992–presente — 415M+ registros
+- ✅ Manutenção automatizada (verificação semanal + VPS sob demanda)
 - 📋 Pacote R `healthbR` para acesso integrado
 - 📋 Série temporal harmonizada de cobertura vacinal (1994–presente)
-- 🔮 Novos sistemas de informação (SIM, SINASC, SIH)
+- 🔮 Novos sistemas de informação (SIM; arquivos SP/RJ/ER do SIH)
 
 ## Documentação
 
@@ -119,6 +133,8 @@ Pesquisadores (R, Python, ou qualquer ferramenta compatível com Parquet)
 - [Guia de início rápido (PT)](guides/quick-guide-pt.R) |
   [EN](guides/quick-guide-en.R)
 - [Harmonização: agregados ↔ microdados (PT)](docs/harmonization-pt.md)
+- [Referência de pipelines e manutenção automatizada (PT)](docs/reference-pipelines-pt.md)
+- [Cards dos datasets (EN/PT)](guides/dataset-cards/)
 
 ## Apoie o projeto
 

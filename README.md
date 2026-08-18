@@ -8,7 +8,8 @@ analytical format.
 **healthbr-data** redistributes public health data from Brazil's Unified
 Health System (SUS) in Apache Parquet format, with free access via S3
 protocol, automated monthly updates, and complete documentation. Start
-analyzing 500 million+ vaccination records in 3 lines of R or Python code.
+analyzing 1.9 billion+ health records (vaccination, live births, hospital
+admissions) in 3 lines of R or Python code.
 
 ## Available datasets
 
@@ -18,6 +19,16 @@ analyzing 500 million+ vaccination records in 3 lines of R or Python code.
 | SI-PNI COVID vaccination (microdata) | `sipni/covid/microdados/` | ~608M | 2021–present | ✅ Available |
 | SI-PNI Historical aggregates (doses) | `sipni/agregados/doses/` | ~84M | 1994–2019 | ✅ Available |
 | SI-PNI Historical aggregates (coverage) | `sipni/agregados/cobertura/` | ~2.8M | 1994–2019 | ✅ Available |
+| SI-PNI Official dictionaries (reference tables) | `sipni/dicionarios/` | 6 tables | 2019 snapshot | ✅ Available |
+| SINASC Live births (microdata) | `sinasc/` | ~85M | 1994–2022 | ✅ Available |
+| SIH Hospital admissions — AIH reduzida (microdata) | `sih/` | ~415M | 1992–present | ✅ Available |
+
+Datasets that receive new data from the Ministry (SI-PNI routine, SI-PNI
+COVID, SINASC, SIH) are refreshed by an automated weekly sync check that
+launches an ephemeral processing VPS only when drift is detected. Each
+dataset has a full card in [`guides/dataset-cards/`](guides/dataset-cards/)
+and a live sync dashboard on
+[Hugging Face](https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status).
 
 ## Quick start
 
@@ -91,10 +102,10 @@ documentation are published separately as reference.
 ## Architecture
 
 ```
-Ministry of Health (JSON/CSV/DBF)
-        ↓ automated pipeline
-VPS Hetzner (processing)
-        ↓ jq + polars + rclone
+Ministry of Health (JSON/CSV/DBF/DBC)
+        ↓ weekly sync check (GitHub Actions) → on-demand ephemeral VPS
+VPS Hetzner (processing; self-deletes when done)
+        ↓ jq + polars (Python) / read.dbc + arrow (R) + rclone
 Cloudflare R2 (S3-compatible storage, free egress)
         ↓ Arrow / DuckDB
 Researchers (R, Python, or any Parquet-compatible tool)
@@ -106,10 +117,13 @@ Researchers (R, Python, or any Parquet-compatible tool)
 - ✅ COVID vaccination microdata (SI-PNI COVID), 2021–present — 608M+ records
 - ✅ Historical aggregated doses (SI-PNI), 1994–2019 — 84M+ records
 - ✅ Historical aggregated coverage (SI-PNI), 1994–2019 — 2.8M+ records
-- 🔧 Official dictionaries from the Ministry of Health
+- ✅ Official SI-PNI dictionaries (reference tables)
+- ✅ Live birth microdata (SINASC), 1994–2022 — 85M+ records
+- ✅ Hospital admission microdata (SIH, AIH reduzida), 1992–present — 415M+ records
+- ✅ Automated maintenance (weekly sync check + on-demand VPS)
 - 📋 R package `healthbR` for integrated access
 - 📋 Harmonized vaccination coverage time series (1994–present)
-- 🔮 New information systems (SIM, SINASC, SIH)
+- 🔮 New information systems (SIM; SIH SP/RJ/ER files)
 
 ## Documentation
 
@@ -118,6 +132,8 @@ Researchers (R, Python, or any Parquet-compatible tool)
 - [Quick start guide (PT)](guides/quick-guide-pt.R) |
   [EN](guides/quick-guide-en.R)
 - [Harmonization: aggregates ↔ microdata (PT)](docs/harmonization-pt.md)
+- [Pipeline reference and automated maintenance (PT)](docs/reference-pipelines-pt.md)
+- [Dataset cards (EN/PT)](guides/dataset-cards/)
 
 ## Supporting the project
 

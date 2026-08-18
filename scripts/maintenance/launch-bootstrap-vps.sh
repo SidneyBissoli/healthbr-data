@@ -25,7 +25,8 @@
 # enviados ao GitHub ao final (como na manutenção), e os checkpoints do
 # pipeline (maintenance/checkpoints/) continuam valendo se a VPS morrer.
 #
-# Requer no ambiente: HCLOUD_TOKEN ou contexto hcloud "healthbr" ativo, e
+# Requer no ambiente: HCLOUD_TOKEN (ou o token é lido do contexto hcloud
+# "healthbr" em cli.toml — necessário para a VPS se autodeletar ao fim), e
 # R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT / MAINT_GH_PAT
 # (os mesmos secrets do GitHub Actions) — ou lidos de ~/.healthbr.env.
 # ==============================================================================
@@ -51,6 +52,26 @@ for k,v in (("R2_ACCESS_KEY_ID","access_key_id"),("R2_SECRET_ACCESS_KEY","secret
     print(k + "=" + r.get(v,""))')"
 fi
 [ -z "${MAINT_GH_PAT:-}" ] && command -v gh >/dev/null && MAINT_GH_PAT="$(gh auth token 2>/dev/null || true)"
+# HCLOUD_TOKEN vai para a VPS para ela se autodeletar ao fim; sem ele a VPS
+# só desliga (e continua sendo cobrada). Se não estiver no ambiente, lê o
+# token do contexto hcloud usado aqui (cli.toml).
+if [ -z "${HCLOUD_TOKEN:-}" ]; then
+  for f in "${APPDATA:-}/hcloud/cli.toml" "$HOME/.config/hcloud/cli.toml"; do
+    [ -f "$f" ] || continue
+    HCLOUD_TOKEN="$(python - "$f" "${HCLOUD_CONTEXT:-healthbr}" <<'PY'
+import re, sys
+txt = open(sys.argv[1], encoding="utf-8").read()
+for block in txt.split("[[contexts]]")[1:]:
+    name = re.search(r'name\s*=\s*"([^"]+)"', block)
+    tok = re.search(r'token\s*=\s*"([^"]+)"', block)
+    if name and tok and name.group(1) == sys.argv[2]:
+        print(tok.group(1)); break
+PY
+)"
+    [ -n "$HCLOUD_TOKEN" ] && break
+  done
+fi
+[ -n "${HCLOUD_TOKEN:-}" ] || echo "AVISO: HCLOUD_TOKEN vazio — a VPS não conseguirá se autodeletar (só desliga)."
 for v in R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT MAINT_GH_PAT; do
   [ -n "${!v:-}" ] || { echo "falta a variável $v (exporte ou coloque em ~/.healthbr.env)"; exit 1; }
 done

@@ -42,7 +42,9 @@ CONTROLE_CSV = Path(os.environ.get(
 
 # Embedded in each Parquet's schema metadata and in the manifest.
 # 1.1.0: provenance metadata embedded in Parquet files.
-PIPELINE_VERSION = "1.2.0"  # 1.2.0: git_commit no metadado/manifesto
+PIPELINE_VERSION = "1.2.1"  # 1.2.0: git_commit no metadado/manifesto;
+# 1.2.1: hash de publicação descoberto no portal; pipeline_version/git_commit
+#        também no CSV de controle (política: os 3 artefatos concordam)
 
 def _git_commit():
     """Commit git do código em execução (reprodutibilidade). Env
@@ -69,10 +71,51 @@ RCLONE_REMOTE = "r2"
 R2_BUCKET     = "healthbr-data"
 R2_PREFIX     = "sipni/covid/microdados"
 
-# Hash global da publicação (identificador fixo de todas as partes CSV)
-HASH_PUB = "f58e39ef-bcdd-4fc4-bae5-f3c5a2858afe"
+# Hash global da publicação (identificador de todas as partes CSV no S3).
+# Muda quando o Ministério republica o dataset (mar/2026: f58e39ef-...;
+# 23/jul/2026: 0656f017-...) — e a publicação anterior SOME do S3 (403).
+# Resolução, nesta ordem: env SIPNI_COVID_HASH_PUB → páginas de recurso do
+# portal dadosabertos.saude.gov.br (renderizadas no servidor; regex sobre os
+# links do S3) → constante abaixo (último valor conhecido).
+HASH_PUB_DEFAULT = "0656f017-a858-4d09-9c29-8eb772735eb9"
 BASE_URL = ("https://s3.sa-east-1.amazonaws.com/"
             "ckan.saude.gov.br/SIPNI/COVID/uf")
+PORTAL_DATASET = "https://dadosabertos.saude.gov.br/dataset/covid-19-vacinacao"
+PORTAL_RECURSOS = {   # "Registros de Vacinação COVID19 - <grupo de UFs>"
+    "AC-ES": "5093679f-12c3-4d6b-b7bd-07694de54173",
+    "GO-MT": "4ae86721-1bcc-47a4-a60d-75874727439b",
+    "PA-RO": "10aed154-04c8-4cf4-b78a-8f0fa1bc5af4",
+    "RS-TO": "a5f0bb2a-f6c2-4f28-b3da-bc79462c3774",
+}
+
+
+def descobrir_hash_pub():
+    """Retorna (hash, origem). Ver comentário de HASH_PUB_DEFAULT."""
+    import re
+    env = os.environ.get("SIPNI_COVID_HASH_PUB", "").strip()
+    if env:
+        return env, "env SIPNI_COVID_HASH_PUB"
+    hashes = {}
+    for grupo, rid in PORTAL_RECURSOS.items():
+        try:
+            req = urllib.request.Request(
+                f"{PORTAL_DATASET}/resource/{rid}",
+                headers={"User-Agent": "Mozilla/5.0 healthbr-data"})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                html = resp.read().decode("utf-8", "replace")
+        except (urllib.error.URLError, OSError) as e:
+            print(f"    AVISO: portal ({grupo}) inacessível: {e}")
+            continue
+        for h in re.findall(r"uf%3D[A-Z]{2}/part-\d{5}-([0-9a-f-]{36})\.c000\.csv", html):
+            hashes.setdefault(h, set()).add(grupo)
+    if len(hashes) == 1:
+        return next(iter(hashes)), "portal dadosabertos.saude.gov.br"
+    if len(hashes) > 1:
+        print(f"    AVISO: portal lista mais de um hash: {hashes} — usando o padrão")
+    return HASH_PUB_DEFAULT, "constante HASH_PUB_DEFAULT (portal indisponível/ambíguo)"
+
+
+HASH_PUB, HASH_PUB_ORIGEM = descobrir_hash_pub()
 
 UFS = [
     "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA",
@@ -131,7 +174,7 @@ def baixar_arquivo(url, destino, content_length=0):
 
 CONTROLE_FIELDS = [
     'uf', 'etags_concat', 'content_length_total', 'n_registros',
-    'n_partes', 'data_processamento'
+    'n_partes', 'data_processamento', 'pipeline_version', 'git_commit'
 ]
 
 
@@ -145,9 +188,9 @@ def carregar_controle():
 def salvar_controle(rows):
     CONTROLE_CSV.parent.mkdir(parents=True, exist_ok=True)
     with open(CONTROLE_CSV, 'w', newline='') as f:
-        w = csv.DictWriter(f, fieldnames=CONTROLE_FIELDS)
+        w = csv.DictWriter(f, fieldnames=CONTROLE_FIELDS, extrasaction='ignore')
         w.writeheader()
-        w.writerows(rows)
+        w.writerows({k: r.get(k, '') for k in CONTROLE_FIELDS} for r in rows)
     # Checkpoint no R2: rodada interrompida retoma daqui em vez de refazer
     # o trabalho (restaurado por run-maintenance.sh; limpo após sucesso)
     try:
@@ -462,7 +505,9 @@ def processar_uf(uf, info_servidor):
         'content_length_total': str(info_servidor['content_length_total']),
         'n_registros': str(n_total),
         'n_partes': str(n_partes),
-        'data_processamento': str(datetime.now())
+        'data_processamento': str(datetime.now()),
+        'pipeline_version': PIPELINE_VERSION,
+        'git_commit': GIT_COMMIT,
     })
     salvar_controle(controle)
 
@@ -504,6 +549,7 @@ def main():
     print(f"  temp:    {DIR_TEMP}")
     print(f"  UFs:     {len(UFS)}")
     print(f"  partes:  {N_PARTES} por UF ({len(UFS) * N_PARTES} arquivos)")
+    print(f"  hash:    {HASH_PUB} ({HASH_PUB_ORIGEM})")
     print()
 
     t_inicio = time.time()
@@ -536,6 +582,13 @@ def main():
 
     print(f"\nResumo: novos={stats['novo']}, atualizados={stats['atualizado']}, "
           f"inalterados={stats['inalterado']}, indisponiveis={stats['indisponivel']}")
+
+    if stats['indisponivel'] == len(UFS):
+        # Todas as 135 partes com HEAD falhando = a publicação mudou de hash
+        # (ou o S3 está fora), não "nada a fazer". Falhar alto para a
+        # manutenção registrar o problema em vez de concluir com sucesso.
+        sys.exit("ERRO: fonte inacessível para todas as UFs (hash de publicação "
+                 f"{HASH_PUB} inválido? ver PORTAL_DATASET / SIPNI_COVID_HASH_PUB)")
 
     total_gb = sum(info['content_length_total']
                    for _, info, _ in plano) / 1e9

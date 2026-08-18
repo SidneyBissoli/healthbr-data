@@ -43,7 +43,8 @@ CONTROLE_CSV = Path(os.environ.get(
 
 # Embedded in each Parquet's schema metadata and in the manifest.
 # 1.1.0: provenance metadata embedded in Parquet files.
-PIPELINE_VERSION = "1.2.0"  # 1.2.0: git_commit + MD5 da fonte no metadado/manifesto
+PIPELINE_VERSION = "1.2.1"  # 1.2.0: git_commit + MD5 da fonte no metadado/manifesto;
+# 1.2.1: pipeline_version/git_commit também no CSV de controle
 
 def _git_commit():
     """Commit git do código em execução (reprodutibilidade). Env
@@ -134,11 +135,11 @@ def salvar_controle(rows):
     CONTROLE_CSV.parent.mkdir(parents=True, exist_ok=True)
     fields = ['arquivo', 'etag_servidor', 'content_length', 'hash_md5_zip',
               'n_registros', 'n_partes_json', 'data_processamento',
-              'ano', 'mes', 'url_origem']
+              'ano', 'mes', 'url_origem', 'pipeline_version', 'git_commit']
     with open(CONTROLE_CSV, 'w', newline='') as f:
-        w = csv.DictWriter(f, fieldnames=fields)
+        w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
         w.writeheader()
-        w.writerows(rows)
+        w.writerows({k: r.get(k, '') for k in fields} for r in rows)
     # Checkpoint no R2: rodada interrompida retoma daqui em vez de refazer
     # o trabalho (restaurado por run-maintenance.sh; limpo após sucesso)
     try:
@@ -601,7 +602,9 @@ def processar_mes(ano, mes, info):
         'data_processamento': str(datetime.now()),
         'ano': str(ano),
         'mes': str(mes),
-        'url_origem': url
+        'url_origem': url,
+        'pipeline_version': PIPELINE_VERSION,
+        'git_commit': GIT_COMMIT,
     })
     salvar_controle(controle)
 

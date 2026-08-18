@@ -225,6 +225,26 @@ Pesquisadores (pacote R sipni)
 | Script | `scripts/pipeline/sipni-covid-pipeline.py` |
 | Controle | `data/controle_versao_covid.csv` |
 
+### Fonte: portal novo e hash de publicação (18/ago/2026)
+
+O `opendatasus.saude.gov.br` passou a redirecionar para
+**dadosabertos.saude.gov.br** (app JS, sem API CKAN). Os CSVs continuam no
+S3 (`s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SIPNI/COVID/uf/uf%3D<UF>/
+part-0000N-<HASH>.c000.csv`, 5 partes por UF), mas o `<HASH>` muda a cada
+republicação e a publicação anterior **some** (403): mar/2026 `f58e39ef-…`
+→ 23/jul/2026 `0656f017-…`. Como o sync-check do COVID conta registros via
+Elasticsearch (não olha o S3), a troca passou despercebida até a tentativa de
+reprocessamento de 18/ago (135 HEAD 403 → "nada a fazer", rc=0). Desde a
+1.2.1 o pipeline resolve o hash em ordem: env `SIPNI_COVID_HASH_PUB` → páginas
+de recurso do portal (renderizadas no servidor; regex nos links do S3; ids
+em `PORTAL_RECURSOS`) → constante `HASH_PUB_DEFAULT`; imprime a origem no
+cabeçalho do log; e **falha** (exit 1) se as 27 UFs estiverem inacessíveis,
+em vez de concluir com sucesso. Também desde a 1.2.1 os dois pipelines
+Python gravam `pipeline_version`/`git_commit` no CSV de controle (política:
+os três artefatos concordam). Pendência: o sync-check do COVID deveria
+comparar os ETags do S3 (agora registrados no manifesto) e detectar a troca
+de hash.
+
 ### Diferenças em relação ao pipeline de rotina
 
 | Aspecto | Rotina (SI-PNI) | COVID |
@@ -1119,7 +1139,8 @@ próprio script.
 
 *Última atualização: 18/ago/2026 — `SIH_WORKERS` (UFs de um mês em
 paralelo, opt-in), `publish-cards.py`, seção de reprodutibilidade em todos os
-cards, `backfill-metadata.py` (metadado nos Parquets 1.0.0 do SIH RD/SINASC);
+cards, `backfill-metadata.py` (metadado nos Parquets 1.0.0 do SIH RD/SINASC),
+COVID 1.2.1 (portal novo, hash de publicação descoberto, CSV com versão/commit);
 17/ago: SIH vira namespace (`sih/rd/`,
 `sih/sp/`), pipeline parametrizado por `SIH_TIPO`, submódulo SP; circuit
 breaker do FTP no SIH + inspect-last-run.sh; SIH persiste por mês (11/ago); seção 15 (manutenção

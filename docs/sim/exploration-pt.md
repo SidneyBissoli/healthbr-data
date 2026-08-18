@@ -325,17 +325,20 @@ longo da série); unificação por `unify_schemas` na leitura, como SINASC/SIH.
 Sem superset forçado, sem renomear colunas de era (`DATAOBITO`≠`DTOBITO`,
 `MUNIRES`≠`CODMUNRES` ficam como estão — mesmo tratamento do SIH 1998).
 
-### 9.6 `contador`/`CONTADOR` — **decisão a confirmar pelo mantenedor**
+### 9.6 `contador`/`CONTADOR` — **decidido em 18/ago/2026: opção A**
 
 | Opção | Efeito | Precedente |
 |-------|--------|-----------|
 | **A (recomendada): manter a caixa como publicada** | Duas colunas no dataset unificado; coalescer no `healthbR` | SIH (não renomeia nada); política de fidelidade à fonte + reprodutibilidade 1.2.0 |
 | B: renomear `contador` → `CONTADOR` | Uma coluna; renomeação só de caixa, valores intactos | SINASC (`padronizar_contador()`), listado no CLAUDE.md como exceção só para o rename 1994–95 |
 
-O rascunho do pipeline implementa **A**; B seria uma linha (`padronizar_contador`)
-mais uma frase no card e no CLAUDE.md.
+**Decisão do mantenedor (18/ago/2026): A** — o SIM publica a caixa como vem na fonte.
+**Pendência derivada:** o SINASC hoje faz B (`padronizar_contador()`); deverá ser
+revertido para ficar fiel à fonte como SIM/SIH (bump de `PIPELINE_VERSION`,
+reprocessar os anos 1996–2017 afetados, atualizar card e CLAUDE.md). A coalescência
+fica no `healthbR` (ver `docs/contract-consumers-pt.md`).
 
-### 9.7 Dados preliminares — publicar, com marcação
+### 9.7 Dados preliminares — publicar, com marcação (**decidido em 18/ago/2026**)
 
 | Decisão | Alternativa rejeitada | Motivo |
 |---------|-----------------------|--------|
@@ -346,6 +349,12 @@ o `PRELIM/` é ignorado); a migração PRELIM→final ou uma republicação do P
 muda tamanho/MD5 → sync-check marca `outdated` → manutenção apaga a linha do CSV
 → pipeline regrava a partição (política "sem versionamento": o preliminar
 deixa de existir, como no FTP).
+
+**Visibilidade para o usuário R** (decidido com o mantenedor): resolvida no `healthbR`,
+não no dado — argumento `preliminary = FALSE` por padrão (exclui anos preliminares
+lendo o manifesto), aviso quando o resultado contém preliminar, coluna/atributo de
+status, função `*_status()` a partir do manifesto e vinheta com o calendário do SIM.
+Contrato em `docs/contract-consumers-pt.md`.
 
 ### 9.8 Resolução de arquivos por listagem
 
@@ -393,7 +402,8 @@ healthbr-data/
 
 ## 10. QUESTÕES EM ABERTO
 
-1. **§9.6** — caixa de `contador` (A vs B): decisão do mantenedor antes do bootstrap.
+1. ~~§9.6~~ decidido (A); ~~§9.7~~ decidido (A). Pendência aberta: reverter o rename de
+   `contador` no SINASC (§9.6).
 2. **Schemas dos anos não amostrados por UF**: a evolução foi levantada com o AC
    (todos os anos) e conferida com DF em 11 anos; assume-se schema uniforme entre
    UFs num mesmo ano (verdadeiro nas 27 UFs de 1994 e 1996). O pipeline não
@@ -419,7 +429,7 @@ healthbr-data/
 
 ## 12. PRÓXIMOS PASSOS
 
-1. Confirmar §9.6 (contador) e §9.7 (preliminares).
+1. ~~Confirmar §9.6 e §9.7~~ — feito 18/ago/2026.
 2. Revisar/parse-checkar o rascunho `scripts/pipeline/sim-pipeline-r.R`
    (`SIM_TIPO=DORES|DOFET`, resolução por listagem, política 1.2.0) e testar
    com uma amostra pequena na VPS (`SIM_UFS=AC,DF SIM_ANOS=1979,1996,2024,2026`).
@@ -435,4 +445,4 @@ healthbr-data/
 
 ---
 
-*Última atualização: 18/ago/2026 — **Fase 2 concluída; Fase 3 proposta (aguarda §9.6/§9.7).***
+*Última atualização: 18/ago/2026 — **Fases 2 e 3 concluídas (decisões §9.6/§9.7 tomadas).***

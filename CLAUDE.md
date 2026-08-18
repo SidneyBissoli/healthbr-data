@@ -143,7 +143,8 @@ Real pipeline runs happen on the VPS (see "Rodar e monitorar" in each section of
 ## Layout pointers
 
 - `docs/` — strategy/decision docs (`project-pt.md` is the "why", `reference-pipelines-pt.md`
-  the "how"), per-dataset `*/exploration-pt.md` (schema archaeology, eras, quirks).
+  the "how", `contract-consumers-pt.md` what consumers such as `healthbR` may assume — update
+  it when a guarantee changes), per-dataset `*/exploration-pt.md` (schema archaeology, eras, quirks).
 - `guides/dataset-cards/` — bilingual READMEs published to HF/R2 for each dataset; keep
   record counts there in sync with the README tables when a dataset changes.
 - `scripts/exploration/` — one-off R exploration; `archive/` — superseded pipeline versions.

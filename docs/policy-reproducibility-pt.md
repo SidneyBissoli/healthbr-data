@@ -85,8 +85,13 @@ meta$source_url; meta$source_hash_md5; meta$git_commit; meta$pipeline_version
   SINASC, parte do SI-PNI) não têm metadado embutido; para eles a
   rastreabilidade vem do manifesto + CSV de controle (que têm o MD5 da
   fonte). Ganham o metadado no reprocessamento natural quando o Ministério
-  revisa a fonte (backfill oportunista) — não há reprocessamento em massa
-  planejado.
+  revisa a fonte (backfill oportunista). **Pendência aberta (18/ago/2026):**
+  resolver de forma completa mais adiante — provavelmente um passo de
+  backfill de metadado sem reprocessar a fonte (regravar o Parquet com o
+  mesmo conteúdo + `healthbr` montado a partir do CSV/manifesto e do commit
+  do bootstrap, rotulado como backfill), começando pelos módulos `.dbc`
+  (SIH RD, SINASC), onde a reconstrução é integral. Decisão adiada
+  deliberadamente até o bootstrap do SIH SP terminar.
 - **Sem versão anterior dos dados**: se o Ministério revisar um arquivo,
   a versão anterior deixa de existir no R2 (e no FTP). O que resta dela é o
   registro (MD5, contagem, data) no histórico git do CSV e no manifesto

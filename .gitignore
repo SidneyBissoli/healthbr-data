@@ -30,3 +30,6 @@ credentials*
 data/exploration/
 __pycache__/
 *.pyc
+
+# Cópia gerada do sync-status.json dentro do clone do HF Space (o Space a rastreia via LFS)
+scripts/sync/hf-space/src/sync-status.json

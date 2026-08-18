@@ -13,7 +13,7 @@ tags:
   - hospital-admissions
   - morbidity
   - sus
-pretty_name: "SIH — Hospital Admission Records (Brazil, 1992–2026)"
+pretty_name: "SIH RD — Hospital Admission Records (Brazil, 1992–2026)"
 size_categories:
   - 100M<n<1B
 task_categories:
@@ -22,7 +22,7 @@ source_datasets:
   - original
 ---
 
-# SIH — Hospital Admission Records (Brazil, 1992–2026)
+# SIH RD — Hospital Admission Records (Brazil, 1992–2026)
 
 Individual-level hospital admission records from Brazil's Hospital
 Information System (SIH/SUS), covering 35 years of public hospital data.
@@ -30,6 +30,12 @@ Each record corresponds to one Reduced Hospital Admission Authorization
 (AIH Reduzida — RD) and includes patient demographics, diagnoses (ICD-9
 for 1992–1997, ICD-10 from 1998 onward), procedures, length of stay,
 costs, and outcome. Converted from legacy .dbc files to Apache Parquet.
+
+This is the **RD (AIH Reduzida)** sub-module of the `sih/` namespace. The
+companion **SP (Serviços Profissionais)** sub-module —
+[sih-sp](https://huggingface.co/datasets/SidneyBissoli/sih-sp) — has one row
+per act/procedure performed inside each admission and joins to this dataset
+via `SP_NAIH = N_AIH`.
 
 **Part of the [healthbr-data](https://huggingface.co/SidneyBissoli) project** — open redistribution of Brazilian public health data.
 
@@ -49,7 +55,7 @@ costs, and outcome. Converted from legacy .dbc files to Apache Parquet.
 
 ## Resumo em português
 
-**SIH — Registros de Internações Hospitalares (Brasil, 1992–2026)**
+**SIH RD — Registros de Internações Hospitalares (Brasil, 1992–2026)**
 
 Microdados individuais de internações hospitalares do Sistema de Informações
 Hospitalares do SUS (SIH/SUS), cobrindo 35 anos de dados hospitalares
@@ -57,7 +63,9 @@ públicos. Cada registro corresponde a uma Autorização de Internação
 Hospitalar Reduzida (AIH-RD) e inclui dados demográficos do paciente,
 diagnósticos (CID-9 para 1992–1997, CID-10 a partir de 1998), procedimentos,
 tempo de permanência, custos e desfecho. Convertidos de arquivos .dbc legados
-para Apache Parquet.
+para Apache Parquet. Este é o submódulo **RD** do namespace `sih/`; o
+submódulo **SP** (atos/procedimentos por internação, chave `SP_NAIH` =
+`N_AIH`) está em [sih-sp](https://huggingface.co/datasets/SidneyBissoli/sih-sp).
 
 | Item | Detalhe |
 |------|---------|
@@ -92,7 +100,7 @@ Sys.setenv(
 
 # Open a single partition (year/month/state)
 ds <- open_dataset(
-  "s3://healthbr-data/sih/ano=2024/mes=01/uf=SP/",
+  "s3://healthbr-data/sih/rd/ano=2024/mes=01/uf=SP/",
   format = "parquet"
 )
 
@@ -105,7 +113,8 @@ ds |>
 
 > **Important:** Point to specific partitions (`ano=YYYY/mes=MM/uf=XX/`),
 > not to the dataset root. The root contains `README.md` and `manifest.json`,
-> which Arrow cannot read as Parquet files. You can also open broader paths
+> which Arrow cannot read as Parquet files — and never open `sih/` itself,
+> which also holds the `sp/` sub-module with a different schema. You can also open broader paths
 > like `ano=YYYY/` or `ano=YYYY/mes=MM/` to load multiple partitions at once.
 
 ### Python (PyArrow)
@@ -123,7 +132,7 @@ s3 = fs.S3FileSystem(
 
 # Single partition (year/month/state)
 dataset = pds.dataset(
-    "healthbr-data/sih/ano=2024/mes=01/uf=SP/",
+    "healthbr-data/sih/rd/ano=2024/mes=01/uf=SP/",
     filesystem=s3,
     format="parquet"
 )
@@ -142,22 +151,29 @@ print(f"Records: {len(df)}, Columns: {len(df.columns)}")
 
 ```
 s3://healthbr-data/sih/
-  README.md
-  manifest.json
-  ano=1992/
-    mes=01/
-      uf=AC/
-        part-0.parquet
-      uf=AL/
-        part-0.parquet
-      ...
-    mes=02/
-      ...
-  ...
-  ano=2026/
-    mes=01/
-      ...
+  README.md            ← namespace index (rd/, sp/)
+  rd/                  ← this dataset
+    README.md
+    manifest.json
+    ano=1992/
+      mes=01/
+        uf=AC/
+          part-0.parquet
+        uf=AL/
+          part-0.parquet
+        ...
+      mes=02/
+        ...
+    ...
+    ano=2026/
+      mes=01/
+        ...
+  sp/                  ← Serviços Profissionais (see sih-sp)
+    ...
 ```
+
+> Until 2026-08-17 this dataset lived directly under `sih/ano=…`. It was moved
+> to `sih/rd/` when the SP sub-module was added; update old paths.
 
 ## Historical schemas
 
@@ -220,7 +236,8 @@ Key variables in the most recent schema:
 **Original source:** 11,011 .dbc files from the DATASUS FTP server,
 covering two directories: `200801_/Dados/` (modern era, 5,856 files) and
 `199201_200712/Dados/` (legacy era, 5,155 files). Scope: RD (AIH Reduzida)
-only — SP, RJ, ER file types are future expansions.
+— SP is published as a separate sub-module (`sih/sp/`); RJ, ER are future
+expansions.
 
 **Processing:** .dbc → R (`read.dbc::read.dbc()`) → all fields cast to
 `character` → Parquet (`arrow::write_parquet()`) → upload to R2 (`rclone`).
@@ -242,8 +259,9 @@ preserved as-is; ICD-9 codes (1992–1997) are not converted to ICD-10.
 3. **All fields are strings.** Numeric fields (costs, age, length of stay)
    and dates must be parsed by the user.
 4. **RD only.** This dataset contains only AIH Reduzida (processed
-   admissions). SP (professional services), RJ (rejected), and ER (errors)
-   are not included.
+   admissions). Professional services (SP) are a separate sub-module
+   (`sih/sp/`, [sih-sp](https://huggingface.co/datasets/SidneyBissoli/sih-sp));
+   RJ (rejected) and ER (errors) are not included.
 5. **ICD-9 in legacy era (1992–1997).** Diagnosis codes use ICD-9 (6
    characters) before 1998 and ICD-10 (3–4 characters) from 1998 onward.
    No conversion is applied.
@@ -260,6 +278,7 @@ preserved as-is; ICD-9 codes (1992–1997) are not converted to ICD-10.
 
 | Dataset | Period | Records | Link |
 |---------|--------|---------|------|
+| SIH SP (professional services / acts per admission) | 1997–present | ~1B+ (est.) | [sih-sp](https://huggingface.co/datasets/SidneyBissoli/sih-sp) |
 | SINASC (live births) | 1994–2022 | 85M+ | [sinasc](https://huggingface.co/datasets/SidneyBissoli/sinasc) |
 | SI-PNI Microdados (vaccination) | 2020–present | 736M+ | [sipni-microdados](https://huggingface.co/datasets/SidneyBissoli/sipni-microdados) |
 | SI-PNI COVID (vaccination) | 2021–present | 608M+ | [sipni-covid](https://huggingface.co/datasets/SidneyBissoli/sipni-covid) |
@@ -274,7 +293,7 @@ preserved as-is; ICD-9 codes (1992–1997) are not converted to ICD-10.
   author = {Sidney da Silva Bissoli},
   title  = {healthbr-data: Redistribution of Brazilian Public Health Data},
   year   = {2026},
-  url    = {https://huggingface.co/datasets/SidneyBissoli/sih},
+  url    = {https://huggingface.co/datasets/SidneyBissoli/sih-rd},
   note   = {Original source: Ministry of Health / DATASUS}
 }
 ```
@@ -287,4 +306,4 @@ preserved as-is; ICD-9 codes (1992–1997) are not converted to ICD-10.
 
 ---
 
-*Last updated: 2026-03-09*
+*Last updated: 2026-08-17 (moved to `sih/rd/`; SP sub-module added)*

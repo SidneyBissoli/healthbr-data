@@ -98,6 +98,17 @@ else
       sih)
         SIH_SPRINT=3 timeout --kill-after=5m 14h \
           Rscript scripts/pipeline/sih-pipeline-r.R
+        rc=$?
+        # 75 (EX_TEMPFAIL): o pipeline detectou o FTP do DATASUS fora do ar
+        # e encerrou limpo — tudo até ali está persistido. Não é erro do
+        # pipeline; a rodada seguinte retoma do ponto exato.
+        if [ "$rc" -eq 75 ]; then
+          log "--- sih: FTP DATASUS indisponível — encerrou limpo (progresso persistido; retoma na próxima rodada) ---"
+          FALHAS+=("sih(ftp-indisponivel)")
+          publicar_progresso
+          continue
+        fi
+        (exit "$rc")
         ;;
       sipni-microdados)
         CONTROLE_CSV_MICRODADOS="$REPO/data/controle_versao_microdata.csv" \

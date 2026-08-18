@@ -98,6 +98,17 @@ if (SPRINT == 1) {
 # Months
 MESES <- sprintf("%02d", 1:12)
 
+# FTP health (circuit breaker) — see "FUNCTIONS: DOWNLOAD"
+#   Após FTP_FALHAS_LIMIAR arquivos seguidos falhando por motivo transitório
+#   (timeout, conexão recusada), o pipeline sonda o FTP até
+#   FTP_PROBE_TENTATIVAS vezes com FTP_PROBE_ESPERA_S segundos entre elas.
+#   Se o FTP continuar mudo, persiste o mês parcial e encerra limpo
+#   (exit 75 = EX_TEMPFAIL) em vez de queimar horas até o watchdog.
+FTP_FALHAS_LIMIAR     <- as.integer(Sys.getenv("SIH_FTP_FALHAS_LIMIAR", "6"))
+FTP_PROBE_TENTATIVAS  <- as.integer(Sys.getenv("SIH_FTP_PROBE_TENTATIVAS", "3"))
+FTP_PROBE_ESPERA_S    <- as.integer(Sys.getenv("SIH_FTP_PROBE_ESPERA", "300"))
+EXIT_FTP_INDISPONIVEL <- 75L
+
 # UFs (27 states)
 UFS <- c(
   "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO",
@@ -199,10 +210,26 @@ salvar_controle <- function(df) {
 # FUNCTIONS: DOWNLOAD
 # ==============================================================================
 
+#' Classify a curl/FTP error message
+#'
+#' "missing"   — the server answered and the file does not exist (FTP 550).
+#'               Retrying is pointless: future months and historical gaps.
+#' "transient" — timeout, refused/reset connection, stall: worth retrying,
+#'               and the signal the circuit breaker watches.
+classificar_erro_ftp <- function(msg) {
+  if (grepl("not found|does not exist|no such file|\\b550\\b",
+            msg, ignore.case = TRUE)) "missing" else "transient"
+}
+
 #' Download .dbc from FTP with retry and stall detection
+#'
+#' Returns list(ok = logical, motivo = "ok" | "missing" | "transient").
+#' A "missing" answer aborts the retry loop immediately.
 baixar_dbc <- function(url, destino, tentativas = 5) {
+  motivo <- "transient"
   for (i in seq_len(tentativas)) {
-    resultado <- tryCatch({
+    erro <- NULL
+    tryCatch({
       curl::curl_download(
         url, destino, quiet = TRUE,
         handle = curl::new_handle(
@@ -212,45 +239,129 @@ baixar_dbc <- function(url, destino, tentativas = 5) {
           low_speed_time  = 120
         )
       )
-      TRUE
-    }, error = function(e) {
-      if (i < tentativas) {
-        cat(glue("    Attempt {i}/{tentativas} failed: {e$message}"), "\n")
-        Sys.sleep(5 * i)
-      }
-      FALSE
-    })
-    if (resultado && file_exists(destino) && file.info(destino)$size > 0) {
-      return(TRUE)
+    }, error = function(e) erro <<- e$message)
+
+    if (is.null(erro) && file_exists(destino) && file.info(destino)$size > 0) {
+      return(list(ok = TRUE, motivo = "ok"))
+    }
+    if (is.null(erro)) erro <- "empty download"
+
+    motivo <- classificar_erro_ftp(erro)
+    if (motivo == "missing") {
+      return(list(ok = FALSE, motivo = "missing"))
+    }
+    if (i < tentativas) {
+      cat(glue("    Attempt {i}/{tentativas} failed: {erro}"), "\n")
+      Sys.sleep(5 * i)
     }
   }
-  return(FALSE)
+  list(ok = FALSE, motivo = motivo)
+}
+
+# --- FTP circuit breaker ------------------------------------------------------
+# State lives in an environment so it can be updated from inside functions.
+# Only the parent process updates it (forked prefetch workers report back
+# their per-file outcome; they never touch this).
+.ftp <- new.env()
+.ftp$falhas_seguidas <- 0L
+.ftp$indisponivel    <- FALSE
+.ftp$parou_em        <- NA_character_
+
+#' Register download outcomes ("ok"/"missing"/"transient") in the breaker
+#'
+#' Any answer from the server (a file, or an explicit "does not exist")
+#' proves the FTP is alive and resets the streak; transient failures add up.
+registrar_resultado_ftp <- function(motivos) {
+  for (m in motivos) {
+    if (m == "transient") {
+      .ftp$falhas_seguidas <- .ftp$falhas_seguidas + 1L
+    } else {
+      .ftp$falhas_seguidas <- 0L
+    }
+  }
+  invisible(.ftp$falhas_seguidas)
+}
+
+#' Lightweight liveness probe: list the modern-era directory
+ftp_responde <- function(url = FTP_MODERNA) {
+  tryCatch({
+    curl::curl_fetch_memory(url, handle = curl::new_handle(
+      connecttimeout = 30, timeout = 120, dirlistonly = TRUE))
+    TRUE
+  }, error = function(e) FALSE)
+}
+
+#' Decide whether to keep going after a failure streak
+#'
+#' Below the threshold: keep going. At/above it: probe the FTP a few times
+#' with a pause between probes (a slow server often recovers in minutes).
+#' If it never answers, mark it unavailable — the main loop then persists
+#' what it has and stops cleanly. Returns TRUE if the FTP is usable.
+verificar_saude_ftp <- function(probe = ftp_responde, esperar = Sys.sleep) {
+  if (.ftp$indisponivel) return(FALSE)
+  if (.ftp$falhas_seguidas < FTP_FALHAS_LIMIAR) return(TRUE)
+
+  cat(glue("  FTP: {.ftp$falhas_seguidas} transient failures in a row — ",
+           "probing ftp.datasus.gov.br..."), "\n")
+  for (i in seq_len(FTP_PROBE_TENTATIVAS)) {
+    if (probe()) {
+      cat("  FTP: answered — resuming.\n")
+      .ftp$falhas_seguidas <- 0L
+      return(TRUE)
+    }
+    if (i < FTP_PROBE_TENTATIVAS) {
+      cat(glue("  FTP: probe {i}/{FTP_PROBE_TENTATIVAS} failed; ",
+               "waiting {FTP_PROBE_ESPERA_S}s..."), "\n")
+      esperar(FTP_PROBE_ESPERA_S)
+    }
+  }
+  cat(glue("  FTP: unavailable after {FTP_PROBE_TENTATIVAS} probes — ",
+           "stopping cleanly (progress so far is persisted; ",
+           "next run resumes here)."), "\n")
+  .ftp$indisponivel <- TRUE
+  FALSE
 }
 
 #' Prefetch pending .dbc files for a month over parallel FTP connections
 #'
 #' The FTP round-trip dominates SIH wall-clock (~30-60s/file with the CPU
 #' idle). Forked workers require unix; on Windows this is a no-op and the
-#' sequential fallback in processar_arquivo() downloads anything missing —
-#' which also covers any file whose prefetch failed.
+#' sequential fallback in processar_arquivo() downloads anything missing.
+#'
+#' Returns a named character vector uf -> "ok" | "missing" | "transient"
+#' (empty on Windows / nothing pending). Files reported "missing" are not
+#' retried by the sequential path. Work is done in chunks so the circuit
+#' breaker can stop early when the FTP is down instead of burning the
+#' whole month's worth of timeouts.
 prefetch_mes <- function(ano, mes, controle, conexoes = 4) {
-  if (.Platform$OS.type != "unix") return(invisible(NULL))
+  if (.Platform$OS.type != "unix") return(character(0))
 
   pendentes <- UFS[!vapply(
     UFS,
     function(uf) info_arquivo(uf, ano, mes)$nome %in% controle$arquivo,
     logical(1)
   )]
-  if (length(pendentes) == 0) return(invisible(NULL))
+  if (length(pendentes) == 0) return(character(0))
 
   dir_create(DIR_TEMP)
-  invisible(parallel::mclapply(pendentes, function(uf) {
-    arq     <- info_arquivo(uf, ano, mes)
-    destino <- file.path(DIR_TEMP, arq$nome)
-    if (!file_exists(destino) || file.info(destino)$size == 0) {
-      baixar_dbc(arq$url, destino)
-    }
-  }, mc.cores = conexoes))
+  resultados <- character(0)
+  chunks <- split(pendentes, ceiling(seq_along(pendentes) / (conexoes * 2)))
+  for (chunk in chunks) {
+    if (!verificar_saude_ftp()) break
+    res <- parallel::mclapply(chunk, function(uf) {
+      arq     <- info_arquivo(uf, ano, mes)
+      destino <- file.path(DIR_TEMP, arq$nome)
+      if (file_exists(destino) && file.info(destino)$size > 0) return("ok")
+      baixar_dbc(arq$url, destino)$motivo
+    }, mc.cores = conexoes)
+    # a worker that died returns a try-error: treat as transient
+    res <- vapply(res, function(r) if (is.character(r)) r else "transient",
+                  character(1))
+    names(res) <- chunk
+    registrar_resultado_ftp(res)
+    resultados <- c(resultados, res)
+  }
+  resultados
 }
 
 # ==============================================================================
@@ -400,7 +511,7 @@ upload_para_r2 <- function(dir_staging) {
 # FUNCTION: PROCESS ONE FILE
 # ==============================================================================
 
-processar_arquivo <- function(uf, ano, mes, controle) {
+processar_arquivo <- function(uf, ano, mes, controle, prefetch = character(0)) {
   arq  <- info_arquivo(uf, ano, mes)
   nome <- arq$nome
   url  <- arq$url
@@ -415,8 +526,17 @@ processar_arquivo <- function(uf, ano, mes, controle) {
 
   # Download (no-op se o prefetch paralelo já trouxe o arquivo)
   if (!file_exists(destino_dbc) || file.info(destino_dbc)$size == 0) {
-    ok <- baixar_dbc(url, destino_dbc)
-    if (!ok) {
+    # O prefetch já ouviu do servidor que o arquivo não existe: não insistir
+    if (identical(unname(prefetch[uf]), "missing")) {
+      return(list(status = "unavailable", n = 0))
+    }
+    # FTP declarado fora: não abrir mais conexões
+    if (!verificar_saude_ftp()) {
+      return(list(status = "ftp_down", n = 0))
+    }
+    dl <- baixar_dbc(url, destino_dbc)
+    registrar_resultado_ftp(dl$motivo)
+    if (!dl$ok) {
       return(list(status = "unavailable", n = 0))
     }
   }
@@ -532,6 +652,14 @@ n_novos            <- 0
 n_indisponiveis    <- 0
 n_inalterados      <- 0
 n_erros            <- 0
+n_ftp_down         <- 0
+
+# Meses estritamente futuros nunca existem no FTP — não vale nem uma conexão
+ano_atual <- as.integer(format(Sys.Date(), "%Y"))
+mes_atual <- as.integer(format(Sys.Date(), "%m"))
+mes_futuro <- function(ano, mes) {
+  ano > ano_atual || (ano == ano_atual && as.integer(mes) > mes_atual)
+}
 
 for (ano in ANO_INICIO:ANO_FIM) {
 
@@ -544,22 +672,30 @@ for (ano in ANO_INICIO:ANO_FIM) {
   registros_no_ano <- 0
 
   for (mes in MESES) {
+    if (mes_futuro(ano, mes)) break
+    if (.ftp$indisponivel) break
+
     # Staging por mês: a persistência acontece ao fim de cada mês, então o
     # diretório é zerado aqui para o upload conter só o mês corrente
     if (dir_exists(dir_staging)) fs::dir_delete(dir_staging)
     dir_create(dir_staging)
 
-    prefetch_mes(ano, mes, controle)
+    prefetch <- prefetch_mes(ano, mes, controle)
 
     novos_no_mes     <- 0
     registros_no_mes <- 0
 
     for (uf in UFS) {
 
-      resultado <- processar_arquivo(uf, ano, mes, controle)
+      resultado <- processar_arquivo(uf, ano, mes, controle, prefetch)
 
       if (resultado$status == "unchanged") {
         n_inalterados <- n_inalterados + 1
+        next
+      }
+
+      if (resultado$status == "ftp_down") {
+        n_ftp_down <- n_ftp_down + 1
         next
       }
 
@@ -631,6 +767,18 @@ for (ano in ANO_INICIO:ANO_FIM) {
       # Checkpoint (local + R2) — a próxima rodada retoma daqui
       salvar_controle(controle)
     }
+
+    if (.ftp$indisponivel) {
+      .ftp$parou_em <- glue("{ano}-{mes}")
+      cat(glue("\n  FTP unavailable — stopped cleanly at {ano}-{mes} ",
+               "({n_ftp_down} file(s) skipped without contacting the server)."), "\n")
+      break
+    }
+  }
+
+  if (.ftp$indisponivel) {
+    cat("\n")
+    break
   }
 
   if (novos_no_ano > 0) {
@@ -659,6 +807,7 @@ cat(strrep("=", 70), "\n\n")
 cat(glue("New:          {n_novos}"), "\n")
 cat(glue("Unchanged:    {n_inalterados}"), "\n")
 cat(glue("Unavailable:  {n_indisponiveis}"), "\n")
+cat(glue("Skipped (FTP down): {n_ftp_down}"), "\n")
 cat(glue("Errors/empty: {n_erros}"), "\n")
 cat(glue("New rows:     {format(n_total_registros, big.mark = '.')}"), "\n")
 cat(glue("Total time:   {duracao} min"), "\n\n")
@@ -716,6 +865,15 @@ if (nrow(faltantes) == 0) {
   if (nrow(faltantes) > 30) {
     cat(glue("  ... and {nrow(faltantes) - 30} more."), "\n")
   }
+}
+
+if (.ftp$indisponivel) {
+  cat(glue("\nPipeline stopped early: FTP DATASUS unavailable ",
+           "(last month attempted: {.ftp$parou_em}). ",
+           "Everything completed up to here is persisted; ",
+           "the next run resumes automatically.\n"))
+  cat("FTP_INDISPONIVEL\n")
+  quit(save = "no", status = EXIT_FTP_INDISPONIVEL)
 }
 
 cat("\nPipeline complete.\n")

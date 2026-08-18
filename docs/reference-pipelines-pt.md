@@ -1012,6 +1012,27 @@ pl.read_parquet_metadata("part-0.parquet")["healthbr"]
   é durável imediatamente e a rodada seguinte retoma do mês exato.
   `update_manifest_r2()` aceita `mes` para atualizar só as partições
   daquele mês.
+- **FTP fora do ar (SIH) — circuit breaker:** o pipeline classifica cada
+  falha de download: *missing* (o servidor respondeu "arquivo não existe" —
+  meses futuros, lacunas históricas; desiste na primeira resposta, sem
+  retries) ou *transient* (timeout, conexão recusada; retry com backoff).
+  Após `SIH_FTP_FALHAS_LIMIAR` (6) arquivos seguidos falhando por motivo
+  transitório, sonda o FTP `SIH_FTP_PROBE_TENTATIVAS` (3) vezes com
+  `SIH_FTP_PROBE_ESPERA` (300 s) entre elas; se continuar mudo, persiste o
+  mês parcial e encerra limpo com **exit 75** (EX_TEMPFAIL). O orquestrador
+  registra `sih(ftp-indisponivel)` em `failures`, preserva os checkpoints e
+  a rodada seguinte retoma do ponto exato — em vez de queimar horas de
+  timeouts até o watchdog de 14h (a rodada de 17/ago gastou >900
+  tentativas falhas). O prefetch paralelo devolve o veredito por UF, e o
+  fallback sequencial não insiste em arquivos já dados como inexistentes.
+  Meses estritamente futuros são pulados sem abrir conexão. Testes:
+  `Rscript scripts/pipeline/sih-ftp-breaker-test.R`.
+- **Inspecionar uma rodada:** `bash scripts/maintenance/inspect-last-run.sh`
+  resume `last-run.json` + `last-run.log` + checkpoints do R2 (VPS ativa,
+  plano, uma linha por pipeline com início/fim/duração/resultado, lotes
+  persistidos, tentativas FTP falhas, sinais de kill, fechamento).
+  `--live` lê o log direto da VPS em execução (hcloud + ssh); `--file`
+  analisa um log local.
 - **Custo por rodada:** cpx42 por hora (~€0,04/h × duração) + centavos
   de snapshot/mês. Sem rodadas quando não há deriva.
 - **SINASC — anos novos:** quando o DATASUS publicar um ano novo,
@@ -1025,6 +1046,7 @@ pl.read_parquet_metadata("part-0.parquet")["healthbr"]
 
 ---
 
-*Última atualização: 17/ago/2026 — SIH persiste por mês (11/ago); seção 15 (manutenção
+*Última atualização: 17/ago/2026 — circuit breaker do FTP no SIH +
+inspect-last-run.sh; SIH persiste por mês (11/ago); seção 15 (manutenção
 automatizada); metadados de proveniência embutidos (pipelines 1.1.0);
 `SPRINT` do SIH sobrescrevível via env var.*

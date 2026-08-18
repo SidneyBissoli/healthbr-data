@@ -954,7 +954,7 @@ healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 - [x] R pipeline (read.dbc + arrow + rclone): `sih-pipeline-r.R`
 - [x] Bootstrap em 2 sprints: 415M registros, 11.011 arquivos .dbc, 14 schemas, ~30–33h
 - [x] Dados no R2: `sih/` particionado por ano/mes/uf (16,1 GiB)
-- [x] README no R2; dataset card HF (`SidneyBissoli/sih`)
+- [x] README no R2; dataset card HF (`SidneyBissoli/sih-rd`, ex-`sih`)
 - [x] Registrado no sync_check.py e dashboard de sincronização
 
 **Manutenção automatizada (ago/2026):**
@@ -1080,7 +1080,7 @@ healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 | Hugging Face — SI-PNI Agregados Cobertura | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-cobertura` |
 | Hugging Face — SI-PNI Dicionários | `https://huggingface.co/datasets/SidneyBissoli/sipni-dicionarios` |
 | Hugging Face — SINASC | `https://huggingface.co/datasets/SidneyBissoli/sinasc` |
-| Hugging Face — SIH | `https://huggingface.co/datasets/SidneyBissoli/sih` |
+| Hugging Face — SIH | `https://huggingface.co/datasets/SidneyBissoli/sih-rd` (antes `sih`; redirect) e `.../sih-sp` |
 | HF Space — Sync Status Dashboard | `https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status` |
 | R2 endpoint (S3-compatível) | `https://<account-id>.r2.cloudflarestorage.com` |
 

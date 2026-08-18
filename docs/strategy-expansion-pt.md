@@ -841,7 +841,7 @@ acima nas fases 5 ou 6).
 | Bootstrap Sprint 2 | 5.155 arquivos, 197.572.316 registros, ~12–15h, 10 schemas (35–86 cols) |
 | **Totais** | **11.011 arquivos, 415.372.502 registros, 16,1 GiB no R2, 14 schemas distintos** |
 | Lacunas | 19 históricas (Roraima 1995–2000, AC 1994, AP 2007) + 300 meses futuros |
-| Dataset card HF | `SidneyBissoli/sih` |
+| Dataset card HF | `SidneyBissoli/sih-rd` (RD; ex-`sih`) e `SidneyBissoli/sih-sp` (SP) |
 | README R2 | `sih/README.md` |
 | Sincronização | Registrado no `sync_check.py` e dashboard HF |
 | Pendente Fase 6 | Atualizar `project-pt.md` e `project-en.md`; integração ao pacote R `healthbR` (módulo `sih`) |
@@ -1056,7 +1056,7 @@ avaliados:
 
 *Este documento será atualizado conforme módulos avancem nas fases.
 Última atualização: 09/mar/2026 — SIH avançou para Fase 5 (Publicação):
-README no R2, dataset card HF (`SidneyBissoli/sih`), registrado no
+README no R2, dataset card HF (`SidneyBissoli/sih-rd`, ex-`sih`), registrado no
 sync_check.py e dashboard de sincronização. 11.011 arquivos RD
 (1992–2026), 415.372.502 registros, 16,1 GiB no R2. SINASC na Fase 5.
 SI-PNI Dicionários na Fase 5. SIM na Fase 1.*

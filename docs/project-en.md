@@ -928,7 +928,7 @@ healthbR::sim_obitos(causa = "J18", uf = "SP", anos = 2010:2024)
 | Hugging Face — SI-PNI Aggregated Coverage | `https://huggingface.co/datasets/SidneyBissoli/sipni-agregados-cobertura` |
 | Hugging Face — SI-PNI Dictionaries | `https://huggingface.co/datasets/SidneyBissoli/sipni-dicionarios` |
 | Hugging Face — SINASC | `https://huggingface.co/datasets/SidneyBissoli/sinasc` |
-| Hugging Face — SIH | `https://huggingface.co/datasets/SidneyBissoli/sih` |
+| Hugging Face — SIH | `https://huggingface.co/datasets/SidneyBissoli/sih-rd` (antes `sih`; redirect) e `.../sih-sp` |
 | HF Space — Sync Status Dashboard | `https://huggingface.co/spaces/SidneyBissoli/healthbr-sync-status` |
 | R2 endpoint (S3-compatible) | `https://<account-id>.r2.cloudflarestorage.com` |
 

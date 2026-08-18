@@ -353,7 +353,7 @@ e referenciado nos dataset cards:
 - Microdados de internações hospitalares (SIH — AIH Reduzida), 1992–2026
   - 415M+ registros em Parquet particionado (ano/mes/uf)
   - 11.011 arquivos .dbc (FTP DATASUS), 14 schemas históricos
-  - HF: `SidneyBissoli/sih`
+  - HF: `SidneyBissoli/sih-rd` (ex-`sih`), `SidneyBissoli/sih-sp`
 
 ### Em finalização 🔧
 
@@ -480,5 +480,5 @@ Projetos de redistribuição de dados públicos que servem de referência:
 com [TODO] indica um item que precisa de investigação ou decisão antes do
 lançamento.
 Última atualização: 09/mar/2026 — SIH adicionado ao roadmap
-(7 datasets concluídos: 5 SI-PNI + SINASC + SIH). HF: `SidneyBissoli/sih`.
+(7 datasets concluídos: 5 SI-PNI + SINASC + SIH). HF: `SidneyBissoli/sih-rd` (ex-`sih`).
 415M+ registros, 1992–2026, 11.011 arquivos .dbc.*

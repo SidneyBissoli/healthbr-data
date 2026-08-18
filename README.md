@@ -21,7 +21,8 @@ admissions) in 3 lines of R or Python code.
 | SI-PNI Historical aggregates (coverage) | `sipni/agregados/cobertura/` | ~2.8M | 1994–2019 | ✅ Available |
 | SI-PNI Official dictionaries (reference tables) | `sipni/dicionarios/` | 6 tables | 2019 snapshot | ✅ Available |
 | SINASC Live births (microdata) | `sinasc/` | ~85M | 1994–2022 | ✅ Available |
-| SIH Hospital admissions — AIH reduzida (microdata) | `sih/` | ~415M | 1992–present | ✅ Available |
+| SIH Hospital admissions — AIH reduzida (RD, microdata) | `sih/rd/` | ~415M | 1992–present | ✅ Available |
+| SIH Professional services — acts per admission (SP, microdata) | `sih/sp/` | ~1B+ (est.) | 1997–present | 🔧 Bootstrapping |
 
 Datasets that receive new data from the Ministry (SI-PNI routine, SI-PNI
 COVID, SINASC, SIH) are refreshed by an automated weekly sync check that

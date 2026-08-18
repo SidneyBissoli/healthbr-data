@@ -825,20 +825,32 @@ cat /root/data/controle_versao_sinasc.csv | wc -l
 
 ---
 
-## 14. PIPELINE SIH — AIH REDUZIDA (RD)
+## 14. PIPELINE SIH — RD (AIH REDUZIDA) E SP (SERVIÇOS PROFISSIONAIS)
 
 ### Visão geral
 
+O SIH é um **namespace** no R2 (`sih/`), como o `sipni/`: cada tipo de
+arquivo do FTP vira um submódulo com prefixo curto, controle de versão,
+manifesto e card próprios. Um único script atende todos, selecionado por
+`SIH_TIPO`.
+
 | Propriedade | Valor |
 |-------------|-------|
-| Script | `scripts/pipeline/sih-pipeline-r.R` |
+| Script | `scripts/pipeline/sih-pipeline-r.R` (env `SIH_TIPO=RD` (default) ou `SP`) |
 | Linguagem | R puro (read.dbc + arrow + curl + rclone) |
-| Fonte | FTP DATASUS — `.dbc` (era moderna `200801_/Dados/` + era antiga `199201_200712/Dados/`) |
-| Escopo | Apenas RD (AIH Reduzida) — SP, RJ, ER são expansões futuras |
-| Prefixo R2 | `sih/` |
-| Particionamento | `ano=YYYY/mes=MM/uf=XX/part-0.parquet` |
+| Fonte | FTP DATASUS — `.dbc` (era moderna `200801_/Dados/` + era antiga `199201_200712/Dados/`); nome `{TIPO}{UF}{AAMM}.dbc` nas duas eras |
+| Submódulos | **RD** — AIH Reduzida: 1 linha = 1 internação, 1992–presente → `sih/rd/`, `data/controle_versao_sih_rd.csv`, id `sih-rd` |
+| | **SP** — Serviços Profissionais: 1 linha = 1 ato/procedimento dentro da internação (~11 linhas por AIH; chave `SP_NAIH` = `N_AIH` do RD), 1997–presente → `sih/sp/`, `data/controle_versao_sih_sp.csv`, id `sih-sp` |
+| | RJ (AIH rejeitada) e ER (erros) — pequenos, expansões futuras (`sih/rj/`, `sih/er/`) |
+| Índice | `sih/README.md` aponta para os submódulos; **não** abrir `s3://healthbr-data/sih/` direto no Arrow (recursaria em rd/ e sp/, schemas diferentes) |
+| Particionamento | `sih/<tipo>/ano=YYYY/mes=MM/uf=XX/part-0.parquet` |
 | Tipos no Parquet | Tudo string (padrão do projeto) |
 | Estratégia de schema | Schema original por arquivo — sem unificação, sem NAs fabricados |
+
+**Histórico:** até 17/ago/2026 o RD morava direto em `sih/ano=…`. Foi
+movido (server-side, sem egress) para `sih/rd/` ao iniciar o SP, para
+manter o padrão de namespace do `sipni/` antes de a base de usuários
+crescer. Quem usava `sih/ano=…` precisa trocar para `sih/rd/ano=…`.
 
 ### Números do bootstrap
 
@@ -879,10 +891,24 @@ escopo (1 = era moderna 2008+, 2 = era antiga 1992–2007, 3 = full).
 Sobrescrevível pela env var `SIH_SPRINT` (a manutenção automatizada usa 3).
 O Sprint 2 acumula no mesmo controle de versão e manifesto do Sprint 1.
 
-**Nomenclatura de arquivos .dbc:** Padrão `RD{UF}{AA}{MM}.dbc` onde
+**Nomenclatura de arquivos .dbc:** Padrão `{TIPO}{UF}{AA}{MM}.dbc` onde
 `AA` = ano com 2 dígitos (ex: `RDDF2401.dbc` = DF, jan/2024;
-`RDDF9501.dbc` = DF, jan/1995). Ambas as eras usam o mesmo padrão de
-nome, diferindo apenas no diretório FTP.
+`SPDF9708.dbc` = SP, DF, ago/1997). Ambas as eras usam o mesmo padrão de
+nome, diferindo apenas no diretório FTP. O FTP (IIS) é case-insensitive:
+270 arquivos SP da era antiga aparecem em minúsculas na listagem
+(`spac0604.dbc`) mas resolvem pelo nome em maiúsculas.
+
+**Submódulo SP (Serviços Profissionais):** medido no FTP em 17/ago/2026:
+5.992 arquivos / 45,2 GiB na era moderna (2008–2026, ~3× o RD) + 3.420 /
+9,2 GiB na era antiga (jul/1997–2007; o SP **não existe** para 1992–1996).
+Três schemas: 16 cols (1997–~2005: `SP_CGCHOSP`, `SP_PTSP_NF`), 18 cols
+(~2006–2007: `SP_GESTOR`+`SP_CNES` substituem o CGC; `SP_PTSP`/`SP_NF`
+separados) e 36 cols (2008+, estável: +CBO/documento do profissional,
+`SP_CIDPRI`/`SP_CIDSEC`, complexidade, financiamento, `SEQUENCIA`/`REMESSA`).
+Amostra AC jan/2024: 4.315 AIH → 49.338 linhas (11,4 por AIH). Bootstrap
+estimado ~3× o Sprint 1 do RD, dominado pelo FTP; feito em VPS dedicada
+(não pela manutenção), com persistência mensal + breaker permitindo
+retomada entre sessões.
 
 **Lacunas históricas:** 19 arquivos da era antiga não existem no FTP.
 15 são de Roraima (jul/1995–mai/2000), estado com informatização tardia.
@@ -892,12 +918,15 @@ Ministério, não falhas do pipeline.
 ### Rodar e monitorar
 
 ```bash
-# Sprint 1 (era moderna, 2008–presente)
+# RD — Sprint 1 (era moderna, 2008–presente)
 nohup Rscript sih-pipeline-r.R > sih-sprint1.log 2>&1 &
 tail -f sih-sprint1.log
 
-# Sprint 2 (era antiga, 1992–2007) — após Sprint 1
+# RD — Sprint 2 (era antiga, 1992–2007) — após Sprint 1
 SIH_SPRINT=2 nohup Rscript sih-pipeline-r.R > sih-sprint2.log 2>&1 &
+
+# SP — bootstrap completo (1997–presente), retomável entre sessões
+SIH_TIPO=SP SIH_SPRINT=3 nohup Rscript sih-pipeline-r.R > sih-sp.log 2>&1 &
 tail -f sih-sprint2.log
 
 # Monitorar
@@ -937,7 +966,7 @@ scripts/maintenance/run-maintenance.sh (na VPS, via cloud-init)
   ↓ grava maintenance/last-run.json + last-run.log no R2
   ↓ AUTO-DELEÇÃO: hcloud server delete $(hostname)
 maintenance-reaper.yml (cron a cada 3h — backstop)
-  ↓ deleta VPS de manutenção desligada ou com > 36h de vida
+  ↓ deleta VPS de manutenção desligada ou com > 48h de vida
 ```
 
 ### Datasets automatizados
@@ -1046,7 +1075,8 @@ pl.read_parquet_metadata("part-0.parquet")["healthbr"]
 
 ---
 
-*Última atualização: 17/ago/2026 — circuit breaker do FTP no SIH +
-inspect-last-run.sh; SIH persiste por mês (11/ago); seção 15 (manutenção
+*Última atualização: 17/ago/2026 — SIH vira namespace (`sih/rd/`,
+`sih/sp/`), pipeline parametrizado por `SIH_TIPO`, submódulo SP; circuit
+breaker do FTP no SIH + inspect-last-run.sh; SIH persiste por mês (11/ago); seção 15 (manutenção
 automatizada); metadados de proveniência embutidos (pipelines 1.1.0);
 `SPRINT` do SIH sobrescrevível via env var.*

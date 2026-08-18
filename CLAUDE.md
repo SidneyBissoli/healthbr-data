@@ -25,6 +25,11 @@ and bump its "Última atualização" footer.
   polars `Utf8`.
 - **Partition layout is stable and public API**: `ano=YYYY/mes=MM/uf=XX/` (SI-PNI, SIH),
   `ano=YYYY/uf=XX/` (SINASC). Changing it breaks users' `open_dataset()` calls.
+- **Namespaces**: a system with several sub-datasets gets a parent prefix with short
+  sub-prefixes (`sipni/microdados/`, `sipni/covid/`, `sih/rd/`, `sih/sp/`); flat ids with
+  hyphens (`sipni-covid`, `sih-rd`) are used outside R2 — sync-status keys, HF repos, CSV
+  names. Never nest a sub-dataset directly under a prefix that already holds `ano=` dirs
+  (Arrow would recurse into it).
 - Each dynamic pipeline embeds provenance in the Parquet schema metadata (key `healthbr`,
   JSON: source_url, md5, download_date, pipeline_version). Bump `PIPELINE_VERSION` when
   output changes.
@@ -38,7 +43,8 @@ and bump its "Última atualização" footer.
 | `sipni/agregados/{doses,cobertura}/` | `sipni-agregados-*-pipeline-r.R` | R (foreign) | DATASUS FTP .dbf, 1994–2019 (static) | `controle_versao_sipni_agregados_*.csv` |
 | `sipni/dicionarios/` | `sipni-dicionarios-pipeline-r.R` | R | .cnv/.dbf (static) | none |
 | `sinasc/` | `sinasc-pipeline-r.R` | R (read.dbc) | DATASUS FTP .dbc, 1994–2022 | `controle_versao_sinasc.csv` |
-| `sih/` (RD only) | `sih-pipeline-r.R` | R (read.dbc) | DATASUS FTP .dbc, 1992–present | `controle_versao_sih.csv` |
+| `sih/rd/` (AIH reduzida) | `sih-pipeline-r.R` (`SIH_TIPO=RD`, default) | R (read.dbc) | DATASUS FTP .dbc, 1992–present | `controle_versao_sih_rd.csv` |
+| `sih/sp/` (serviços profissionais) | `sih-pipeline-r.R` (`SIH_TIPO=SP`) | R (read.dbc) | DATASUS FTP .dbc, 1997–present | `controle_versao_sih_sp.csv` |
 
 Shared mechanics every pipeline follows:
 - **Version-control CSV = the source of truth for "already processed".** Pipelines skip
@@ -53,7 +59,10 @@ Shared mechanics every pipeline follows:
 - Pipelines are designed to run on an ephemeral **Hetzner VPS (Ubuntu, x86)**, not locally:
   R `parallel::mclapply` prefetch is unix-only, paths like `/root/...` are assumed. On
   Windows you can parse-check and unit-test, not run end-to-end.
-- SIH: `SIH_SPRINT` env (1 = 2008+, 2 = 1992–2007, 3 = both; maintenance uses 3);
+- SIH: one script for both file types — `SIH_TIPO=RD|SP` picks prefix/CSV/first year
+  (RD 1992, SP 1997; both eras share the FTP naming `{TIPO}{UF}{AAMM}.dbc`; SP has 3
+  schemas 16/18/36 cols, RD 14 schemas). `SIH_SPRINT` env (1 = 2008+, 2 = old era, 3 =
+  both; maintenance uses 3);
   persists **per month** (upload + manifest + CSV checkpoint); has an FTP circuit breaker
   (`SIH_FTP_FALHAS_LIMIAR`/`SIH_FTP_PROBE_TENTATIVAS`/`SIH_FTP_PROBE_ESPERA`) that exits
   **75** when the DATASUS FTP is down — the orchestrator treats 75 as "resume next run",
@@ -71,16 +80,16 @@ Shared mechanics every pipeline follows:
      scripts/maintenance/run-maintenance.sh
        1. restore data/controle_versao_*.csv checkpoints from r2:maintenance/checkpoints/
        2. scripts/maintenance/prepare_maintenance.py → which datasets to run (+ prunes CSVs)
-       3. run pipelines in order sinasc → sipni-microdados → sipni-covid → sih,
+       3. run pipelines in order sinasc → sipni-microdados → sipni-covid → sih-rd → sih-sp,
           each under `timeout 14h` (sinasc 4h); log + checkpoints pushed to R2 after each
        4. commit + push controle CSVs as healthbr-maintenance-bot (this push re-triggers
           sync-check to refresh the dashboard)
        5. write r2:maintenance/last-run.json ("started" left there = run died)
      then upload last-run.log and `hcloud server delete $(hostname)`
-.github/workflows/maintenance-reaper.yml (every 3h): deletes maint VPS that are off or >36h old
+.github/workflows/maintenance-reaper.yml (every 3h): deletes maint VPS that are off or >48h old
 ```
 
-Automated datasets: sinasc, sih, sipni-microdados, sipni-covid. Aggregates and dictionaries
+Automated datasets: sinasc, sih-rd, sih-sp, sipni-microdados, sipni-covid. Aggregates and dictionaries
 are static — drift there is anomalous and handled manually. `sipni-covid` only runs if
 `data/controle_versao_covid.csv` exists in the repo.
 

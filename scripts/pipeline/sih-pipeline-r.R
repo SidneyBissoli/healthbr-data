@@ -3,7 +3,13 @@
 # ==============================================================================
 #
 # Production pipeline for SIH/SUS microdata (Sistema de Informações
-# Hospitalares do SUS) — AIH Reduzida (RD), 1992–present.
+# Hospitalares do SUS). One script, two file types, selected by SIH_TIPO:
+#
+#   RD — AIH Reduzida (default): one row per admission, 1992–present.
+#        R2 prefix sih/rd/, control data/controle_versao_sih_rd.csv
+#   SP — Serviços Profissionais: one row per act/procedure inside an
+#        admission (~11 rows per AIH), 1997–present. R2 prefix sih/sp/,
+#        control data/controle_versao_sih_sp.csv. Joins RD via SP_NAIH = N_AIH.
 #
 # For each UF × year × month combination:
 #   1. Downloads .dbc from DATASUS FTP
@@ -13,7 +19,7 @@
 #   5. Uploads to R2 via rclone
 #   6. Updates version control CSV and manifest.json
 #
-# Schema evolution (~10 distinct schemas, 35–113 columns):
+# Schema evolution — RD (~14 distinct schemas, 35–113 columns):
 #   1992–1997: 35–42 cols — CID-9, dates YYMMDD, ANO_CMPT 2-digit
 #   1998:      41 cols    — CID-10, dates YYYYMMDD, ANO_CMPT 4-digit (major transition)
 #   1999–2003: 52–60 cols — +UTI, +gestão fields
@@ -21,19 +27,27 @@
 #   2008:      86 cols    — Era change, SIGTAP (10-digit), +RACA_COR
 #   2012:      93 cols
 #   2015–2026: 113 cols   — Stabilized (+DIAGSEC1-9)
+# Schema evolution — SP (3 distinct schemas, 16–36 columns):
+#   1997–~2005: 16 cols   — SP_CGCHOSP (CGC do hospital), SP_PTSP_NF
+#   ~2006–2007: 18 cols   — SP_GESTOR + SP_CNES replace SP_CGCHOSP; SP_PTSP/SP_NF split
+#   2008–2026:  36 cols   — Era change: +CBO/doc do profissional, CID pri/sec,
+#                            complexidade, financiamento, SEQUENCIA/REMESSA
 #
 # Strategy: Schema unificado by superset (Arrow unify_schemas). Columns
 # absent in earlier eras appear as NULL. Data preserved exactly as published
 # by the Ministry of Health — no date conversions, no CID remapping.
 #
 # Sprint approach:
-#   Sprint 1 (default): Era moderna 2008–present (5,858 RD files)
-#   Sprint 2:           Era antiga  1992–2007   (5,165 RD files)
-#   Set SPRINT below to control scope.
+#   Sprint 1 (default): Era moderna 2008–present (5,858 RD / 5,992 SP files)
+#   Sprint 2:           Era antiga  1992–2007 RD (5,165) / 1997–2007 SP (3,420)
+#   Sprint 3:           Both eras (used by the maintenance automation)
+#   Set SPRINT below (or env SIH_SPRINT) to control scope.
 #
-# Sources:
-#   Era moderna: ftp://.../SIHSUS/200801_/Dados/RD{UF}{AAMM}.dbc
-#   Era antiga:  ftp://.../SIHSUS/199201_200712/Dados/RD{UF}{AAMM}.dbc
+# Sources (TIPO = RD | SP):
+#   Era moderna: ftp://.../SIHSUS/200801_/Dados/{TIPO}{UF}{AAMM}.dbc
+#   Era antiga:  ftp://.../SIHSUS/199201_200712/Dados/{TIPO}{UF}{AAMM}.dbc
+#   The FTP (IIS) is case-insensitive: some legacy SP files are listed in
+#   lowercase (spac0604.dbc) but resolve with the uppercase name.
 #
 # References:
 #   - docs/sih/exploration-pt.md (exploration & decisions)
@@ -66,12 +80,27 @@ pacman::p_load(
 #' Overridable via env var SIH_SPRINT (the maintenance automation uses 3).
 SPRINT <- as.integer(Sys.getenv("SIH_SPRINT", "1"))
 
+#' TIPO: which SIH file type this run processes (env var SIH_TIPO)
+#'   RD = AIH Reduzida (default) — 1992–present
+#'   SP = Serviços Profissionais   — 1997–present
+TIPO <- toupper(Sys.getenv("SIH_TIPO", "RD"))
+TIPO_CFG <- list(
+  RD = list(label = "AIH Reduzida (RD)",           ano_inicio = 1992L,
+            r2_prefix = "sih/rd", controle = "data/controle_versao_sih_rd.csv"),
+  SP = list(label = "Serviços Profissionais (SP)", ano_inicio = 1997L,
+            r2_prefix = "sih/sp", controle = "data/controle_versao_sih_sp.csv")
+)
+if (!TIPO %in% names(TIPO_CFG)) {
+  stop(glue::glue("SIH_TIPO invalido: '{TIPO}' (use RD ou SP)"))
+}
+CFG <- TIPO_CFG[[TIPO]]
+
 #' Embedded in each Parquet's schema metadata and in the manifest.
 #' 1.1.0: provenance metadata embedded in Parquet files.
 PIPELINE_VERSION <- "1.1.0"
 
 DIR_TEMP     <- file.path(tempdir(), "sih_pipeline")
-CONTROLE_CSV <- "data/controle_versao_sih.csv"
+CONTROLE_CSV <- CFG$controle
 
 # FTP
 FTP_MODERNA <- "ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Dados/"
@@ -80,7 +109,7 @@ FTP_ANTIGA  <- "ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/199201_200712/
 # R2
 RCLONE_REMOTE <- "r2"
 R2_BUCKET     <- "healthbr-data"
-R2_PREFIX     <- "sih"
+R2_PREFIX     <- CFG$r2_prefix   # "sih/rd" | "sih/sp"
 
 # Period (adjusted by sprint; upper bound follows the current year so the
 # maintenance automation picks up new months without editing this file)
@@ -88,10 +117,10 @@ if (SPRINT == 1) {
   ANO_INICIO <- 2008
   ANO_FIM    <- as.integer(format(Sys.Date(), "%Y"))
 } else if (SPRINT == 2) {
-  ANO_INICIO <- 1992
+  ANO_INICIO <- CFG$ano_inicio
   ANO_FIM    <- 2007
 } else {
-  ANO_INICIO <- 1992
+  ANO_INICIO <- CFG$ano_inicio
   ANO_FIM    <- as.integer(format(Sys.Date(), "%Y"))
 }
 
@@ -124,13 +153,13 @@ UFS <- c(
 
 #' Build URL and filename for a given UF × year × month
 #'
-#' File pattern: RD{UF}{YY}{MM}.dbc
+#' File pattern: {TIPO}{UF}{YY}{MM}.dbc  (TIPO = RD | SP)
 #' YY = 2-digit year (e.g., "08" for 2008, "92" for 1992)
 #' Era moderna (2008+): 200801_/Dados/
 #' Era antiga  (1992–2007): 199201_200712/Dados/
 info_arquivo <- function(uf, ano, mes) {
   yy   <- sprintf("%02d", ano %% 100)
-  nome <- paste0("RD", uf, yy, mes, ".dbc")
+  nome <- paste0(TIPO, uf, yy, mes, ".dbc")
 
   if (ano >= 2008) {
     url <- paste0(FTP_MODERNA, nome)
@@ -599,14 +628,14 @@ processar_arquivo <- function(uf, ano, mes, controle, prefetch = character(0)) {
 
 sprint_label <- switch(as.character(SPRINT),
   "1" = "Sprint 1 — Era moderna (2008-present)",
-  "2" = "Sprint 2 — Era antiga (1992-2007)",
-  "3" = "Full (1992-present)"
+  "2" = glue("Sprint 2 — Era antiga ({CFG$ano_inicio}-2007)"),
+  "3" = glue("Full ({CFG$ano_inicio}-present)")
 )
 
 cat("\n")
 cat(strrep("=", 70), "\n")
 cat("  Pipeline: DBC (FTP DATASUS) -> Parquet -> Cloudflare R2\n")
-cat(glue("  Module: SIH — AIH Reduzida (RD), {ANO_INICIO}-{ANO_FIM}"), "\n")
+cat(glue("  Module: SIH — {CFG$label}, {ANO_INICIO}-{ANO_FIM}"), "\n")
 cat(glue("  {sprint_label}"), "\n")
 cat(strrep("=", 70), "\n\n")
 

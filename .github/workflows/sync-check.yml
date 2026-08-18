@@ -71,7 +71,7 @@ jobs:
         run: |
           PENDING=$(python - <<'EOF'
           import json
-          AUTOMATED = ["sinasc", "sih", "sipni-microdados", "sipni-covid"]
+          AUTOMATED = ["sinasc", "sih-rd", "sih-sp", "sipni-microdados", "sipni-covid"]
           data = json.load(open("sync-status.json"))
           pending = []
           for key in AUTOMATED:

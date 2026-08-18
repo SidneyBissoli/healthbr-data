@@ -37,7 +37,7 @@ import boto3
 # ---------------------------------------------------------------------------
 
 R2_BUCKET = "healthbr-data"
-ENGINE_VERSION = "1.3.0"
+ENGINE_VERSION = "1.4.0"
 
 # COVID baseline file — stores last successful API counts per UF.
 # Used as fallback when the Elasticsearch API is unreachable (e.g.,
@@ -70,8 +70,15 @@ SINASC_YEAR_END = 2022  # most recent year on FTP as of 2026-03-08
 # DATASUS FTP (SIH — hospital admissions)
 SIH_FTP_MODERN = "/dissemin/publicos/SIHSUS/200801_/Dados/"
 SIH_FTP_LEGACY = "/dissemin/publicos/SIHSUS/199201_200712/Dados/"
-SIH_YEAR_START = 1992
 SIH_YEAR_END = 2026  # most recent year on FTP as of 2026-03-09
+# SIH file types redistributed as sub-modules of the sih/ namespace.
+# Key = sync-status dataset id; prefix = R2 prefix (manifest lives at
+# <prefix>/manifest.json); tipo = FTP filename prefix; year_start = first
+# year the type exists on the FTP (SP only starts in 1997).
+SIH_TYPES = {
+    "sih-rd": {"tipo": "RD", "prefix": "sih/rd", "year_start": 1992},
+    "sih-sp": {"tipo": "SP", "prefix": "sih/sp", "year_start": 1997},
+}
 
 MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun",
              "jul", "ago", "set", "out", "nov", "dez"]
@@ -934,25 +941,28 @@ def check_sinasc(r2_client, ftp_listing):
     }
 
 
-def check_sih(r2_client, ftp_listing):
+def check_sih(r2_client, ftp_listing, dataset_id="sih-rd"):
     """
-    Check SIH (hospital admissions) against FTP listing.
+    Check one SIH file type (RD or SP) against the FTP listing.
 
-    FTP file pattern: RD{UF}{AA}{MM}.DBC
-      where AA = 2-digit year, MM = 2-digit month
-      Example: RDSP2401.DBC = SP, Jan 2024
+    FTP file pattern: {TIPO}{UF}{AA}{MM}.DBC
+      where TIPO = RD | SP, AA = 2-digit year, MM = 2-digit month
+      Example: RDSP2401.DBC = AIH reduzida, SP, Jan 2024
 
     Both FTP eras use the same naming convention, just in different
     directories. The ftp_list_sih() merges both.
 
     Manifest partition keys: "{year}-{month:02d}-{uf}" (e.g., "2024-01-SP")
     """
-    print("  sih: loading manifest...")
-    manifest = load_manifest(r2_client, "sih/manifest.json")
+    cfg = SIH_TYPES[dataset_id]
+    tipo, prefix, year_start = cfg["tipo"], cfg["prefix"], cfg["year_start"]
+    print(f"  {dataset_id}: loading manifest...")
+    manifest = load_manifest(r2_client, f"{prefix}/manifest.json")
     if not manifest:
         return {
             "status": "check_failed", "summary": {}, "details": [],
-            "error": "Could not load manifest",
+            "error": f"Could not load {prefix}/manifest.json "
+                     "(module not bootstrapped yet?)",
         }
 
     if not ftp_listing["success"]:
@@ -968,13 +978,13 @@ def check_sih(r2_client, ftp_listing):
     details = []
     counters = {}
 
-    for year in range(SIH_YEAR_START, SIH_YEAR_END + 1):
+    for year in range(year_start, SIH_YEAR_END + 1):
         max_month = now.month if year == now.year else 12
         yy = f"{year % 100:02d}"
         for month in range(1, max_month + 1):
             for uf in UFS:
                 key = f"{year}-{month:02d}-{uf}"
-                filename = f"RD{uf}{yy}{month:02d}.DBC"
+                filename = f"{tipo}{uf}{yy}{month:02d}.DBC"
 
                 ftp_size = ftp_files.get(filename)
                 source_exists = (
@@ -1014,7 +1024,7 @@ def check_sih(r2_client, ftp_listing):
 
     n = len(details)
     sync = counters.get("in_sync", 0)
-    print(f"  sih: {n} checked, {sync} in_sync")
+    print(f"  {dataset_id}: {n} checked, {sync} in_sync")
 
     overall = "in_sync"
     if counters.get("missing", 0) > 0 or counters.get("outdated", 0) > 0:
@@ -1101,7 +1111,8 @@ def main():
     else:
         print(f"  FTP SIH FAILED: {sih_listing['error']}", file=sys.stderr)
 
-    results["sih"] = check_sih(r2_client, sih_listing)
+    for dataset_id in SIH_TYPES:
+        results[dataset_id] = check_sih(r2_client, sih_listing, dataset_id)
 
     # --- Assemble output ---
     output = {

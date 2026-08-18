@@ -6,7 +6,7 @@
 # Lê o sync-status.json (produzido pelo comparison engine sync_check.py) e:
 #
 #   1. Identifica quais datasets automatizados têm partições missing/outdated.
-#   2. Para os datasets baseados em FTP (sih, sinasc), remove do controle de
+#   2. Para os datasets baseados em FTP (sih-rd, sih-sp, sinasc), remove do controle de
 #      versão as linhas correspondentes às partições "outdated" — os pipelines
 #      pulam qualquer arquivo já presente no controle, então sem essa poda as
 #      revisões retroativas do Ministério nunca seriam reprocessadas.
@@ -25,14 +25,16 @@ import json
 import sys
 from pathlib import Path
 
-# Ordem de execução: mais rápidos primeiro, SIH (maior volume) por último
-AUTOMATED = ["sinasc", "sipni-microdados", "sipni-covid", "sih"]
+# Ordem de execução: mais rápidos primeiro, SIH (maior volume) por último;
+# dentro do SIH, RD (dataset principal) antes de SP (3x maior)
+AUTOMATED = ["sinasc", "sipni-microdados", "sipni-covid", "sih-rd", "sih-sp"]
 
 # Datasets cujo pipeline pula arquivos presentes no controle CSV; partições
 # outdated precisam ser removidas do controle para forçar reprocessamento
 CONTROLE_PRUNE = {
     "sinasc": "data/controle_versao_sinasc.csv",
-    "sih": "data/controle_versao_sih.csv",
+    "sih-rd": "data/controle_versao_sih_rd.csv",
+    "sih-sp": "data/controle_versao_sih_sp.csv",
 }
 
 

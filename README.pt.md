@@ -21,7 +21,8 @@ vivos, internações) em 3 linhas de código R ou Python.
 | SI-PNI Agregados históricos (cobertura) | `sipni/agregados/cobertura/` | ~2,8M | 1994–2019 | ✅ Disponível |
 | SI-PNI Dicionários oficiais (tabelas de referência) | `sipni/dicionarios/` | 6 tabelas | snapshot 2019 | ✅ Disponível |
 | SINASC Nascidos vivos (microdados) | `sinasc/` | ~85M | 1994–2022 | ✅ Disponível |
-| SIH Internações hospitalares — AIH reduzida (microdados) | `sih/` | ~415M | 1992–presente | ✅ Disponível |
+| SIH Internações hospitalares — AIH reduzida (RD, microdados) | `sih/rd/` | ~415M | 1992–presente | ✅ Disponível |
+| SIH Serviços profissionais — atos por internação (SP, microdados) | `sih/sp/` | ~1 bi+ (est.) | 1997–presente | 🔧 Em bootstrap |
 
 Os datasets que recebem dados novos do Ministério (SI-PNI rotina, SI-PNI
 COVID, SINASC, SIH) são atualizados por uma verificação semanal

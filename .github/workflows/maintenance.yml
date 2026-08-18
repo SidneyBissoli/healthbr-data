@@ -16,7 +16,7 @@
 #   - O push dos controles de versão pela VPS re-dispara o sync-check, que
 #     atualiza o dashboard com o estado pós-manutenção.
 #   - maintenance-reaper.yml (cron a cada 3h) é a rede de segurança: deleta
-#     qualquer VPS de manutenção desligada ou com mais de 36h de vida.
+#     qualquer VPS de manutenção desligada ou com mais de 48h de vida.
 #
 # Resultado da rodada: r2:healthbr-data/maintenance/last-run.json (resumo)
 # e last-run.log (log completo). O marcador "started" gravado aqui é

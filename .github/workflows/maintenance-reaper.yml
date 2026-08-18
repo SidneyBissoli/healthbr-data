@@ -9,8 +9,9 @@
 #
 # Regras: deleta qualquer servidor com label healthbr=maintenance-run que
 #   (a) esteja desligado (off) — terminou mas não conseguiu se deletar; ou
-#   (b) exista há mais de 36 horas — rodadas de backlog (meses acumulados)
-#       podem passar de 12h; nenhuma rodada legítima chega a 36h.
+#   (b) exista há mais de 48 horas — uma rodada legítima pode encadear
+#       microdados (~8h) + sih-rd (até 14h) + sih-sp (até 14h) + sinasc/covid;
+#       nenhuma rodada legítima chega a 48h.
 # ==============================================================================
 
 name: Maintenance reaper
@@ -28,7 +29,7 @@ jobs:
     timeout-minutes: 10
     env:
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-      MAX_AGE_HOURS: 36
+      MAX_AGE_HOURS: 48
 
     steps:
       - name: Install hcloud CLI

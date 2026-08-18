@@ -62,7 +62,8 @@ DATASET_LABELS = {
     "sipni-agregados-doses": "SI-PNI Aggregated \u2014 Doses (1994\u20132019)",
     "sipni-agregados-cobertura": "SI-PNI Aggregated \u2014 Coverage (1994\u20132019)",
     "sinasc": "SINASC \u2014 Live Births (1994\u20132022)",
-    "sih": "SIH \u2014 Hospital Admissions (1992\u20132026)",
+    "sih-rd": "SIH RD \u2014 Hospital Admissions (1992\u20132026)",
+    "sih-sp": "SIH SP \u2014 Professional Services (1997\u20132026)",
 }
 
 
@@ -293,7 +294,9 @@ def render_dataset_tab(ds_key: str, build_fn):
     details = ds.get("details", [])
 
     if not details:
-        st.warning("No data available for this dataset.")
+        err = ds.get("error")
+        st.warning("No data available for this dataset."
+                   + (f" ({err})" if err else ""))
         return
 
     df = build_fn(details)
@@ -388,9 +391,13 @@ with tabs[3]:
 with tabs[4]:
     render_dataset_tab("sinasc", build_agregados_df)
 
-# --- Tab 5: SIH ---
+# --- Tab 5: SIH RD ---
 with tabs[5]:
-    render_dataset_tab("sih", build_sih_df)
+    render_dataset_tab("sih-rd", build_sih_df)
+
+# --- Tab 6: SIH SP ---
+with tabs[6]:
+    render_dataset_tab("sih-sp", build_sih_df)
 
 # ---------------------------------------------------------------------------
 # Footer

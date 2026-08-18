@@ -65,8 +65,9 @@ fi
 # eles estão estritamente à frente do repo e evitam refazer horas de trabalho.
 # (Após uma rodada 100% ok, o passo 4b limpa o diretório.)
 
-for csv in controle_versao_sinasc.csv controle_versao_sih.csv \
-           controle_versao_microdata.csv controle_versao_covid.csv; do
+for csv in controle_versao_sinasc.csv controle_versao_sih_rd.csv \
+           controle_versao_sih_sp.csv controle_versao_microdata.csv \
+           controle_versao_covid.csv; do
   if [ -n "$(rclone lsf "$R2_REMOTE/maintenance/checkpoints/$csv" 2>/dev/null)" ]; then
     rclone copyto "$R2_REMOTE/maintenance/checkpoints/$csv" "data/$csv" \
       && log "Checkpoint restaurado: $csv (rodada anterior interrompida)"
@@ -95,16 +96,18 @@ else
       sinasc)
         timeout --kill-after=5m 4h Rscript scripts/pipeline/sinasc-pipeline-r.R
         ;;
-      sih)
-        SIH_SPRINT=3 timeout --kill-after=5m 14h \
+      sih-rd|sih-sp)
+        # sih-rd → SIH_TIPO=RD (sih/rd/), sih-sp → SIH_TIPO=SP (sih/sp/)
+        SIH_TIPO="${ds#sih-}"; SIH_TIPO="${SIH_TIPO^^}"
+        SIH_TIPO="$SIH_TIPO" SIH_SPRINT=3 timeout --kill-after=5m 14h \
           Rscript scripts/pipeline/sih-pipeline-r.R
         rc=$?
         # 75 (EX_TEMPFAIL): o pipeline detectou o FTP do DATASUS fora do ar
         # e encerrou limpo — tudo até ali está persistido. Não é erro do
         # pipeline; a rodada seguinte retoma do ponto exato.
         if [ "$rc" -eq 75 ]; then
-          log "--- sih: FTP DATASUS indisponível — encerrou limpo (progresso persistido; retoma na próxima rodada) ---"
-          FALHAS+=("sih(ftp-indisponivel)")
+          log "--- $ds: FTP DATASUS indisponível — encerrou limpo (progresso persistido; retoma na próxima rodada) ---"
+          FALHAS+=("$ds(ftp-indisponivel)")
           publicar_progresso
           continue
         fi

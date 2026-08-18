@@ -274,8 +274,14 @@ baixar_dbc_r2 <- function(nome, destino) {
   st <- attr(out, "status") %||% 0L
   if (st == 0L && file_exists(destino) && file.info(destino)$size > 0) return(NULL)
   msg <- paste(out, collapse = " ")
-  if (grepl("not found|directory not found|object not found", msg, ignore.case = TRUE)) {
-    return(glue("Remote file not found [r2 mirror]: {nome} does not exist"))
+  # rclone copyto de objeto inexistente sai com 0 em silêncio (v1.7x):
+  # confirmar a ausência com lsf antes de classificar
+  if (st == 0L || grepl("not found", msg, ignore.case = TRUE)) {
+    ls <- suppressWarnings(system2("rclone", c("lsf", shQuote(origem)),
+                                   stdout = TRUE, stderr = TRUE))
+    if (length(ls) == 0 || !nzchar(ls[1])) {
+      return(glue("Remote file not found [r2 mirror]: {nome} does not exist"))
+    }
   }
   glue("rclone copyto failed (status {st}): {substr(msg, 1, 200)}")
 }

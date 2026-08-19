@@ -153,13 +153,14 @@ and race/ethnicity codes. Key variables include:
 | `dt_vacina` | Vaccination date (YYYY-MM-DD) |
 | `co_vacina` | Immunobiological code |
 | `ds_vacina` | Immunobiological description |
-| `co_dose` | Dose code (1st, 2nd, 3rd, booster, etc.) |
-| `sg_uf` | State abbreviation |
-| `co_municipio_ibge` | IBGE municipality code (6 digits) |
-| `co_cnes` | CNES health facility code |
-| `dt_nascimento` | Patient date of birth |
-| `co_sexo` | Sex (M/F) |
-| `co_raca_cor` | Self-reported race/ethnicity |
+| `co_dose_vacina` | Dose code (1st, 2nd, 3rd, booster, etc.) |
+| `ds_dose_vacina` | Dose description |
+| `sg_uf_estabelecimento` | State of the health facility (partition key `uf`) |
+| `co_municipio_estabelecimento` | IBGE municipality code of the facility (6 digits) |
+| `co_cnes_estabelecimento` | CNES health facility code |
+| `nu_idade_paciente` | Patient age |
+| `tp_sexo_paciente` | Sex (M/F) |
+| `co_raca_cor_paciente` | Self-reported race/ethnicity code |
 
 > For the complete 56-variable data dictionary, see the Ministry of Health's
 > `Dicionario_tb_ria_rotina.pdf`.

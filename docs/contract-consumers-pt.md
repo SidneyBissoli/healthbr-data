@@ -36,7 +36,8 @@
 
 Regras: um sub-dataset nunca fica aninhado sob um prefixo que já contém `ano=`
 (Arrow recursaria); cada partição tem `part-0.parquet` (ou `part-NNNNN.parquet`
-nos Python); `manifest.json` e `README.md` na raiz do prefixo.
+nos Python); `manifest.json` e `README.md` na raiz do prefixo — **exceção legada**: o
+manifesto dos microdados SI-PNI está em `sipni/manifest.json` (não em `sipni/microdados/`).
 
 ## 3. Conteúdo dos Parquets — o que é garantido
 

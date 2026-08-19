@@ -192,6 +192,18 @@ cat /root/data/controle_versao_microdata.csv
 
 ---
 
+### Upload substitui o mês (1.2.2, 18/ago/2026)
+
+Até a 1.2.1 o upload era `rclone copy` do staging: um reprocessamento cujo
+conjunto de arquivos difere do anterior (ex.: fev/2026 gerou `part-00001`,
+ago/2026 gerou `part-01-00001` para os mesmos meses) deixava os antigos no
+R2 e o mês passava a ter linhas duplicadas — aconteceu com 2025-01…2026-02
+(8.937 órfãos, apagados à mão em 18/ago após o backfill de metadado). Desde
+a 1.2.2 o pipeline faz `rclone sync` do diretório `ano=/mes=` do zip (apaga o
+que a nova fonte não gerou) e `copy` para eventuais outros meses no staging.
+Metadado: os 79 meses têm o registro `healthbr` (60 por backfill 1.0.0, 19
+completados) — ver política §5.
+
 ## 4. PIPELINE SI-PNI COVID: CSV → Parquet → R2
 
 ### Objetivo
@@ -1142,7 +1154,9 @@ próprio script.
 *Última atualização: 18/ago/2026 — `SIH_WORKERS` (UFs de um mês em
 paralelo, opt-in), `publish-cards.py`, seção de reprodutibilidade em todos os
 cards, `backfill-metadata.py` (metadado nos Parquets 1.0.0 do SIH RD/SINASC),
-COVID 1.2.1 (portal novo, hash de publicação descoberto, CSV com versão/commit);
+COVID 1.2.1 (portal novo, hash de publicação descoberto, CSV com versão/commit),
+1.2.2 nos dois pipelines Python (upload substitui a partição — órfãos duplicavam linhas),
+backfill da rotina SI-PNI concluído;
 17/ago: SIH vira namespace (`sih/rd/`,
 `sih/sp/`), pipeline parametrizado por `SIH_TIPO`, submódulo SP; circuit
 breaker do FTP no SIH + inspect-last-run.sh; SIH persiste por mês (11/ago); seção 15 (manutenção

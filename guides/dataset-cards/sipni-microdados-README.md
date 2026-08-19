@@ -187,13 +187,15 @@ provenance record in its schema metadata (key `healthbr`): `source_url`,
 (plus SHA-256 and record count of each output file) and per source file in
 `data/controle_versao_microdata.csv` in the GitHub repository. Together they
 let anyone re-derive a partition from the Ministry's original file and the
-exact code commit, and verify that the copy they hold is intact. Months
-processed by the initial bootstrap (pipeline 1.0.0) lack the embedded record;
-months (re)processed since 2026-08 by the automated maintenance carry it — use
-`manifest.json` for the others. Data are **not** versioned: the R2 copy is the
-latest publication; revisions by the Ministry replace files, and the history
-of *what* was published *when* lives in the version-control CSV's git log.
-Full policy and audit recipe:
+exact code commit, and verify that the copy they hold is intact. Months from
+the initial bootstrap (pipeline 1.0.0, 2026-02) received the record afterwards
+by a metadata-only rewrite (2026-08-18): same content, `pipeline_version` kept
+as 1.0.0, `git_commit` inferred from the repository history and flagged
+`git_commit_inferred: true` (see `metadata_backfill` inside the record); every
+file in the dataset now carries the record. Data are **not** versioned: the R2
+copy is the latest publication; revisions by the Ministry replace files, and
+the history of *what* was published *when* lives in the version-control CSV's
+git log. Full policy and audit recipe:
 [docs/policy-reproducibility-pt.md](https://github.com/SidneyBissoli/healthbr-data/blob/master/docs/policy-reproducibility-pt.md).
 
 ```r

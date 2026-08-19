@@ -103,10 +103,20 @@ meta$source_url; meta$source_hash_md5; meta$git_commit; meta$pipeline_version
   pipeline 1.2.1) — o manifesto retroativo não tinha metadado de fonte, e a
   fonte havia sido republicada (23/jul/2026, hash novo; a antiga sumiu do S3),
   então só reprocessar dava proveniência íntegra; todos os Parquets, o
-  manifesto (ETags, SHA-256) e o CSV têm registro nativo. **Ainda em aberto**:
-  SI-PNI *rotina* 1.0.0 (60 meses) — CSV/manifesto têm URL, ETag, MD5 do zip e
-  tamanho por fonte, então o backfill é integral; pendente estender o
-  `backfill-metadata.py` para N arquivos por partição.
+  manifesto (ETags, SHA-256) e o CSV têm registro nativo. **SI-PNI rotina**:
+  resolvido por **backfill** (18/ago/2026, `backfill-metadata.py` generalizado
+  para N arquivos por partição): 54.296 Parquets de 79 meses; 60 meses de
+  fev/2026 receberam registro 1.0.0 (commit inferido `8e89e95`), 11 meses de
+  2025 processados em 06/ago pela 1.1.0 tinham parte dos arquivos sem registro
+  (fallback silencioso do polars antigo no snapshot) e receberam/completaram
+  1.1.0 (`5a7fb0d`), 8 meses de 2026 ganharam `git_commit` (`168f128`).
+  Descoberto no processo e corrigido: os pipelines Python faziam `rclone copy`
+  no upload, e reprocessamentos com nomes de arquivo diferentes deixavam os
+  antigos no R2 (**8.937 Parquets duplicando linhas de 2025-01…2026-02 desde
+  06/ago**; 2.756 no COVID). Órfãos apagados; desde a 1.2.2 o upload
+  **substitui** a partição (`rclone sync` do mês; no COVID `sync` filtrado por
+  `part-{UF}-*`). Com isso **nenhum dataset publicado está sem o registro
+  `healthbr`** — os de bootstrap 1.0.0 trazem `git_commit_inferred: true`.
 - **Como ler o metadado**: em R, `arrow::read_parquet(f, as_data_frame =
   FALSE)$metadata$healthbr` funciona para todos os arquivos. Em Python,
   para os arquivos escritos pelo polars (SI-PNI) o registro está no

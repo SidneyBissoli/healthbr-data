@@ -43,8 +43,9 @@ CONTROLE_CSV = Path(os.environ.get(
 
 # Embedded in each Parquet's schema metadata and in the manifest.
 # 1.1.0: provenance metadata embedded in Parquet files.
-PIPELINE_VERSION = "1.2.1"  # 1.2.0: git_commit + MD5 da fonte no metadado/manifesto;
-# 1.2.1: pipeline_version/git_commit também no CSV de controle
+PIPELINE_VERSION = "1.2.2"  # 1.2.0: git_commit + MD5 da fonte no metadado/manifesto;
+# 1.2.1: pipeline_version/git_commit também no CSV de controle;
+# 1.2.2: upload substitui o mês no R2 (rclone sync) em vez de só copiar
 
 def _git_commit():
     """Commit git do código em execução (reprodutibilidade). Env
@@ -542,19 +543,32 @@ def processar_mes(ano, mes, info):
     proc_time = time.time() - t0
     print(f"  Processamento: {proc_time:.1f}s | {n_total:,.0f} registros")
 
-    # --- 5. Upload ---
+    # --- 5. Upload: SUBSTITUI o mês no R2 ---
+    # `rclone sync` no diretório ano=/mes= do zip: o que a nova versão da fonte
+    # não gerou é apagado. Com `copy`, um reprocessamento que muda a
+    # quantidade/nome dos arquivos deixava os antigos lá e o mês ficava com
+    # linhas duplicadas (aconteceu em ago/2026: 8.937 arquivos órfãos de
+    # fev/2026 em 2025-01…2026-02, apagados à mão em 18/ago). Diretórios de
+    # outros meses (registros com dt_vacina fora do mês do zip) só recebem copy.
     t0 = time.time()
-    print(f"  Upload para R2...")
-    destino = f"{RCLONE_REMOTE}:{R2_BUCKET}/{R2_PREFIX}/"
-    result = subprocess.run(
-        ['rclone', 'copy', str(dir_staging), destino,
-         '--transfers', '16', '--checkers', '32',
-         '--s3-no-check-bucket', '-v'],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print(f"  ERRO rclone: {result.stderr[:500]}")
-        raise RuntimeError("Upload falhou")
+    print(f"  Upload para R2 (substituindo ano={ano}/mes={mes:02d})...")
+    destino = f"{RCLONE_REMOTE}:{R2_BUCKET}/{R2_PREFIX}"
+    mes_dir = f"ano={ano}/mes={mes:02d}"
+    subdirs = sorted(str(d.relative_to(dir_staging)).replace('\\', '/')
+                     for d in dir_staging.glob('ano=*/mes=*') if d.is_dir())
+    for sub in subdirs:
+        verbo = 'sync' if sub == mes_dir else 'copy'
+        if verbo == 'copy':
+            print(f"    AVISO: staging tem {sub} (fora do mês do zip) — copy sem apagar")
+        result = subprocess.run(
+            ['rclone', verbo, str(dir_staging / sub), f"{destino}/{sub}/",
+             '--transfers', '16', '--checkers', '32',
+             '--s3-no-check-bucket', '-v'],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            print(f"  ERRO rclone ({verbo} {sub}): {result.stderr[:500]}")
+            raise RuntimeError("Upload falhou")
     up_time = time.time() - t0
     print(f"  Upload: {up_time:.1f}s")
 

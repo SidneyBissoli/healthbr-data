@@ -42,9 +42,10 @@ CONTROLE_CSV = Path(os.environ.get(
 
 # Embedded in each Parquet's schema metadata and in the manifest.
 # 1.1.0: provenance metadata embedded in Parquet files.
-PIPELINE_VERSION = "1.2.1"  # 1.2.0: git_commit no metadado/manifesto;
+PIPELINE_VERSION = "1.2.2"  # 1.2.0: git_commit no metadado/manifesto;
 # 1.2.1: hash de publicação descoberto no portal; pipeline_version/git_commit
 #        também no CSV de controle (política: os 3 artefatos concordam)
+# 1.2.2: upload substitui os part-{UF}-* no R2 (rclone sync filtrado)
 
 def _git_commit():
     """Commit git do código em execução (reprodutibilidade). Env
@@ -452,12 +453,19 @@ def processar_uf(uf, info_servidor):
         # 3. Liberar CSV para economizar disco
         csv_path.unlink(missing_ok=True)
 
-    # 4. Upload staging → R2
+    # 4. Upload staging → R2, SUBSTITUINDO os arquivos desta UF.
+    # Os Parquets de uma UF chamam-se part-{UF}-*.parquet e se espalham por
+    # todos os ano=/mes=; `sync --include "part-{UF}-*.parquet"` apaga no R2
+    # os arquivos dessa UF que a nova publicação não gerou e não toca no resto
+    # (outras UFs, README, manifesto). Com `copy`, uma republicação com outra
+    # distribuição de linhas deixava órfãos (2.756 de mar/2026 apagados à mão
+    # em 18/ago/2026 após o reprocessamento).
     t0 = time.time()
-    print(f"\n  Upload {uf} para R2...")
+    print(f"\n  Upload {uf} para R2 (substituindo part-{uf}-*)...")
     destino = f"{RCLONE_REMOTE}:{R2_BUCKET}/{R2_PREFIX}/"
     result = subprocess.run(
-        ['rclone', 'copy', str(dir_staging), destino,
+        ['rclone', 'sync', str(dir_staging), destino,
+         '--include', f'part-{uf}-*.parquet',
          '--transfers', '16', '--checkers', '32',
          '--s3-no-check-bucket', '-v'],
         capture_output=True, text=True

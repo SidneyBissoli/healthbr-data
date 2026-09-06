@@ -94,8 +94,7 @@ def main():
     # No Actions, expõe o last_updated para o passo que avisa o sih-br-mcp.
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
-            fh.write(f"last_updated={summary.get('last_updated') or ''}
-")
+            fh.write(f"last_updated={summary.get('last_updated') or ''}\n")
 
     if args.output:
         with open(args.output, "wb") as fh:

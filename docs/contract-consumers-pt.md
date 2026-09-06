@@ -91,6 +91,21 @@ atualizado **na mesma operação** que sobe os dados. Ler o manifesto (≈ KB) �
 forma barata de saber o que existe, o que é preliminar e quando foi processado —
 antes de abrir o dataset.
 
+### 4.1 `manifest-summary.json` — o resumo para checar frescor (sih/rd, desde 2026-09-06)
+
+Ao lado do manifesto do SIH-RD há `sih/rd/manifest-summary.json` (~2,5 MB contra
+10,4 MB): o **mesmo cabeçalho** (`manifest_version`, `dataset`, `last_updated`,
+`pipeline_version`), um bloco `summary` (`generated_at`, `source`, campos) e, por
+partição, só `source_hash_md5`, `source_size_bytes`, `processing_timestamp` e
+`output_files[].sha256`. Serve a quem gerou um produto derivado e precisa saber
+**se** uma partição mudou (reedição no Ministério = MD5/tamanho; pipeline
+regenerou = SHA-256; partição retirada = chave ausente), não tudo sobre ela. É
+regravado pelo sync-check a cada rodada (`scripts/sync/manifest_summary.py`), logo
+depois de o manifesto mudar — o contrato é o `last_updated` idêntico: confira-o
+contra o do manifesto (um `GET` com `Range: bytes=0-511` basta) e, se o resumo
+estiver atrás, leia o manifesto inteiro. Consumidor de referência: a checagem de
+frescor e o rebuild de cubos do `sih-br-mcp`.
+
 ## 5. Notas por dataset que o consumidor precisa conhecer
 
 ### 5.1 SIM (`sim/dores`, `sim/dofet`) — ver `sim/exploration-pt.md`

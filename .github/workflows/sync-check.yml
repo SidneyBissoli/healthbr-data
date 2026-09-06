@@ -36,6 +36,21 @@ jobs:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: python scripts/sync/sync_check.py --output sync-status.json
 
+      # Resumo do manifesto do SIH-RD (2026-09-06): mesmo cabeçalho, só os
+      # campos que dizem se uma partição mudou (~2,5 MB contra 10,4 MB). É o
+      # que o sih-br-mcp lê na checagem de frescor e no rebuild dos cubos —
+      # ver scripts/sync/manifest_summary.py e docs/contract-consumers-pt.md §4.
+      # Roda toda rodada: barato, e assim o resumo nunca fica mais de uma
+      # rodada atrás do manifesto (o consumidor confere o last_updated e cai
+      # no manifesto inteiro se o resumo estiver velho).
+      - name: Manifest summary (sih/rd)
+        id: summary
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: python scripts/sync/manifest_summary.py --prefix sih/rd --upload
+
       - name: Upload sync-status.json to R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -61,6 +76,27 @@ jobs:
           git add .gitattributes src/sync-status.json
           git commit -m "Update sync status $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
           git push
+
+      # Avisar o sih-br-mcp que o espelho mudou (2026-09-06). SÓ no evento
+      # push: é o commit dos CSVs de controle que a VPS faz no FIM da
+      # manutenção — o momento em que o manifesto acabou de ser reescrito. O
+      # sih não confia neste aviso para decidir o quê: o workflow
+      # rebuild-cubes.yml dele compara os sidecars com o manifesto e só
+      # reconstrói os cubos que estão atrás; o dispatch é latência (sem ele, o
+      # schedule de terça faz o mesmo). O `github.token` não dispara workflow
+      # em outro repositório: precisa de um PAT fine-grained com
+      # `Contents: write` só no sih-br-mcp, guardado como SIH_DISPATCH_PAT.
+      # Sem o secret, o passo é pulado (o `if` lê o env, porque secrets não
+      # entram em `if`).
+      - name: Notify sih-br-mcp (repository_dispatch)
+        if: github.event_name == 'push' && env.SIH_DISPATCH_PAT != ''
+        env:
+          SIH_DISPATCH_PAT: ${{ secrets.SIH_DISPATCH_PAT }}
+          GH_TOKEN: ${{ secrets.SIH_DISPATCH_PAT }}
+        run: |
+          LAST="${{ steps.summary.outputs.last_updated }}"
+          gh api "repos/SidneyBissoli/sih-br-mcp/dispatches"             -f event_type=healthbr-sih-updated             -F "client_payload[source]=healthbr-data sync-check"             -F "client_payload[run]=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             -F "client_payload[manifest_last_updated]=${LAST}"
+          echo "sih-br-mcp avisado (healthbr-sih-updated)"
 
       # Manutenção condicional: se algum dataset automatizado tem partições
       # missing/outdated, dispara a rodada de manutenção (VPS sob demanda).

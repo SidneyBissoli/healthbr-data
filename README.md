@@ -23,6 +23,13 @@ admissions) in 3 lines of R or Python code.
 | SINASC Live births (microdata) | `sinasc/` | ~85M | 1994–2022 | ✅ Available |
 | SIH Hospital admissions — AIH reduzida (RD, microdata) | `sih/rd/` | ~415M | 1992–present | ✅ Available |
 | SIH Professional services — acts per admission (SP, microdata) | `sih/sp/` | ~3.20B | 1997–present | ✅ Available |
+| SIH Hospital admissions — yearly cubes (causes, monthly series, ICSAP by municipality; derived from `sih/rd/` by [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp)) | `sih/cubos/` | 7 years, ~416 MB | 2019–2025 | ✅ Available |
+
+Everything under this bucket is also served from the custom domain
+`https://data.sidneybissoli.com/` (same paths as the `r2.dev` URL, which
+remains active). `sih/cubos/manifest.json` lists every cube with size and
+SHA-256; each year has a provenance sidecar (`sih_provenance_<year>.json`)
+that records the exact `sih/rd/` partitions it was built from.
 
 Datasets that receive new data from the Ministry (SI-PNI routine, SI-PNI
 COVID, SINASC, SIH) are refreshed by an automated weekly sync check that

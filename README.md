@@ -23,7 +23,7 @@ admissions) in 3 lines of R or Python code.
 | SINASC Live births (microdata) | `sinasc/` | ~85M | 1994–2022 | ✅ Available |
 | SIH Hospital admissions — AIH reduzida (RD, microdata) | `sih/rd/` | ~415M | 1992–present | ✅ Available |
 | SIH Professional services — acts per admission (SP, microdata) | `sih/sp/` | ~3.20B | 1997–present | ✅ Available |
-| SIH Hospital admissions — yearly cubes (causes, monthly series, ICSAP by municipality; derived from `sih/rd/` by [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp)) | `sih/cubos/` | 18 years, ~1.0 GB | 2008–2025 | ✅ Available |
+| SIH Hospital admissions — yearly cubes (causes, monthly series, ICSAP by municipality; derived from `sih/rd/` by [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp)) | `sih/cubos/` | 28 years, ~1.3 GB | 1998–2025 (`race` null before 2008: `RACA_COR` only exists from 2008) | ✅ Available |
 
 Everything under this bucket is also served from the custom domain
 `https://data.sidneybissoli.com/` (same paths as the `r2.dev` URL, which

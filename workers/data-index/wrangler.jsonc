@@ -1,0 +1,16 @@
+{
+  // Página-índice da raiz de https://data.sidneybissoli.com/ (ver src/index.js).
+  // A rota é a RAIZ EXATA: todo outro caminho vai direto ao bucket R2 ligado ao
+  // domínio, sem passar pelo Worker.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "healthbr-data-index",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "routes": [
+    { "pattern": "data.sidneybissoli.com/", "zone_name": "sidneybissoli.com" }
+  ],
+  "r2_buckets": [
+    { "binding": "BUCKET", "bucket_name": "healthbr-data" }
+  ],
+  "observability": { "enabled": true }
+}

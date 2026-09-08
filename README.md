@@ -23,11 +23,14 @@ admissions) in 3 lines of R or Python code.
 | SINASC Live births (microdata) | `sinasc/` | ~85M | 1994–2022 | ✅ Available |
 | SIH Hospital admissions — AIH reduzida (RD, microdata) | `sih/rd/` | ~415M | 1992–present | ✅ Available |
 | SIH Professional services — acts per admission (SP, microdata) | `sih/sp/` | ~3.20B | 1997–present | ✅ Available |
-| SIH Hospital admissions — yearly cubes (causes, monthly series, ICSAP by municipality; derived from `sih/rd/` by [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp)) | `sih/cubos/` | 28 years, ~1.3 GB | 1998–2025 (`race` null before 2008: `RACA_COR` only exists from 2008) | ✅ Available |
+| SIH Hospital admissions — yearly cubes (causes, monthly series, ICSAP by municipality; derived from `sih/rd/` by [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp)) | `sih/cubos/` | 34 years, ~1.5 GB | 1992–2025 (1992–1997 in ICD-9 decoded by table, `uf` = hospital file state, nominal currency of the time; `race` null before 2008; ICSAP share in the csapAIH universe — see [sih-cubos-README](guides/dataset-cards/sih-cubos-README.md)) | ✅ Available |
 
 Everything under this bucket is also served from the custom domain
 `https://data.sidneybissoli.com/` (same paths as the `r2.dev` URL, which
-remains active). `sih/cubos/manifest.json` lists every cube with size and
+remains active; Cloudflare caches objects by their `Cache-Control` and the
+`.json` manifests for 5 minutes). The domain root is an index page served by
+the Worker in [`workers/data-index/`](workers/data-index/) — the bucket itself
+has no directory listing. `sih/cubos/manifest.json` lists every cube with size and
 SHA-256; each year has a provenance sidecar (`sih_provenance_<year>.json`)
 that records the exact `sih/rd/` partitions it was built from.
 

@@ -79,9 +79,17 @@ node "$HERE/cubes-manifest.mjs" --data "$DATA_DIR" --years "$YEARS_CSV" \
   --base-url "$PUBLIC_BASE/" --out cubes-manifest.json
 
 # (3) arquivos do(s) ano(s)
+# max-age=300 (era 86400 até 2026-09-08): todo objeto daqui é REESCRITO NO LUGAR
+# (mesmo nome, conteúdo novo a cada rebuild) e a borda do domínio honra o
+# Cache-Control do objeto — com 24 h, o consumidor recebia o cubo do build
+# anterior (HIT, Age 15 h) enquanto o manifesto já assinava o novo, e a
+# verificação de tamanho/SHA-256 falhava (sih_series_2023: 36.047 bytes servidos
+# vs 36.352 na origem, prova do sih-br-mcp 0.12.0). O egresso do R2 é grátis;
+# a borda só ganha latência. Quem verifica pelo manifesto deve ainda anexar
+# ?v=<sha256> à URL (chave de cache por versão) — docs/contract-consumers-pt.md.
 put() { # put <arquivo local> <nome remoto> <content-type>
   aws s3 cp "$1" "s3://$BUCKET/$PREFIX/$2" --endpoint-url "$ENDPOINT" \
-    --content-type "$3" --cache-control "public, max-age=86400" --only-show-errors
+    --content-type "$3" --cache-control "public, max-age=300" --only-show-errors
   echo "  enviado $2"
 }
 for Y in $YEARS; do

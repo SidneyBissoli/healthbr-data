@@ -123,6 +123,18 @@ trata a ausência como "sem denominador", nunca como erro do canal. Esquemas:
 municipality_code, uf, sex M/F/total, age_group, population`; `age_group` nulo = idade
 ignorada na fonte), `pop_uf_agregado` (`year, uf, sex, age_group, population`).
 
+**Cache de borda e objetos reescritos no lugar (medido em 2026-09-08).** Tudo em
+`sih/cubos/` é reescrito com o MESMO nome a cada rebuild, e a borda do domínio honra o
+`Cache-Control` do objeto. Com `max-age=86400` (até 08/09) um consumidor recebeu o
+`sih_series_2023.parquet` do build anterior (`cf-cache-status: HIT`, `Age` 15 h; 36.047
+bytes) enquanto o manifesto — que tem `max-age=300` — já assinava o novo (36.352 bytes),
+e a verificação por SHA-256 falhou. Desde 08/09 os dados sobem com `max-age=300` como o
+manifesto (o egresso do R2 é grátis; a borda só ganha latência). Regra para o consumidor
+que verifica pelo manifesto: **anexe `?v=<sha256 do manifesto>` à URL do arquivo** — a
+query entra na chave de cache, então versão nova = URL nova, nunca a cópia velha (é o que
+o `sih-br-mcp` faz em `src/cache.ts`). Quem lê por URL sem verificar (`arrow::read_parquet(url)`,
+`pandas.read_parquet(url)`) pode estar até 5 min atrás do manifesto após um rebuild.
+
 ## 5. Notas por dataset que o consumidor precisa conhecer
 
 ### 5.1 SIM (`sim/dores`, `sim/dofet`) — ver `sim/exploration-pt.md`

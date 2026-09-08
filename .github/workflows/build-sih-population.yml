@@ -39,10 +39,6 @@ name: Build SIH population denominators
 # manifest.json (cada um herda do anterior o bloco que não constrói).
 
 on:
-  # GATILHO TEMPORÁRIO (removido antes do merge): `gh workflow run` só enxerga
-  # workflow que já existe no master; o push no branch faz a primeira execução.
-  push:
-    branches: [sih-populacao]
   workflow_dispatch:
     inputs:
       reason:

@@ -19,9 +19,36 @@ Por ano de internação (`DT_INTER`), três cubos Parquet e um sidecar de proven
 | `sih_provenance_<ano>.json` | safra do cubo: partições de `sih/rd/` lidas (URL, MD5, tamanho, data de download de cada `.dbc`), totais, versão e commit do builder, eras, moedas, notas |
 
 Mais o `manifest.json` do canal (tamanho e SHA-256 de cada arquivo, resumo do sidecar por
-ano, e o bloco `tables` com o SHA-256 das tabelas de classificação), e as próprias
-tabelas em `sih/cubos/tables/*.json`. Base pública:
-`https://data.sidneybissoli.com/sih/cubos/`.
+ano, o bloco `tables` com o SHA-256 das tabelas de classificação e o bloco `population`
+com o dos denominadores), as próprias tabelas em `sih/cubos/tables/*.json` e os
+denominadores populacionais abaixo. Base pública: `https://data.sidneybissoli.com/sih/cubos/`.
+
+### Denominadores populacionais (`build-population.R`, desde 2026-09-08)
+
+Os arquivos de população que o consumidor usa nas taxas por 100 mil vivem no MESMO
+prefixo, ao lado dos cubos, assinados no bloco `population` do manifesto:
+
+| Arquivo | Conteúdo | Fonte |
+|---|---|---|
+| `pop_uf.parquet` | UF × sexo (M/F) × idade simples (0–90, 90 = 90+) × ano, 2000..último cubo FECHADO (127.764 linhas até 2025) | IBGE, Projeção da População **Revisão 2024** (planilha oficial `projecoes_2024_tab1_idade_simples.xlsx` do FTP do IBGE; a SIDRA 7358 só tem a revisão 2018) |
+| `pop_municipios.parquet` | município × sexo (M/F/total) × faixa etária quinquenal × ano, 1991–2024 (6.326.761 linhas); `source` = censo/contagem/estimativa | DATASUS FTP `IBGE/POP/POPBR{aa}.zip` (1991–2012) e `IBGE/POPSVS/POPSBR{aa}.zip` (2013–2024), lidos por `csapAIH::ler_popbr` |
+| `pop_uf_agregado.parquet` | UF × sexo × faixa etária × ano, 1991–1999 (8.484 linhas) | soma de `pop_municipios` (única operação permitida) |
+| `pop_provenance.json` | safra: `built_at`, `last_year`, fontes (URLs), linhas/anos/UFs/Brasil de cada arquivo, versões dos pacotes | — |
+
+Regras (CONTEXT.md do sih-br-mcp): **nada interpolado**; **nunca além do último cubo
+FECHADO do SIH** — `POP_UF_ULTIMO_ANO` é uma constante explícita no script (2025), e o
+workflow reprova se ela passar do maior ano com `window_complete` no canal; município → UF
+só por soma. Linhas com idade ignorada (`I000`, 1993–1999) ficam com `age_group` nulo.
+Workflow **`build-sih-population.yml`** (só `workflow_dispatch`; ~4 min; 35 downloads do
+FTP do DATASUS com 3 tentativas por ano — um ano faltando ABORTA): R + `fulvionedel/csapAIH`
+(GitHub; não está no CRAN) → gate da regra do cubo fechado + contagens → smoke do consumidor
+com a população nova → `publish-cubes.sh none "" "" <pasta>` (`cubes-manifest.mjs
+--population --verify` confere cada arquivo com DuckDB contra o sidecar). Quando rodar de
+novo: cubo do ano seguinte fechou (subir `POP_UF_ULTIMO_ANO`), nova revisão do IBGE, POPBR
+reeditado. Localmente: `Rscript scripts/pipeline/sih-cubos/build-population.R --out <dir>`
+(Windows serve; precisa de csapAIH, readxl, tidyr, arrow, dplyr, cli, jsonlite). Provado
+em 2026-09-08: build local = parquets do sih-br-mcp linha a linha nos três arquivos
+(`EXCEPT ALL` = 0; `pop_uf` byte a byte, sha `49e6e6f7…`).
 
 ## Cadeia de reprodução (política do bucket: `docs/policy-reproducibility-pt.md`)
 
@@ -112,6 +139,7 @@ node scripts/pipeline/sih-cubos/cube-delta.mjs --selftest --fixtures scripts/pip
 |---|---|
 | `build-aggregations.R` | builder (agregação, sidecar, gate 1) |
 | `rebuild-cubes.R` | CLI do builder para o workflow e para a mão |
+| `build-population.R` | denominadores populacionais (pop_uf, pop_municipios, pop_uf_agregado + pop_provenance.json); `build-sih-population.yml` |
 | `canal-state.mjs` | baixa manifesto + sidecars do canal (estado) |
 | `cube-delta.mjs` | gate 2 (+ `--selftest`) |
 | `cubes-manifest.mjs` | manifesto assinado (`--verify` com DuckDB; `--tables`) |

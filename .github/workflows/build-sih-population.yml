@@ -1,0 +1,163 @@
+name: Build SIH population denominators
+
+# O QUE ESTE ARQUIVO FAZ (pipeline sih-cubos, 2026-09-08; item
+# sih:populacao-no-canal — docs/reference-pipelines-pt.md §16).
+#
+# Constrói os DENOMINADORES POPULACIONAIS que o consumidor (sih-br-mcp) usa
+# nas taxas por 100 mil — pop_uf.parquet (IBGE, Projeção 2024: UF × sexo ×
+# idade simples, 2000..último cubo FECHADO), pop_municipios.parquet (DATASUS
+# POPBR/POPSVS: município × sexo × faixa etária, 1991–2024) e
+# pop_uf_agregado.parquet (soma por UF, 1991–1999) — mais o sidecar
+# pop_provenance.json, e os publica em sih/cubos/ ao lado dos cubos, assinados
+# no bloco `population` do manifest.json (scripts/pipeline/sih-cubos/
+# build-population.R; cubes-manifest.mjs --population; publish-cubes.sh 4ª
+# posição). Até 08/09/2026 esses arquivos só existiam na pasta data/ local do
+# sih-br-mcp: o servidor instalado pelo npm respondia "Execute
+# build_population.R primeiro" nas ferramentas de taxa.
+#
+# SÓ À MÃO (workflow_dispatch). A população muda por decisão humana: quando o
+# cubo do ano seguinte FECHA (POP_UF_ULTIMO_ANO no script sobe um ano), quando
+# o IBGE publica outra revisão da projeção, ou quando o DATASUS reedita um
+# POPBR. Não pendura no cron dos cubos: são 35 downloads do FTP do DATASUS
+# (instável — o script tenta 3× por ano e ABORTA se faltar um) e ~4 min.
+# Reexecutar é seguro: idempotente, sobrescreve os quatro arquivos.
+#
+# GATES (nada sobe se falhar):
+#   1. build-population.R: 34 anos de POPBR/POPSVS lidos; planilha do IBGE no
+#      leiaute esperado, todos os anos, Homens + Mulheres = Ambos por UF × ano,
+#      Brasil 2024 = 212.583.750; 27 UFs; idades 0–90; contagens esperadas.
+#   2. regra do CONTEXT.md do sih-br-mcp: `last_year` do sidecar ≤ maior ano
+#      com `window_complete = true` no manifesto do canal (nunca projeção além
+#      do último cubo FECHADO).
+#   3. cubes-manifest.mjs --verify: cada arquivo conferido com DuckDB contra o
+#      sidecar (linhas, anos, UFs, Brasil no último ano) antes de assinar.
+#   4. o consumidor de referência (sih-br-mcp, checkout público) sobe pelo
+#      stdio com a fixture de cubos dele + a população NOVA e responde à
+#      superfície do baseline (smoke) — a população nova não quebra o servidor.
+#
+# Mesmo concurrency group do rebuild-sih-cubes.yml: os dois reescrevem o
+# manifest.json (cada um herda do anterior o bloco que não constrói).
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Por que reconstruir (ex.: cubo de 2026 fechou; nova revisão do IBGE; POPBR reeditado). Vai para o summary."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rebuild-sih-cubes
+  cancel-in-progress: false
+
+env:
+  PIPE: scripts/pipeline/sih-cubos
+  CONSUMER_REPO: SidneyBissoli/sih-br-mcp
+  CUBES_BASE: https://data.sidneybissoli.com/sih/cubos/
+  POP_OUT: ${{ github.workspace }}/data/sih-population
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.CONSUMER_REPO }}
+          path: consumer
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Dependências Node (verify do manifesto e consumidor de referência)
+        run: |
+          (cd $PIPE && npm ci)
+          (cd consumer && npm ci)
+
+      # R com binários do RSPM. csapAIH (ler_popbr) não está no CRAN: vem do
+      # GitHub fulvionedel/csapAIH (Imports: data.table).
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            fulvionedel/csapAIH
+            any::arrow
+            any::dplyr
+            any::tidyr
+            any::readxl
+            any::cli
+            any::jsonlite
+          install-pandoc: false
+      - name: csapAIH instalado tem ler_popbr()
+        run: Rscript -e 'stopifnot(exists("ler_popbr", asNamespace("csapAIH"))); cat("csapAIH", as.character(packageVersion("csapAIH")), "arrow", as.character(packageVersion("arrow")), "readxl", as.character(packageVersion("readxl")), "\n")'
+
+      - name: Manifesto publicado (para a regra do último cubo fechado e para herdar os anos)
+        run: |
+          mkdir -p state
+          curl -fsSL --max-time 60 "$CUBES_BASE/manifest.json?v=$(date +%s)" -o state/manifest.json
+          node -e 'const m=require("./state/manifest.json");console.log("canal:",m.manifest_version,Object.keys(m.years).length,"anos; população atual:",m.population?m.population.built_at+" até "+m.population.last_year:"nenhuma")'
+
+      # Gate 1 (dentro do script): 34 anos, planilha, somas, contagens.
+      - name: Construir os denominadores (R)
+        run: |
+          Rscript $PIPE/build-population.R --out "$POP_OUT"
+          ls -la "$POP_OUT"
+
+      # Gate 2: nunca além do último cubo FECHADO do SIH (CONTEXT.md do sih-br-mcp).
+      - name: Regra do último cubo fechado (gate)
+        run: |
+          node - <<'EOF'
+          const fs = require("node:fs");
+          const prov = JSON.parse(fs.readFileSync(`${process.env.POP_OUT}/pop_provenance.json`, "utf8"));
+          const m = JSON.parse(fs.readFileSync("state/manifest.json", "utf8"));
+          const closed = Object.entries(m.years).filter(([, y]) => y.window_complete === true).map(([y]) => Number(y));
+          const lastClosed = Math.max(...closed);
+          console.log(`população até ${prov.last_year}; último cubo FECHADO no canal: ${lastClosed} (${closed.length} anos fechados)`);
+          if (!(prov.last_year <= lastClosed)) {
+            console.error(`::error::pop_uf vai até ${prov.last_year}, além do último cubo FECHADO (${lastClosed}) — regra do CONTEXT.md: sem projeção além do cubo fechado. Ajuste POP_UF_ULTIMO_ANO.`);
+            process.exit(1);
+          }
+          const f = prov.files;
+          const rows = { pop_uf: 27 * 2 * 91 * (prov.last_year - 2000 + 1) };
+          if (f.pop_uf.rows !== rows.pop_uf) { console.error(`::error::pop_uf: ${f.pop_uf.rows} linhas != ${rows.pop_uf} (27 UFs × 2 sexos × 91 idades × anos)`); process.exit(1); }
+          if (f.pop_municipios.years !== 34 || f.pop_municipios.first_year !== 1991 || f.pop_municipios.last_year !== 2024) { console.error(`::error::pop_municipios: ${f.pop_municipios.years} anos (${f.pop_municipios.first_year}–${f.pop_municipios.last_year}) != 34 (1991–2024)`); process.exit(1); }
+          if (f.pop_uf_agregado.first_year !== 1991 || f.pop_uf_agregado.last_year !== 1999) { console.error(`::error::pop_uf_agregado: ${f.pop_uf_agregado.first_year}–${f.pop_uf_agregado.last_year} != 1991–1999`); process.exit(1); }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## População\n\n- built_at ${prov.built_at}; último ano ${prov.last_year} (último cubo fechado ${lastClosed})\n- pop_uf ${f.pop_uf.rows} linhas, Brasil ${prov.last_year} = ${Number(f.pop_uf.brasil_last_year).toLocaleString("pt-BR")}\n- pop_municipios ${f.pop_municipios.rows} linhas, ${f.pop_municipios.years} anos, ${f.pop_municipios.municipalities_last_year} municípios em ${f.pop_municipios.last_year}\n- pop_uf_agregado ${f.pop_uf_agregado.rows} linhas (${f.pop_uf_agregado.first_year}–${f.pop_uf_agregado.last_year})\n- csapAIH ${prov.builder.packages.csapAIH}, arrow ${prov.builder.packages.arrow}, R ${prov.builder.packages.R}\n\n`);
+          EOF
+
+      # Gate 4: o consumidor de referência sobe sobre a fixture de cubos dele +
+      # a população NOVA (SIH_DATA_DIR) e responde à superfície do baseline.
+      - name: Smoke do consumidor com a população nova (gate)
+        working-directory: consumer
+        run: |
+          mkdir -p ../smoke-data
+          cp tests/fixtures/sih/* ../smoke-data/
+          cp "$POP_OUT"/pop_*.parquet ../smoke-data/
+          node scripts/smoke-stdio.mjs --fixtures ../smoke-data --baseline baselines/surface-stdio.json
+
+      # Gate 3 (dentro do publish): cubes-manifest.mjs --verify com DuckDB; depois
+      # os quatro arquivos → manifesto por último → Content-Length pelo domínio.
+      - name: Publicar no canal (sih/cubos/)
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          bash $PIPE/publish-cubes.sh none data/sih-cubos "" "$POP_OUT"
+          if [ -n "${{ github.event.inputs.reason }}" ]; then echo "Motivo: ${{ github.event.inputs.reason }}" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: population
+          path: |
+            data/sih-population/pop_provenance.json
+            cubes-manifest.json
+          retention-days: 90

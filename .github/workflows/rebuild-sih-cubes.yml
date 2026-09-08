@@ -47,12 +47,6 @@ name: Rebuild SIH cubes
 # pendente (concurrency sem cancelamento).
 
 on:
-  # TEMPORÁRIO (prova no branch sih-cubos-produtor, 2026-09-08): o GitHub só
-  # registra um workflow para dispatch depois de ele rodar uma vez; sai antes
-  # do merge.
-  push:
-    branches: [sih-cubos-produtor]
-    paths: ['.github/workflows/rebuild-sih-cubes.yml']
   schedule:
     - cron: "0 6 * * 2"
   workflow_dispatch:
@@ -293,28 +287,28 @@ jobs:
       # Registro histórico do build. O push com o GITHUB_TOKEN não dispara
       # outros workflows (o sync-check reage a push nos CSVs, mas só de token
       # de usuário/PAT). O checkout é do momento do DISPARO; num build de 30
-      # min o branch pode ter andado — rebase e tenta de novo.
+      # min o branch pode ter andado — inclusive com a linha do run anterior
+      # no MESMO fim de arquivo, e "acrescentar no fim" reaplicado por rebase
+      # conflita sempre (run 34233538992, 1992 atrás de 2025). Por isso a
+      # linha é gerada SOBRE o branch mais novo, a cada tentativa, e o commit
+      # nasce já em cima dele; só o push pode ser rejeitado, e aí repete.
       - name: Registrar em data/controle_versao_sih_cubos.csv
         run: |
-          node $PIPE/controle.mjs append --csv data/controle_versao_sih_cubos.csv \
-            --data "$SIH_CUBOS_OUT" --years "$YEARS" --reason "${{ needs.decide.outputs.reason }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/controle_versao_sih_cubos.csv
-          git commit -m "sih-cubos: cubo(s) $YEARS reconstruído(s) e publicado(s)
-
-          ${{ needs.decide.outputs.reason }}
-          run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           BRANCH="${{ github.ref_name }}"
           for tentativa in 1 2 3; do
             git fetch origin "$BRANCH"
-            if ! git rebase "origin/$BRANCH"; then
-              git rebase --abort
-              echo "::error::controle_versao_sih_cubos.csv conflita com o branch atual"
-              exit 1
-            fi
+            git checkout -q -B "$BRANCH" "origin/$BRANCH"
+            node $PIPE/controle.mjs append --csv data/controle_versao_sih_cubos.csv \
+              --data "$SIH_CUBOS_OUT" --years "$YEARS" --reason "${{ needs.decide.outputs.reason }}"
+            git add data/controle_versao_sih_cubos.csv
+            git commit -q -m "sih-cubos: cubo(s) $YEARS reconstruído(s) e publicado(s)
+
+          ${{ needs.decide.outputs.reason }}
+          run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             if git push origin "HEAD:$BRANCH"; then break; fi
-            echo "push rejeitado (tentativa $tentativa) — o branch andou de novo; refazendo"
+            echo "push rejeitado (tentativa $tentativa) — o branch andou de novo; refazendo a linha sobre ele"
             [ "$tentativa" = 3 ] && exit 1
             sleep 5
           done

@@ -1,0 +1,325 @@
+name: Rebuild SIH cubes
+
+# O QUE ESTE ARQUIVO FAZ (pipeline sih-cubos, 2026-09-08; veio do
+# rebuild-cubes.yml do sih-br-mcp, em produção lá de 06/09 a 08/09/2026 —
+# docs/reference-pipelines-pt.md §16).
+#
+# Os cubos anuais de sih/cubos/ (causas, séries mensais, ICSAP por município;
+# scripts/pipeline/sih-cubos/build-aggregations.R) são somados a partir das
+# partições de sih/rd/. O Ministério reedita arquivos RD de competências
+# passadas; a manutenção deste repositório detecta e republica a partição, e o
+# manifesto de sih/rd/ passa a trazer outro MD5 para ela — o cubo somado do
+# arquivo antigo está ATRÁS. Este workflow decide sozinho quais cubos estão
+# atrás, reconstrói só esses no runner (R + healthbR lendo o espelho), passa
+# cada cubo novo por três gates e publica cubos + sidecar + manifesto no canal.
+#
+# ESTADO = O CANAL, NÃO O GIT. Nenhum sidecar é versionado aqui: o job `decide`
+# baixa manifesto e sidecars de sih/cubos/ (canal-state.mjs) e o `build` usa o
+# sidecar publicado como "antes" do delta e como origem das UFs de arquivo.
+# O único commit por run é a linha em data/controle_versao_sih_cubos.csv —
+# o registro histórico, no mesmo molde dos demais controle_versao_*.csv.
+#
+# GATILHOS:
+#   - schedule: terça 06:00 UTC — a manutenção roda de segunda e leva ~20 h;
+#     terça de manhã o espelho já assentou. Sem nada atrás, `decide` sai verde
+#     em ~2 min e `build` nem nasce.
+#   - workflow_dispatch: à mão (years, ufs, force) e pelo sync-check.yml no
+#     fim da rodada pós-manutenção (`gh workflow run`, mesmo repositório —
+#     substitui o repository_dispatch cruzado que existia até 08/09/2026).
+#
+# GATES (o golden do sih-br-mcp NÃO vê o cubo real — roda sobre a fixture dele):
+#   1. o build aborta se a contagem lida de qualquer partição difere do
+#      manifesto de sih/rd/ (build-aggregations.R);
+#   2. cube-delta.mjs compara o sidecar novo com o publicado e reprova partição
+#      perdida sem retirada no espelho, queda > 1% de internações sem retirada,
+#      janela regredida e mudança de escopo não pedida (autoteste do gate roda
+#      em `decide`, sobre o sidecar de 2023 do canal);
+#   3. o CONSUMIDOR de referência (sih-br-mcp, checkout público) sobe pelo
+#      stdio SOBRE os cubos novos com a superfície do baseline dele e responde
+#      às três chamadas do smoke;
+#   e cubes-manifest.mjs --verify confere cada cubo com DuckDB contra o sidecar
+#   antes de assinar o manifesto. O frescor (o que está atrás) também é medido
+#   com o código do consumidor (scripts/freshness-check.mjs), que é o
+#   consumidor de referência de sih/rd/manifest-summary.json.
+#
+# MEMÓRIA DO RUNNER: 2 anos por dispatch, nunca mais (2025 estourou com 3).
+# Cada dispatch constrói com o branch do momento; a fila é 1 rodando + 1
+# pendente (concurrency sem cancelamento).
+
+on:
+  schedule:
+    - cron: "0 6 * * 2"
+  workflow_dispatch:
+    inputs:
+      years:
+        description: "Anos a reconstruir (ex.: 2023 ou 2023,2024). Vazio = os que o frescor apontar como atrás."
+        required: false
+        default: ""
+      ufs:
+        description: "UFs de arquivo (ex.: RR,AC ou all). Vazio = as do sidecar publicado do ano. Obrigatório para ano sem cubo."
+        required: false
+        default: ""
+      force:
+        description: "Reconstruir todos os cubos publicados mesmo em dia (validação do workflow; 2 anos por run — use years)."
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rebuild-sih-cubes
+  cancel-in-progress: false
+
+env:
+  PIPE: scripts/pipeline/sih-cubos
+  CONSUMER_REPO: SidneyBissoli/sih-br-mcp
+  CUBES_BASE: https://data.sidneybissoli.com/sih/cubos/
+
+jobs:
+  decide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      years: ${{ steps.pick.outputs.years }}
+      reason: ${{ steps.pick.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.CONSUMER_REPO }}
+          path: consumer
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Estado do canal (manifesto + sidecars publicados)
+        run: node $PIPE/canal-state.mjs --out state --years all --base "$CUBES_BASE"
+
+      # O consumidor de referência traz o medidor de frescor (src/freshness.ts,
+      # scripts/freshness-check.mjs); `npm ci` compila o dist/ pelo `prepare`.
+      - name: Consumidor de referência (sih-br-mcp) compilado
+        working-directory: consumer
+        run: npm ci
+
+      # Ao vivo, contra o espelho: sai 0 (current), 3 (stale) ou 2 (unknown).
+      # O exit code não decide nada aqui — o JSON gravado decide, no passo
+      # seguinte; por isso `|| true`.
+      - name: Frescor dos cubos frente ao espelho sih/rd/
+        working-directory: consumer
+        run: node scripts/freshness-check.mjs --fixtures ../state/sidecars --out ../freshness.json || true
+
+      - name: Autoteste do gate de delta (sobre o sidecar de 2023 do canal)
+        run: node $PIPE/cube-delta.mjs --selftest --fixtures state/sidecars
+
+      - name: Escolher os anos
+        id: pick
+        env:
+          INPUT_YEARS: ${{ github.event.inputs.years }}
+          INPUT_FORCE: ${{ github.event.inputs.force }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          node - <<'EOF'
+          const fs = require("node:fs");
+          if (!fs.existsSync("freshness.json")) {
+            fs.writeFileSync("freshness.json", JSON.stringify({ status: "unknown", error: "freshness.json não foi gravado pelo passo anterior" }, null, 2) + "\n");
+          }
+          const state = JSON.parse(fs.readFileSync("freshness.json", "utf8"));
+          const manifest = JSON.parse(fs.readFileSync("state/manifest.json", "utf8"));
+          const publishedYears = Object.keys(manifest.years ?? {}).map(Number).sort();
+          const asked = (process.env.INPUT_YEARS ?? "").split(",").map((s) => s.trim()).filter(Boolean).map(Number);
+          if (asked.some((y) => !Number.isInteger(y))) { console.error(`::error::years inválido: ${process.env.INPUT_YEARS}`); process.exit(1); }
+          let years, reason;
+          if (asked.length) {
+            years = [...new Set(asked)].sort();
+            reason = `pedido à mão (${process.env.EVENT}): ${years.join(", ")}`;
+          } else if (process.env.INPUT_FORCE === "true") {
+            years = publishedYears;
+            reason = `force: todos os cubos publicados (${years.join(", ") || "nenhum"})`;
+          } else if (state.status === "stale") {
+            years = state.cubes.filter((c) => c.behind).map((c) => c.cube_year).sort();
+            reason = `atrás do espelho (manifesto ${state.manifest_last_updated_remote}): ${years.map((y) => {
+              const c = state.cubes.find((x) => x.cube_year === y);
+              return `${y} [${["reedited", "reprocessed", "removed", "new_in_window"].filter((k) => c[k].length).map((k) => `${k}=${c[k].length}`).join(" ")}]`;
+            }).join("; ")}`;
+          } else if (state.status === "current") {
+            years = [];
+            reason = `em dia (manifesto ${state.manifest_last_updated_remote}, via ${state.method}) — nada a reconstruir`;
+          } else {
+            console.error(`::error::frescor não verificado (${state.status}: ${state.error}) — sem veredito não há rebuild; rode de novo ou use workflow_dispatch com years`);
+            process.exit(1);
+          }
+          if (years.length > 2 && process.env.EVENT !== "workflow_dispatch") {
+            console.log(`::warning::${years.length} anos atrás; o runner aguenta 2 por run — construindo ${years.slice(0, 2).join(", ")} agora, o resto na próxima rodada`);
+            years = years.slice(0, 2);
+          }
+          console.log(reason);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `years=${years.join(",")}\nreason=${reason}\n`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Decisão\n\n${reason}\n\n`);
+          EOF
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: estado
+          path: |
+            freshness.json
+            state/
+          retention-days: 30
+
+  build:
+    needs: decide
+    if: needs.decide.outputs.years != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      YEARS: ${{ needs.decide.outputs.years }}
+      INPUT_UFS: ${{ github.event.inputs.ufs }}
+      SIH_CUBOS_OUT: ${{ github.workspace }}/data/sih-cubos
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.CONSUMER_REPO }}
+          path: consumer
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: estado
+          path: .
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Dependências Node (gates da pipeline e consumidor de referência)
+        run: |
+          (cd $PIPE && npm ci)
+          (cd consumer && npm ci)
+
+      # R com binários do Posit Public Package Manager (arrow do CRAN compila
+      # ~10 min sem isso). healthbR vem do GitHub: a versão do CRAN limita o
+      # SIH a 2008+ e o build lê desde 1992.
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            SidneyBissoli/healthbR
+            any::arrow
+            any::dplyr
+            any::tidyr
+            any::purrr
+            any::stringr
+            any::cli
+            any::jsonlite
+            any::here
+          install-pandoc: false
+      - name: healthbR instalado tem sih_status() e aceita 1992 (>= 0.4.0.9000)
+        run: Rscript -e 'stopifnot(exists("sih_status", asNamespace("healthbR")), 1992L %in% healthbR::sih_years("all")); cat("healthbR", as.character(packageVersion("healthbR")), "arrow", as.character(packageVersion("arrow")), "\n")'
+
+      # O sidecar publicado do ano vai para before/ (gate 2) e para a pasta de
+      # saída (rebuild-cubes.R lê dele as UFs de arquivo). Ano sem sidecar no
+      # canal é cubo NOVO: precisa de `ufs` no dispatch.
+      - name: Sidecars publicados dos anos pedidos
+        run: |
+          mkdir -p before "$SIH_CUBOS_OUT"
+          for Y in $(echo "$YEARS" | tr ',' ' '); do
+            if [ -f "state/sidecars/sih_provenance_$Y.json" ]; then
+              cp "state/sidecars/sih_provenance_$Y.json" before/
+              cp "state/sidecars/sih_provenance_$Y.json" "$SIH_CUBOS_OUT/"
+            else
+              echo "::notice::$Y não tem sidecar no canal — cubo novo"
+            fi
+          done
+          ls -la before
+
+      - name: Reconstruir os cubos (R, lendo sih/rd/ pelo healthbR)
+        run: |
+          ARGS="--years $YEARS"
+          if [ -n "$INPUT_UFS" ]; then ARGS="$ARGS --ufs $INPUT_UFS"; fi
+          echo "Rscript $PIPE/rebuild-cubes.R $ARGS"
+          Rscript $PIPE/rebuild-cubes.R $ARGS
+          ls -la "$SIH_CUBOS_OUT"
+
+      # Gate 2: o que mudou entre o sidecar publicado e o novo, ano a ano.
+      - name: Delta dos cubos (gate)
+        run: |
+          set -e
+          : > delta.md
+          for Y in $(echo "$YEARS" | tr ',' ' '); do
+            if [ -f "before/sih_provenance_$Y.json" ]; then
+              FLAGS=""
+              if [ -n "$INPUT_UFS" ]; then FLAGS="--allow-scope-change"; fi
+              node $PIPE/cube-delta.mjs --before "before/sih_provenance_$Y.json" --after "$SIH_CUBOS_OUT/sih_provenance_$Y.json" \
+                --freshness freshness.json $FLAGS --md "delta-$Y.md"
+            else
+              node - "$Y" "$SIH_CUBOS_OUT" <<'EOF' > "delta-$Y.md"
+          const fs = require("node:fs");
+          const [y, dir] = process.argv.slice(2);
+          const s = JSON.parse(fs.readFileSync(`${dir}/sih_provenance_${y}.json`, "utf8"));
+          console.log(`### Cubo ${y} — NOVO (sem sidecar publicado)\n`);
+          console.log(`UFs de arquivo: ${s.ufs_arquivo.join(" ")}; ${s.partitions.length} partições; janela completa: ${s.window?.complete}; internações: ${s.totals?.records_in_cube?.toLocaleString("pt-BR")}; manifesto do espelho ${s.distributor?.manifest_last_updated}; build ${s.built_at}.\n`);
+          EOF
+            fi
+            cat "delta-$Y.md" >> delta.md
+            echo >> delta.md
+          done
+          cat delta.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Gate 3: o consumidor de referência sobe sobre os cubos NOVOS, expõe a
+      # superfície do baseline dele e responde às três chamadas.
+      - name: Smoke do consumidor sobre os cubos novos (gate)
+        working-directory: consumer
+        run: node scripts/smoke-stdio.mjs --fixtures "$SIH_CUBOS_OUT" --baseline baselines/surface-stdio.json
+
+      # Manifesto verificado (DuckDB) + cubos + sidecars + tabelas → sih/cubos/.
+      - name: Publicar no canal (sih/cubos/)
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: bash $PIPE/publish-cubes.sh "$YEARS" "$SIH_CUBOS_OUT" "$PIPE/tables"
+
+      # Registro histórico do build. O push com o GITHUB_TOKEN não dispara
+      # outros workflows (o sync-check reage a push nos CSVs, mas só de token
+      # de usuário/PAT). O checkout é do momento do DISPARO; num build de 30
+      # min o branch pode ter andado — rebase e tenta de novo.
+      - name: Registrar em data/controle_versao_sih_cubos.csv
+        run: |
+          node $PIPE/controle.mjs append --csv data/controle_versao_sih_cubos.csv \
+            --data "$SIH_CUBOS_OUT" --years "$YEARS" --reason "${{ needs.decide.outputs.reason }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/controle_versao_sih_cubos.csv
+          git commit -m "sih-cubos: cubo(s) $YEARS reconstruído(s) e publicado(s)
+
+          ${{ needs.decide.outputs.reason }}
+          run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BRANCH="${{ github.ref_name }}"
+          for tentativa in 1 2 3; do
+            git fetch origin "$BRANCH"
+            if ! git rebase "origin/$BRANCH"; then
+              git rebase --abort
+              echo "::error::controle_versao_sih_cubos.csv conflita com o branch atual"
+              exit 1
+            fi
+            if git push origin "HEAD:$BRANCH"; then break; fi
+            echo "push rejeitado (tentativa $tentativa) — o branch andou de novo; refazendo"
+            [ "$tentativa" = 3 ] && exit 1
+            sleep 5
+          done
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: build-${{ needs.decide.outputs.years }}
+          path: |
+            delta.md
+            delta-*.md
+            cubes-manifest.json
+            data/sih-cubos/sih_provenance_*.json
+          retention-days: 90

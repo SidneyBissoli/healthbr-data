@@ -23,6 +23,7 @@ vivos, internações) em 3 linhas de código R ou Python.
 | SINASC Nascidos vivos (microdados) | `sinasc/` | ~85M | 1994–2022 | ✅ Disponível |
 | SIH Internações hospitalares — AIH reduzida (RD, microdados) | `sih/rd/` | ~415M | 1992–presente | ✅ Disponível |
 | SIH Serviços profissionais — atos por internação (SP, microdados) | `sih/sp/` | ~1 bi+ (est.) | 1997–presente | 🔧 Em bootstrap |
+| SIH Internações — cubos anuais (causas, séries mensais, ICSAP por município; derivados de `sih/rd/` pela [pipeline `sih-cubos`](scripts/pipeline/sih-cubos/) deste repositório, reconstruídos toda semana quando o espelho muda; consumidos pelo [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp)) | `sih/cubos/` | 34 anos, ~1,5 GB | 1992–2025 | ✅ Disponível |
 
 Os datasets que recebem dados novos do Ministério (SI-PNI rotina, SI-PNI
 COVID, SINASC, SIH) são atualizados por uma verificação semanal

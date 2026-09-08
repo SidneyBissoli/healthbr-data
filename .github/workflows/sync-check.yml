@@ -77,26 +77,22 @@ jobs:
           git commit -m "Update sync status $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
           git push
 
-      # Avisar o sih-br-mcp que o espelho mudou (2026-09-06). SÓ no evento
-      # push: é o commit dos CSVs de controle que a VPS faz no FIM da
-      # manutenção — o momento em que o manifesto acabou de ser reescrito. O
-      # sih não confia neste aviso para decidir o quê: o workflow
-      # rebuild-cubes.yml dele compara os sidecars com o manifesto e só
-      # reconstrói os cubos que estão atrás; o dispatch é latência (sem ele, o
-      # schedule de terça faz o mesmo). O `github.token` não dispara workflow
-      # em outro repositório: precisa de um PAT fine-grained com
-      # `Contents: write` só no sih-br-mcp, guardado como SIH_DISPATCH_PAT.
-      # Sem o secret, o passo é pulado (o `if` lê o env, porque secrets não
-      # entram em `if`).
-      - name: Notify sih-br-mcp (repository_dispatch)
-        if: github.event_name == 'push' && env.SIH_DISPATCH_PAT != ''
+      # Reconstruir os cubos do SIH (2026-09-08; até então era um
+      # repository_dispatch cruzado para o sih-br-mcp, com SIH_DISPATCH_PAT — o
+      # produtor dos cubos migrou para este repositório, pipeline sih-cubos).
+      # SÓ no evento push: é o commit dos CSVs de controle que a VPS faz no
+      # FIM da manutenção — o momento em que o manifesto de sih/rd/ acabou de
+      # ser reescrito. O rebuild-sih-cubes.yml não confia neste aviso para
+      # decidir o quê: o job `decide` dele compara os sidecars publicados no
+      # canal com o manifesto e só reconstrói os cubos que estão atrás; o
+      # disparo é latência (sem ele, o schedule de terça faz o mesmo).
+      - name: Rebuild SIH cubes (rebuild-sih-cubes.yml)
+        if: github.event_name == 'push'
         env:
-          SIH_DISPATCH_PAT: ${{ secrets.SIH_DISPATCH_PAT }}
-          GH_TOKEN: ${{ secrets.SIH_DISPATCH_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          LAST="${{ steps.summary.outputs.last_updated }}"
-          gh api "repos/SidneyBissoli/sih-br-mcp/dispatches"             -f event_type=healthbr-sih-updated             -F "client_payload[source]=healthbr-data sync-check"             -F "client_payload[run]=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             -F "client_payload[manifest_last_updated]=${LAST}"
-          echo "sih-br-mcp avisado (healthbr-sih-updated)"
+          gh workflow run rebuild-sih-cubes.yml --ref "${GITHUB_REF_NAME}"
+          echo "rebuild-sih-cubes.yml disparado (manifesto sih/rd ${{ steps.summary.outputs.last_updated }})"
 
       # Manutenção condicional: se algum dataset automatizado tem partições
       # missing/outdated, dispara a rodada de manutenção (VPS sob demanda).

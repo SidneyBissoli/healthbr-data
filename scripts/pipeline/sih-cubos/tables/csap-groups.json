@@ -1,0 +1,262 @@
+{
+  "metadata": {
+    "source": "Portaria MS/SAS nº 221, de 17 de abril de 2008",
+    "description": "Lista Brasileira de Internações por Condições Sensíveis à Atenção Primária",
+    "classification": "CID-10",
+    "total_groups": 19,
+    "url": "https://bvsms.saude.gov.br/bvs/saudelegis/sas/2008/prt0221_17_04_2008.html"
+  },
+  "groups": [
+    {
+      "id": 1,
+      "code": "g01",
+      "name_pt": "Doenças preveníveis por imunização e condições sensíveis",
+      "name_en": "Vaccine-preventable diseases and sensitive conditions",
+      "diagnoses": [
+        { "name": "Coqueluche", "cid10": ["A37"] },
+        { "name": "Difteria", "cid10": ["A36"] },
+        { "name": "Tétano", "cid10": ["A33", "A34", "A35"] },
+        { "name": "Parotidite", "cid10": ["B26"] },
+        { "name": "Rubéola", "cid10": ["B06"] },
+        { "name": "Sarampo", "cid10": ["B05"] },
+        { "name": "Febre Amarela", "cid10": ["A95"] },
+        { "name": "Hepatite B", "cid10": ["B16"] },
+        { "name": "Meningite por Haemophilus", "cid10": ["G00.0"] },
+        { "name": "Meningite Tuberculosa", "cid10": ["A17.0"] },
+        { "name": "Tuberculose miliar", "cid10": ["A19"] },
+        { "name": "Tuberculose Pulmonar", "cid10": ["A15.0", "A15.1", "A15.2", "A15.3", "A16.0", "A16.1", "A16.2", "A15.4", "A15.5", "A15.6", "A15.7", "A15.8", "A15.9", "A16.3", "A16.4", "A16.5", "A16.7", "A16.8", "A16.9", "A17.1", "A17.8", "A17.9"] },
+        { "name": "Outras Tuberculoses", "cid10": ["A18"] },
+        { "name": "Febre reumática", "cid10": ["I00", "I01", "I02"] },
+        { "name": "Sífilis", "cid10": ["A51", "A52", "A53"] },
+        { "name": "Malária", "cid10": ["B50", "B51", "B52", "B53", "B54"] },
+        { "name": "Ascaridíase", "cid10": ["B77"] }
+      ],
+      "cid10_all": ["A33", "A34", "A35", "A36", "A37", "A95", "B05", "B06", "B16", "B26", "G00.0", "A17.0", "A19", "A15", "A16", "A17.1", "A17.8", "A17.9", "A18", "I00", "I01", "I02", "A51", "A52", "A53", "B50", "B51", "B52", "B53", "B54", "B77"]
+    },
+    {
+      "id": 2,
+      "code": "g02",
+      "name_pt": "Gastroenterites infecciosas e complicações",
+      "name_en": "Infectious gastroenteritis and complications",
+      "diagnoses": [
+        { "name": "Desidratação", "cid10": ["E86"] },
+        { "name": "Gastroenterites", "cid10": ["A00", "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09"] }
+      ],
+      "cid10_all": ["E86", "A00", "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09"]
+    },
+    {
+      "id": 3,
+      "code": "g03",
+      "name_pt": "Anemia",
+      "name_en": "Anemia",
+      "diagnoses": [
+        { "name": "Anemia por deficiência de ferro", "cid10": ["D50"] }
+      ],
+      "cid10_all": ["D50"]
+    },
+    {
+      "id": 4,
+      "code": "g04",
+      "name_pt": "Deficiências nutricionais",
+      "name_en": "Nutritional deficiencies",
+      "diagnoses": [
+        { "name": "Kwashiorkor e outras formas de desnutrição protéico-calórica", "cid10": ["E40", "E41", "E42", "E43", "E44", "E45", "E46"] },
+        { "name": "Outras deficiências nutricionais", "cid10": ["E50", "E51", "E52", "E53", "E54", "E55", "E56", "E58", "E59", "E60", "E61", "E63", "E64"] }
+      ],
+      "cid10_all": ["E40", "E41", "E42", "E43", "E44", "E45", "E46", "E50", "E51", "E52", "E53", "E54", "E55", "E56", "E58", "E59", "E60", "E61", "E63", "E64"]
+    },
+    {
+      "id": 5,
+      "code": "g05",
+      "name_pt": "Infecções de ouvido, nariz e garganta",
+      "name_en": "Ear, nose and throat infections",
+      "diagnoses": [
+        { "name": "Otite média supurativa", "cid10": ["H66"] },
+        { "name": "Nasofaringite aguda (resfriado comum)", "cid10": ["J00"] },
+        { "name": "Sinusite aguda", "cid10": ["J01"] },
+        { "name": "Faringite aguda", "cid10": ["J02"] },
+        { "name": "Amigdalite aguda", "cid10": ["J03"] },
+        { "name": "Infecção aguda das vias aéreas superiores", "cid10": ["J06"] },
+        { "name": "Rinite, nasofaringite e faringite crônicas", "cid10": ["J31"] }
+      ],
+      "cid10_all": ["H66", "J00", "J01", "J02", "J03", "J06", "J31"]
+    },
+    {
+      "id": 6,
+      "code": "g06",
+      "name_pt": "Pneumonias bacterianas",
+      "name_en": "Bacterial pneumonia",
+      "diagnoses": [
+        { "name": "Pneumonia Pneumocócica", "cid10": ["J13"] },
+        { "name": "Pneumonia por Haemophilus influenzae", "cid10": ["J14"] },
+        { "name": "Pneumonia por Streptococcus", "cid10": ["J15.3", "J15.4"] },
+        { "name": "Pneumonia bacteriana não especificada", "cid10": ["J15.8", "J15.9"] },
+        { "name": "Pneumonia lobar não especificada", "cid10": ["J18.1"] }
+      ],
+      "cid10_all": ["J13", "J14", "J15.3", "J15.4", "J15.8", "J15.9", "J18.1"]
+    },
+    {
+      "id": 7,
+      "code": "g07",
+      "name_pt": "Asma",
+      "name_en": "Asthma",
+      "diagnoses": [
+        { "name": "Asma", "cid10": ["J45", "J46"] }
+      ],
+      "cid10_all": ["J45", "J46"]
+    },
+    {
+      "id": 8,
+      "code": "g08",
+      "name_pt": "Doenças pulmonares",
+      "name_en": "Pulmonary diseases",
+      "diagnoses": [
+        { "name": "Bronquite aguda", "cid10": ["J20", "J21"] },
+        { "name": "Bronquite não especificada como aguda ou crônica", "cid10": ["J40"] },
+        { "name": "Bronquite crônica simples e mucopurulenta", "cid10": ["J41"] },
+        { "name": "Bronquite crônica não especificada", "cid10": ["J42"] },
+        { "name": "Enfisema", "cid10": ["J43"] },
+        { "name": "Bronquiectasia", "cid10": ["J47"] },
+        { "name": "Outras doenças pulmonares obstrutivas crônicas", "cid10": ["J44"] }
+      ],
+      "cid10_all": ["J20", "J21", "J40", "J41", "J42", "J43", "J44", "J47"]
+    },
+    {
+      "id": 9,
+      "code": "g09",
+      "name_pt": "Hipertensão",
+      "name_en": "Hypertension",
+      "diagnoses": [
+        { "name": "Hipertensão essencial", "cid10": ["I10"] },
+        { "name": "Doença cardíaca hipertensiva", "cid10": ["I11"] }
+      ],
+      "cid10_all": ["I10", "I11"]
+    },
+    {
+      "id": 10,
+      "code": "g10",
+      "name_pt": "Angina",
+      "name_en": "Angina",
+      "diagnoses": [
+        { "name": "Angina pectoris", "cid10": ["I20"] }
+      ],
+      "cid10_all": ["I20"]
+    },
+    {
+      "id": 11,
+      "code": "g11",
+      "name_pt": "Insuficiência cardíaca",
+      "name_en": "Heart failure",
+      "diagnoses": [
+        { "name": "Insuficiência cardíaca", "cid10": ["I50"] },
+        { "name": "Edema agudo de pulmão", "cid10": ["J81"] }
+      ],
+      "cid10_all": ["I50", "J81"]
+    },
+    {
+      "id": 12,
+      "code": "g12",
+      "name_pt": "Doenças cerebrovasculares",
+      "name_en": "Cerebrovascular diseases",
+      "diagnoses": [
+        { "name": "Doenças cerebrovasculares", "cid10": ["I63", "I64", "I65", "I66", "I67", "I69", "G45", "G46"] }
+      ],
+      "cid10_all": ["I63", "I64", "I65", "I66", "I67", "I69", "G45", "G46"]
+    },
+    {
+      "id": 13,
+      "code": "g13",
+      "name_pt": "Diabetes mellitus",
+      "name_en": "Diabetes mellitus",
+      "diagnoses": [
+        { "name": "Com coma ou cetoacidose", "cid10": ["E10.0", "E10.1", "E11.0", "E11.1", "E12.0", "E12.1", "E13.0", "E13.1", "E14.0", "E14.1"] },
+        { "name": "Com complicações", "cid10": ["E10.2", "E10.3", "E10.4", "E10.5", "E10.6", "E10.7", "E10.8", "E11.2", "E11.3", "E11.4", "E11.5", "E11.6", "E11.7", "E11.8", "E12.2", "E12.3", "E12.4", "E12.5", "E12.6", "E12.7", "E12.8", "E13.2", "E13.3", "E13.4", "E13.5", "E13.6", "E13.7", "E13.8", "E14.2", "E14.3", "E14.4", "E14.5", "E14.6", "E14.7", "E14.8"] },
+        { "name": "Sem complicações específicas", "cid10": ["E10.9", "E11.9", "E12.9", "E13.9", "E14.9"] }
+      ],
+      "cid10_all": ["E10.0", "E10.1", "E10.2", "E10.3", "E10.4", "E10.5", "E10.6", "E10.7", "E10.8", "E10.9", "E11.0", "E11.1", "E11.2", "E11.3", "E11.4", "E11.5", "E11.6", "E11.7", "E11.8", "E11.9", "E12.0", "E12.1", "E12.2", "E12.3", "E12.4", "E12.5", "E12.6", "E12.7", "E12.8", "E12.9", "E13.0", "E13.1", "E13.2", "E13.3", "E13.4", "E13.5", "E13.6", "E13.7", "E13.8", "E13.9", "E14.0", "E14.1", "E14.2", "E14.3", "E14.4", "E14.5", "E14.6", "E14.7", "E14.8", "E14.9"]
+    },
+    {
+      "id": 14,
+      "code": "g14",
+      "name_pt": "Epilepsias",
+      "name_en": "Epilepsy",
+      "diagnoses": [
+        { "name": "Epilepsias", "cid10": ["G40", "G41"] }
+      ],
+      "cid10_all": ["G40", "G41"]
+    },
+    {
+      "id": 15,
+      "code": "g15",
+      "name_pt": "Infecção no rim e trato urinário",
+      "name_en": "Kidney and urinary tract infection",
+      "diagnoses": [
+        { "name": "Nefrite túbulo-intersticial aguda", "cid10": ["N10"] },
+        { "name": "Nefrite túbulo-intersticial crônica", "cid10": ["N11"] },
+        { "name": "Nefrite túbulo-intersticial não especificada", "cid10": ["N12"] },
+        { "name": "Cistite", "cid10": ["N30"] },
+        { "name": "Uretrite", "cid10": ["N34"] },
+        { "name": "Infecção do trato urinário de localização não especificada", "cid10": ["N39.0"] }
+      ],
+      "cid10_all": ["N10", "N11", "N12", "N30", "N34", "N39.0"]
+    },
+    {
+      "id": 16,
+      "code": "g16",
+      "name_pt": "Infecção da pele e tecido subcutâneo",
+      "name_en": "Skin and subcutaneous tissue infection",
+      "diagnoses": [
+        { "name": "Erisipela", "cid10": ["A46"] },
+        { "name": "Impetigo", "cid10": ["L01"] },
+        { "name": "Abscesso cutâneo, furúnculo e carbúnculo", "cid10": ["L02"] },
+        { "name": "Celulite", "cid10": ["L03"] },
+        { "name": "Linfadenite aguda", "cid10": ["L04"] },
+        { "name": "Outras infecções localizadas na pele e tecido subcutâneo", "cid10": ["L08"] }
+      ],
+      "cid10_all": ["A46", "L01", "L02", "L03", "L04", "L08"]
+    },
+    {
+      "id": 17,
+      "code": "g17",
+      "name_pt": "Doença inflamatória dos órgãos pélvicos femininos",
+      "name_en": "Female pelvic inflammatory disease",
+      "diagnoses": [
+        { "name": "Salpingite e ooforite", "cid10": ["N70"] },
+        { "name": "Doença inflamatória do útero, exceto o colo", "cid10": ["N71"] },
+        { "name": "Doença inflamatória do colo do útero", "cid10": ["N72"] },
+        { "name": "Outras doenças inflamatórias pélvicas femininas", "cid10": ["N73"] },
+        { "name": "Doenças da glândula de Bartholin", "cid10": ["N75"] },
+        { "name": "Outras afecções inflamatórias da vagina e da vulva", "cid10": ["N76"] }
+      ],
+      "cid10_all": ["N70", "N71", "N72", "N73", "N75", "N76"]
+    },
+    {
+      "id": 18,
+      "code": "g18",
+      "name_pt": "Úlcera gastrointestinal",
+      "name_en": "Gastrointestinal ulcer",
+      "diagnoses": [
+        { "name": "Úlcera gástrica", "cid10": ["K25"] },
+        { "name": "Úlcera duodenal", "cid10": ["K26"] },
+        { "name": "Úlcera péptica de localização não especificada", "cid10": ["K27"] },
+        { "name": "Úlcera gastrojejunal", "cid10": ["K28"] },
+        { "name": "Hematêmese", "cid10": ["K92.0"] },
+        { "name": "Melena", "cid10": ["K92.1"] },
+        { "name": "Hemorragia gastrointestinal não especificada", "cid10": ["K92.2"] }
+      ],
+      "cid10_all": ["K25", "K26", "K27", "K28", "K92.0", "K92.1", "K92.2"]
+    },
+    {
+      "id": 19,
+      "code": "g19",
+      "name_pt": "Doenças relacionadas ao pré-natal e parto",
+      "name_en": "Prenatal and childbirth-related diseases",
+      "diagnoses": [
+        { "name": "Infecção do trato urinário na gravidez", "cid10": ["O23"] },
+        { "name": "Sífilis congênita", "cid10": ["A50"] },
+        { "name": "Síndrome da rubéola congênita", "cid10": ["P35.0"] }
+      ],
+      "cid10_all": ["O23", "A50", "P35.0"]
+    }
+  ]
+}

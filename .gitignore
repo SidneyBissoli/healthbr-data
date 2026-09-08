@@ -33,3 +33,11 @@ __pycache__/
 
 # Cópia gerada do sync-status.json dentro do clone do HF Space (o Space a rastreia via LFS)
 scripts/sync/hf-space/src/sync-status.json
+
+# sih-cubos (2026-09-08): o estado dos cubos é o canal (sih/cubos/), não o git
+data/sih-cubos/
+scripts/pipeline/sih-cubos/node_modules/
+scripts/pipeline/sih-cubos/state/
+scripts/pipeline/sih-cubos/cubes-manifest.json
+scripts/pipeline/sih-cubos/previous-manifest.json
+scripts/pipeline/sih-cubos/tables/generators/insumos/

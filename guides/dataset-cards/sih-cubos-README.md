@@ -25,8 +25,10 @@ source_datasets:
 
 Three Parquet cubes per year, aggregated from the individual admission
 records in [`sih/rd/`](sih-rd-README.md) (SIH/SUS, AIH Reduzida) by the
-builder of [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp)
-(`scripts/build-aggregations.R`). They are **derived data**: the Ministry of
+`sih-cubos` pipeline of [healthbr-data](https://github.com/SidneyBissoli/healthbr-data)
+(`scripts/pipeline/sih-cubos/build-aggregations.R`; until 2026-09-08 the builder
+lived in [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp), which now
+consumes this channel). They are **derived data**: the Ministry of
 Health / DATASUS is the source, `sih/rd/` is the redistribution the cubes
 were read from, and each year ships with a provenance sidecar naming the
 exact partitions (URL, MD5, size and mirror download date of every `.dbc`).
@@ -42,8 +44,10 @@ exact partitions (URL, MD5, size and mirror download date of every `.dbc`).
 | **Geographic coverage** | All 27 states; municipality of residence from 1998 |
 | **Granularity** | Aggregated counts (no individual records) |
 | **Files per year** | `sih_causas_<year>.parquet`, `sih_series_<year>.parquet`, `sih_icsap_<year>.parquet`, `sih_provenance_<year>.json` |
-| **Manifest** | `sih/cubos/manifest.json` — size and SHA-256 of every file |
-| **Builder** | sih-br-mcp `build-aggregations.R` ≥ 2.5.0 (version recorded in the sidecar) |
+| **Manifest** | `sih/cubos/manifest.json` — size and SHA-256 of every file and of the classification tables |
+| **Classification tables** | `sih/cubos/tables/*.json` (ICD-9 decoding, ICSAP lists, csapAIH universe) — the contract consumers copy and verify by SHA-256 |
+| **Builder** | healthbr-data `scripts/pipeline/sih-cubos/build-aggregations.R` ≥ 2.7.0 (2.5.0–2.6.1 in sih-br-mcp; version and git commit recorded in the sidecar) |
+| **Rebuild** | `rebuild-sih-cubes.yml`: Tuesday 06:00 UTC and after every mirror maintenance; only the years whose `sih/rd/` partitions changed |
 | **License** | CC-BY 4.0 (upstream data is public; the aggregation is this project's) |
 
 ## Resumo em português
@@ -51,7 +55,8 @@ exact partitions (URL, MD5, size and mirror download date of every `.dbc`).
 **Cubos do SIH — agregados anuais de internações hospitalares (Brasil, 1992–2025)**
 
 Três cubos Parquet por ano, agregados a partir dos microdados de `sih/rd/`
-pelo builder do [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp).
+pela pipeline `sih-cubos` do [healthbr-data](https://github.com/SidneyBissoli/healthbr-data)
+(até 08/09/2026, pelo sih-br-mcp, hoje consumidor do canal).
 São dados **derivados**: a fonte é o Ministério da Saúde / DATASUS, `sih/rd/`
 é a redistribuição de onde os cubos foram lidos, e cada ano traz um sidecar
 de proveniência (`sih_provenance_<ano>.json`) com as partições exatas (URL,
@@ -99,7 +104,7 @@ All three cubes carry `cid_revision` (9 = ICD-9 coded admission, 1992–1997;
 
 | Years | Diagnosis | `uf` / municipality | `race` | `value` |
 |-------|-----------|---------------------|--------|---------|
-| 1992–1997 | **ICD-9** (`cid_revision = 9`): `cid_group` is the 3-digit ICD-9 category (`"466"`, `"E883"`, `"V01"`), `cid_chapter` the equivalent ICD-10 chapter; ICSAP from a **derived, non-official ICD-9 list** (`csap-groups-cid9.json` in sih-br-mcp; g03 and g05 not comparable with 1998+) | `uf` = state of the **hospital file** (`MUNIC_RES` missing in 1992–93 and empty until Nov/1994); `municipality_code` null | null | nominal, in the currency of the billing month (Cr$ until 1993-06, CR$ 1993-07..1994-06, R$ from 1994-07) — see `currency` in the sidecar |
+| 1992–1997 | **ICD-9** (`cid_revision = 9`): `cid_group` is the 3-digit ICD-9 category (`"466"`, `"E883"`, `"V01"`), `cid_chapter` the equivalent ICD-10 chapter; ICSAP from a **derived, non-official ICD-9 list** (`sih/cubos/tables/csap-groups-cid9.json`; g03 and g05 not comparable with 1998+) | `uf` = state of the **hospital file** (`MUNIC_RES` missing in 1992–93 and empty until Nov/1994); `municipality_code` null | null | nominal, in the currency of the billing month (Cr$ until 1993-06, CR$ 1993-07..1994-06, R$ from 1994-07) — see `currency` in the sidecar |
 | 1998–2007 | ICD-10 | `uf` = state of **residence**; municipality of residence | null | R$ nominal |
 | 2008–2025 | ICD-10 | residence | present | R$ nominal |
 
@@ -124,6 +129,35 @@ size, mirror processing timestamp), builder version and git commit, totals
 `icsap_comparability` (ICD-9 years), `uf_basis` (`arquivo` / `residencia`),
 `municipality_available`, `currency`, `columns_missing` and human-readable
 notes.
+
+## Reproducibility & provenance
+
+- **Pipeline:** `scripts/pipeline/sih-cubos/` in the healthbr-data repository —
+  `build-aggregations.R` (builder), `rebuild-cubes.R` (CLI), `cube-delta.mjs`,
+  `cubes-manifest.mjs`, `publish-cubes.sh`; recipe in its `README.md`, operational
+  reference in `docs/reference-pipelines-pt.md` §16.
+- **Chain:** DATASUS `.dbc` → `sih/rd/` (1:1 Parquet, manifest with MD5 and download
+  date) → builder (reads `sih/rd/` through the R package healthbR) → `sih/cubos/`.
+  The sidecar of each year lists every partition read, so a cube can be traced to the
+  exact source files.
+- **Gates before publishing:** partition counts must equal the `sih/rd/` manifest;
+  the new sidecar is compared with the published one (lost partitions, drops > 1 %,
+  regressed windows and unrequested scope changes fail the run); the reference
+  consumer (sih-br-mcp) is started on the new cubes; every cube is verified with DuckDB
+  against its sidecar before the manifest is signed.
+- **Classification tables** (`sih/cubos/tables/`): `cid9-codes.json` and
+  `cid9-chapters.json` are generated from DATASUS's `TAB_SIH_199201-199712.zip`
+  (`CID9_*.CNV`; a copy is kept in `sih/cubos/insumos/`, SHA-256
+  `b433310785e08b5d2d0c5a438f495ac6b2af9a10d86d8741a3252bc268b1ff88`),
+  `csap-universe.json` from `PROCOBST.CNV` plus the csapAIH code lists;
+  `csap-groups.json` transcribes Portaria MS/SAS 221/2008 and `csap-groups-cid9.json`
+  is the derived ICD-9 list (sih-br-mcp `docs/analise-003-icsap-cid9.md`).
+  Generators: `scripts/pipeline/sih-cubos/tables/generators/`.
+- **Build log:** `data/controle_versao_sih_cubos.csv` in the repository — one row per
+  (year, build) with builder version, git commit, healthbR version, partitions, totals
+  and the mirror manifest date; the channel (`manifest.json` + sidecars) is the state.
+- **State is the channel:** no sidecar is versioned in git; rebuilds start from the
+  published sidecar (window, file states) and overwrite the year in place.
 
 ## Data access
 
@@ -151,6 +185,7 @@ tools with the era notes above attached to every answer.
 ## Citation
 
 Ministério da Saúde. Sistema de Informações Hospitalares do SUS (SIH/SUS),
-AIH reduzida. Brasília: DATASUS. Aggregated by sih-br-mcp
-(`build-aggregations.R`) from the healthbr-data Parquet mirror. Derived
+AIH reduzida. Brasília: DATASUS. Aggregated by the
+healthbr-data `sih-cubos` pipeline (`build-aggregations.R`) from the `sih/rd/`
+Parquet mirror; served to MCP clients by sih-br-mcp. Derived
 ICSAP list for 1992–1997 is not an official act.

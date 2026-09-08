@@ -52,6 +52,7 @@ whenever pipeline behaviour changes, and bump its "Última atualização" footer
 | `sih/rd/` (AIH reduzida) | `sih-pipeline-r.R` (`SIH_TIPO=RD`, default) | R (read.dbc) | DATASUS FTP .dbc, 1992–present | `controle_versao_sih_rd.csv` |
 | `sih/sp/` (serviços profissionais) | `sih-pipeline-r.R` (`SIH_TIPO=SP`) | R (read.dbc) | DATASUS FTP .dbc, 1997–present | `controle_versao_sih_sp.csv` |
 | `sih/cubos/` (yearly cubes, **derived**) | `scripts/pipeline/sih-cubos/` (`build-aggregations.R` + Node gates) | R (arrow, healthbR) + Node | `sih/rd/` via healthbR, 1992–present | `controle_versao_sih_cubos.csv` (one row per build; **state is the channel**, not git) |
+| `sih/cubos/pop_*.parquet` (population denominators, **derived**) | `scripts/pipeline/sih-cubos/build-population.R` via `build-sih-population.yml` (manual only) | R (arrow, csapAIH from GitHub, readxl) | IBGE 2024 projection spreadsheet (FTP) + DATASUS POPBR/POPSVS 1991–2024 | none — `pop_provenance.json` + `population` block of `sih/cubos/manifest.json` (state is the channel) |
 
 Shared mechanics every pipeline follows:
 - **Version-control CSV = the source of truth for "already processed".** Pipelines skip

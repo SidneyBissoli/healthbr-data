@@ -44,8 +44,9 @@ exact partitions (URL, MD5, size and mirror download date of every `.dbc`).
 | **Geographic coverage** | All 27 states; municipality of residence from 1998 |
 | **Granularity** | Aggregated counts (no individual records) |
 | **Files per year** | `sih_causas_<year>.parquet`, `sih_series_<year>.parquet`, `sih_icsap_<year>.parquet`, `sih_provenance_<year>.json` |
-| **Manifest** | `sih/cubos/manifest.json` — size and SHA-256 of every file and of the classification tables |
+| **Manifest** | `sih/cubos/manifest.json` (1.2.0) — size and SHA-256 of every file, of the classification tables and of the population denominators |
 | **Classification tables** | `sih/cubos/tables/*.json` (ICD-9 decoding, ICSAP lists, csapAIH universe) — the contract consumers copy and verify by SHA-256 |
+| **Population denominators** | `pop_uf.parquet` (IBGE Population Projection, 2024 revision: state × sex × single age 0–90+, 2000..last closed cube), `pop_municipios.parquet` (DATASUS POPBR/POPSVS: municipality × sex × 5-year age group, 1991–2024), `pop_uf_agregado.parquet` (state sum, 1991–1999), `pop_provenance.json` — signed in the manifest's `population` block; built by `build-population.R` via `build-sih-population.yml` (manual) |
 | **Builder** | healthbr-data `scripts/pipeline/sih-cubos/build-aggregations.R` ≥ 2.7.0 (2.5.0–2.6.1 in sih-br-mcp; version and git commit recorded in the sidecar) |
 | **Rebuild** | `rebuild-sih-cubes.yml`: Tuesday 06:00 UTC and after every mirror maintenance; only the years whose `sih/rd/` partitions changed |
 | **License** | CC-BY 4.0 (upstream data is public; the aggregation is this project's) |
@@ -153,6 +154,18 @@ notes.
   `csap-groups.json` transcribes Portaria MS/SAS 221/2008 and `csap-groups-cid9.json`
   is the derived ICD-9 list (sih-br-mcp `docs/analise-003-icsap-cid9.md`).
   Generators: `scripts/pipeline/sih-cubos/tables/generators/`.
+- **Population denominators** (`pop_*.parquet`, `pop_provenance.json`, since 2026-09-08):
+  `scripts/pipeline/sih-cubos/build-population.R`, run by hand through
+  `build-sih-population.yml` (~4 min). Sources: the official IBGE 2024 projection
+  spreadsheet (`projecoes_2024_tab1_idade_simples.xlsx`, FTP; SIDRA 7358 only carries
+  the 2018 revision) and DATASUS `IBGE/POP/POPBR{yy}.zip` (1991–2012) +
+  `IBGE/POPSVS/POPSBR{yy}.zip` (2013–2024) read with `csapAIH::ler_popbr`. Rules: nothing
+  interpolated; never beyond the last **closed** SIH cube (`POP_UF_ULTIMO_ANO`, checked by
+  the workflow against `window_complete` in the manifest); municipality → state by sum
+  only. Gates: all 34 POPBR years present (3 download attempts each), spreadsheet layout
+  and Men + Women = Both per state × year, Brazil 2024 = 212,583,750, row counts, DuckDB
+  check of every file against `pop_provenance.json` before the manifest is signed, and
+  the reference consumer's smoke run on the new files.
 - **Build log:** `data/controle_versao_sih_cubos.csv` in the repository — one row per
   (year, build) with builder version, git commit, healthbR version, partitions, totals
   and the mirror manifest date; the channel (`manifest.json` + sidecars) is the state.

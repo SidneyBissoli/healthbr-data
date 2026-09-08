@@ -1165,9 +1165,30 @@ Por ano de internação: `sih_causas_<ano>.parquet`, `sih_series_<ano>.parquet`,
 `sih_icsap_<ano>.parquet` e o sidecar `sih_provenance_<ano>.json` (partições de
 `sih/rd/` lidas com URL/MD5/tamanho/data de download de cada `.dbc`, totais,
 versão e commit do builder, eras, moedas). Mais `manifest.json` (SHA-256 de
-cada arquivo e das tabelas) e `tables/*.json` (contrato de classificação:
-CID-9 → categoria/capítulo, ICSAP CID-10 e CID-9, universo csapAIH). Base:
-`https://data.sidneybissoli.com/sih/cubos/`.
+cada arquivo, das tabelas e dos denominadores) e `tables/*.json` (contrato de
+classificação: CID-9 → categoria/capítulo, ICSAP CID-10 e CID-9, universo
+csapAIH). Base: `https://data.sidneybissoli.com/sih/cubos/`.
+
+### Denominadores populacionais (`build-population.R`, `build-sih-population.yml`)
+
+Desde 2026-09-08 (item `sih:populacao-no-canal`) o mesmo prefixo traz os
+denominadores das taxas por 100 mil do consumidor, assinados no bloco
+`population` do manifesto (manifesto 1.2.0): `pop_uf.parquet` (IBGE, Projeção
+da População Revisão 2024 — planilha oficial do FTP do IBGE; UF × sexo × idade
+simples, 2000..último cubo FECHADO), `pop_municipios.parquet` (DATASUS
+POPBR/POPSVS 1991–2024 via `csapAIH::ler_popbr`; município × sexo × faixa
+etária), `pop_uf_agregado.parquet` (soma por UF, 1991–1999) e o sidecar
+`pop_provenance.json` (`built_at`, `last_year`, fontes, contagens, pacotes).
+Regras: nada interpolado; nunca além do último cubo fechado (`POP_UF_ULTIMO_ANO`
+constante no script, conferida pelo workflow contra `window_complete` do
+canal); município → UF só por soma. Workflow só à mão (`workflow_dispatch`,
+~4 min, mesmo concurrency group dos cubos): R + `fulvionedel/csapAIH` (GitHub)
+→ gates (34 anos de POPBR, planilha conferida, regra do cubo fechado,
+contagens, smoke do consumidor com a população nova, `--verify` com DuckDB)
+→ `publish-cubes.sh none "" "" <pasta>`. O `rebuild-sih-cubes.yml` herda o
+bloco `population` do manifesto anterior e não o toca. Antes disso a população
+só existia na pasta `data/` local do sih-br-mcp e o servidor instalado pelo
+npm respondia "Execute build_population.R primeiro" nas taxas.
 
 ### Como roda (`.github/workflows/rebuild-sih-cubes.yml`, runner do GitHub)
 
@@ -1216,7 +1237,9 @@ node scripts/pipeline/sih-cubos/canal-state.mjs --out state     # o que está pu
 
 ---
 
-*Última atualização: 08/set/2026 — §16 pipeline `sih-cubos` (produtor dos
+*Última atualização: 08/set/2026 — §16 denominadores populacionais no canal
+(`build-population.R`, `build-sih-population.yml`, manifesto 1.2.0 com bloco
+`population`); §16 pipeline `sih-cubos` (produtor dos
 cubos anuais do SIH migrado do sih-br-mcp; estado = canal; tabelas de
 classificação assinadas no manifesto; `controle_versao_sih_cubos.csv`;
 sync-check dispara `rebuild-sih-cubes.yml` em vez do repository_dispatch);

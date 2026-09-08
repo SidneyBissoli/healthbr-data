@@ -107,6 +107,34 @@ estiver atrás, leia o manifesto inteiro. Consumidor de referência: o job `deci
 `rebuild-sih-cubes.yml` (pipeline `sih-cubos` deste repositório), que mede o frescor
 dos cubos publicados com o `scripts/freshness-check.mjs` do `sih-br-mcp`.
 
+**`sih/cubos/manifest.json` (1.2.0) e o que o consumidor pode assumir.** Além de
+`years` (um bloco por ano com `built_at`, `window_complete`, `records_in_cube` e
+`files.{causas,series,icsap,provenance}` com `name`, `size_bytes`, `sha256`) e de
+`tables` (SHA-256 de cada `tables/*.json`), o manifesto traz, desde 2026-09-08, o
+bloco **`population`**: `built_at`, `builder_version`, `last_year` (último ano de
+`pop_uf`, sempre ≤ maior ano com `window_complete = true`), `rule`, `sources[]`
+(`file`, `name`, `agency`, `url`, `years`) e `files.{pop_uf,pop_uf_agregado,
+pop_municipios,provenance}` no mesmo molde dos cubos. Os quatro arquivos vivem no
+mesmo prefixo dos cubos (`<base_url><name>`); o consumidor baixa e confere pelo
+SHA-256 exatamente como faz com um ano, e `pop_provenance.json` diz a safra. O bloco
+pode ser `null` num manifesto anterior à população — o consumidor que precisa dela
+trata a ausência como "sem denominador", nunca como erro do canal. Esquemas:
+`pop_uf` (`year, uf, sex M/F, age 0–90, population`), `pop_municipios` (`year, source,
+municipality_code, uf, sex M/F/total, age_group, population`; `age_group` nulo = idade
+ignorada na fonte), `pop_uf_agregado` (`year, uf, sex, age_group, population`).
+
+**Cache de borda e objetos reescritos no lugar (medido em 2026-09-08).** Tudo em
+`sih/cubos/` é reescrito com o MESMO nome a cada rebuild, e a borda do domínio honra o
+`Cache-Control` do objeto. Com `max-age=86400` (até 08/09) um consumidor recebeu o
+`sih_series_2023.parquet` do build anterior (`cf-cache-status: HIT`, `Age` 15 h; 36.047
+bytes) enquanto o manifesto — que tem `max-age=300` — já assinava o novo (36.352 bytes),
+e a verificação por SHA-256 falhou. Desde 08/09 os dados sobem com `max-age=300` como o
+manifesto (o egresso do R2 é grátis; a borda só ganha latência). Regra para o consumidor
+que verifica pelo manifesto: **anexe `?v=<sha256 do manifesto>` à URL do arquivo** — a
+query entra na chave de cache, então versão nova = URL nova, nunca a cópia velha (é o que
+o `sih-br-mcp` faz em `src/cache.ts`). Quem lê por URL sem verificar (`arrow::read_parquet(url)`,
+`pandas.read_parquet(url)`) pode estar até 5 min atrás do manifesto após um rebuild.
+
 ## 5. Notas por dataset que o consumidor precisa conhecer
 
 ### 5.1 SIM (`sim/dores`, `sim/dofet`) — ver `sim/exploration-pt.md`

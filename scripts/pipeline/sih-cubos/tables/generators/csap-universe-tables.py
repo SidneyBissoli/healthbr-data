@@ -122,7 +122,7 @@ def main():
         "delivery_diagnosis_cid9": {"rubrics": CID9_DELIVERY_RUBRICS, "codes6": cid9},
         "long_stay_ident": ["5"],
     }
-    with open(OUT, "w", encoding="utf-8") as fh:
+    with open(OUT, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(doc, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
     print(f"{OUT}: SIGTAP {len(SIGTAP)}, tabela antiga {len(old)}, CID-9 parto {len(cid9)} códigos")

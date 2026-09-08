@@ -150,10 +150,10 @@ def main():
         },
         "codes": codes,
     }
-    with open(OUT_CHAPTERS, "w", encoding="utf-8") as fh:
+    with open(OUT_CHAPTERS, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(chapters_doc, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
-    with open(OUT_CODES, "w", encoding="utf-8") as fh:
+    with open(OUT_CODES, "w", encoding="utf-8", newline="\n") as fh:
         fh.write('{\n  "metadata": ')
         fh.write(json.dumps(codes_doc["metadata"], ensure_ascii=False, indent=2).replace("\n", "\n  "))
         fh.write(',\n  "codes": [\n')

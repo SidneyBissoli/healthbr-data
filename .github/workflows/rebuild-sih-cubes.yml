@@ -47,6 +47,12 @@ name: Rebuild SIH cubes
 # pendente (concurrency sem cancelamento).
 
 on:
+  # TEMPORÁRIO (prova no branch sih-cubos-produtor, 2026-09-08): o GitHub só
+  # registra um workflow para dispatch depois de ele rodar uma vez; sai antes
+  # do merge.
+  push:
+    branches: [sih-cubos-produtor]
+    paths: ['.github/workflows/rebuild-sih-cubes.yml']
   schedule:
     - cron: "0 6 * * 2"
   workflow_dispatch:

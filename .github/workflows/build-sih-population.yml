@@ -105,7 +105,8 @@ jobs:
       - name: Manifesto publicado (para a regra do último cubo fechado e para herdar os anos)
         run: |
           mkdir -p state
-          curl -fsSL --max-time 60 "$CUBES_BASE/manifest.json?v=$(date +%s)" -o state/manifest.json
+          # CUBES_BASE já termina em "/" — "$CUBES_BASE/manifest.json" vira barra dupla e 404
+          curl -fsSL --max-time 60 "${CUBES_BASE}manifest.json?v=$(date +%s)" -o state/manifest.json
           node -e 'const m=require("./state/manifest.json");console.log("canal:",m.manifest_version,Object.keys(m.years).length,"anos; população atual:",m.population?m.population.built_at+" até "+m.population.last_year:"nenhuma")'
 
       # Gate 1 (dentro do script): 34 anos, planilha, somas, contagens.

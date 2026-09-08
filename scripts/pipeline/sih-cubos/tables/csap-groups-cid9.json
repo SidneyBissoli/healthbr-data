@@ -1,0 +1,4281 @@
+{
+  "metadata": {
+    "derived_from": "src/data/csap-groups.json — Lista Brasileira de ICSAP, Portaria SAS/MS nº 221, de 17/04/2008 (CID-10, 19 grupos, 197 códigos)",
+    "classification": "CID-9 (OMS, 1975) na codificação do SIH/SUS de 1992–1997: DIAG_PRINC de 6 dígitos = prefixo (0) + categoria (3) + subcategoria (1) + dígito verificador; decodificar por tabela, não por fórmula (docs/analise-002-sih-1992-1997.md)",
+    "not_official": true,
+    "icsap_list_revision": "cid9-derivada",
+    "status": "derivada e validada na fronteira 1997/98 em 2026-09-07; não há lista oficial do MS em CID-9",
+    "document": "docs/analise-003-icsap-cid9.md",
+    "generated_by": "scripts/estudo-icsap-cid9-derivar.py",
+    "generated_at": "2026-09-07",
+    "tables": "TAB_SIH_199201-199712.zip (DATASUS): CID9_01..17.CNV + CID9_SUP.CNV, 8.240 códigos de 6 dígitos, 6.891 válidos; só códigos válidos entram",
+    "matching": "o builder classifica pelo código de 6 dígitos exato (codes6); as rubricas de 3 dígitos sem subdivisão são gravadas no SIH com subcategoria 9 (ex.: 035 → 003590)",
+    "sources": {
+      "who-rubric": {
+        "title": "Correspondência de rubrica entre a CID-9 (OMS, 1975) e a CID-10 do mesmo nome, conferida nos rótulos das tabelas CID9_*.CNV do DATASUS",
+        "note": "Método principal quando a Portaria inclui a categoria inteira e a CID-9 tem categoria homônima (ex.: A37 Coqueluche ↔ 033 Coqueluche)."
+      },
+      "caminal2004": {
+        "title": "Caminal J, Starfield B, Sánchez E, Casanova C, Morales M. The role of primary care in preventing ambulatory care sensitive conditions. Eur J Public Health 2004;14(3):246-51 — Tabela 2 (núcleo, 61 códigos ICD-9-CM; ampliada, 90) e Tabela 3 (códigos revisados e excluídos)",
+        "doi": "10.1093/eurpub/14.3.246",
+        "url": "https://academic.oup.com/eurpub/article/14/3/246/507541",
+        "note": "É a lista de origem citada por Alfradique et al. 2009 para a Lista Brasileira. 'core' = núcleo; 'expanded' = só na ampliada; 'reviewed' = avaliado e excluído por Caminal, mas presente na Portaria."
+      },
+      "ahrq-pqi-v6": {
+        "title": "AHRQ Quality Indicators — Prevention Quality Indicators v6.0, ICD-9-CM technical specifications (out/2016; última versão em ICD-9-CM): PQI 01, 03, 05, 07, 08, 10, 11, 12, 14, 15, 16",
+        "url": "https://qualityindicators.ahrq.gov/Downloads/Modules/PQI/V60-ICD09/TechSpecs/",
+        "note": "Códigos ICD-9-CM (5º dígito americano) truncados à subcategoria da OMS. ATENÇÃO: o ICD-9-CM renumerou 250.x — CM 250.3 = 'outro coma', CM 250.4 renal … CM 250.8 outras, CM 250.9 NE; na OMS/DATASUS 250.3 é renal, 250.4 oftálmica, 250.5 neurológica, 250.6 circulatória, 250.7 outras, 250.9 NE."
+      },
+      "cihi-2008": {
+        "title": "CIHI. Ambulatory Care Sensitive Conditions — technical notes (jan/2008), com colunas ICD-9, ICD-9-CM e ICD-10-CA; reproduzidas em Statistics Canada 82-622-X no. 007 (2011), Apêndice A",
+        "url": "https://www150.statcan.gc.ca/n1/pub/82-622-x/82-622-x2011007-eng.pdf"
+      },
+      "datasus-diagpacto9": {
+        "title": "DATASUS, TAB_SIH_199201-199712.zip: DIAGPACTO9.CNV (CID-9: 02501, 02502) pareado com DIAGPACTO.CNV (CID-10: E10.0–E14.1) — indicador do Pacto",
+        "url": "ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/199201_200712/Auxiliar/TAB_SIH_199201-199712.zip"
+      },
+      "gems-2018": {
+        "title": "CMS General Equivalence Mappings FY2018 (2018_I10gem.txt: ICD-10-CM → ICD-9-CM), aproximadas, um-para-muitos",
+        "url": "https://www.cms.gov/medicare/coding/icd10/downloads/2018-icd-10-cm-general-equivalence-mappings.zip",
+        "license": "domínio público (obra do governo dos EUA)",
+        "note": "Usadas só para conferência cruzada e no resíduo (rubrica sem outra fonte), sempre marcadas."
+      }
+    },
+    "methods": {
+      "exact": "a rubrica CID-9 tem o mesmo conteúdo da(s) rubrica(s) CID-10",
+      "category": "categoria(s) CID-9 inteira(s) ↔ categoria(s) CID-10 inteira(s) da Portaria, com o mesmo perímetro",
+      "approximate": "a rubrica CID-9 é mais larga ou mais estreita que a CID-10 correspondente (o desvio está na nota)"
+    },
+    "total_groups": 19,
+    "total_rubrics": 156,
+    "total_codes6": 439,
+    "excluded": [
+      {
+        "cid9": "411",
+        "label": "Outras formas agudas e subagudas de doença isquêmica do coração",
+        "would_be_group": "g10",
+        "reason": "Na CID-10 vai sobretudo para I24 (fora da Portaria); CIHI a inclui, mas pareada com I24. Fronteira: razão do g10 1,14 sem / 1,44 com.",
+        "aih_1997": 16030
+      },
+      {
+        "cid9": "485",
+        "label": "Broncopneumonia por microorganismo não especificado",
+        "would_be_group": "g06",
+        "reason": "= J18.0, fora da Portaria (AHRQ e Caminal a incluem).",
+        "aih_1997": 521033
+      },
+      {
+        "cid9": "486",
+        "label": "Pneumonia por microorganismo não especificado",
+        "would_be_group": "g06",
+        "reason": "= J18.9, fora da Portaria (AHRQ e Caminal a incluem).",
+        "aih_1997": 380755
+      },
+      {
+        "cid9": "482.4",
+        "label": "Pneumonia devida a Staphylococcus",
+        "would_be_group": "g06",
+        "reason": "= J15.2, fora da Portaria (AHRQ a inclui).",
+        "aih_1997": 31117
+      },
+      {
+        "cid9": "483",
+        "label": "Pneumonia por outros microorganismos especificados",
+        "would_be_group": "g06",
+        "reason": "= J15.7 (Mycoplasma), J16 — fora da Portaria (AHRQ e Caminal a incluem).",
+        "aih_1997": 12363
+      },
+      {
+        "cid9": "558",
+        "label": "Outras gastroenterites e colites não infecciosas",
+        "would_be_group": "g02",
+        "reason": "= K52, fora da Portaria (AHRQ PQI10 e Caminal incluem 558.9).",
+        "aih_1997": 7509
+      },
+      {
+        "cid9": "590.2",
+        "label": "Abscesso renal e perinefrético",
+        "would_be_group": "g15",
+        "reason": "= N15.1, fora da Portaria (AHRQ PQI12 a inclui).",
+        "aih_1997": 1522
+      },
+      {
+        "cid9": "281.9",
+        "label": "Anemias por deficiências não especificadas",
+        "would_be_group": "g03",
+        "reason": "= D53.9, fora da Portaria; explica a baixa comparabilidade do g03 (a prática de 1997 usava 281.9 onde 1998 usa D50.9).",
+        "aih_1997": 35732
+      },
+      {
+        "cid9": "320.5",
+        "label": "Meningite meningocócica",
+        "would_be_group": "g01",
+        "reason": "= A39, fora da Portaria.",
+        "aih_1997": 513
+      },
+      {
+        "cid9": "430",
+        "label": "Hemorragia subaracnóidea",
+        "would_be_group": "g12",
+        "reason": "= I60, fora da Portaria (Caminal a inclui).",
+        "aih_1997": 2614
+      },
+      {
+        "cid9": "431",
+        "label": "Hemorragia intracerebral",
+        "would_be_group": "g12",
+        "reason": "= I61, fora da Portaria (Caminal a inclui).",
+        "aih_1997": 4386
+      },
+      {
+        "cid9": "099.4",
+        "label": "Outras uretrites não gonocócicas",
+        "would_be_group": "g15",
+        "reason": "Rubrica venérea; N34.1 diz 'não venérea'. 0 AIH em 1997.",
+        "aih_1997": 0
+      },
+      {
+        "cid9": "410",
+        "label": "Infarto agudo do miocárdio",
+        "would_be_group": "g10",
+        "reason": "= I21, fora da Portaria (Caminal lista 410–414 no núcleo).",
+        "aih_1997": 33912
+      },
+      {
+        "cid9": "443.8",
+        "label": "Outras doenças vasculares periféricas",
+        "would_be_group": "g13",
+        "reason": "Asterisco não específico (angiopatia diabética entre outras); I79.2*/I73.8 fora.",
+        "aih_1997": 20081
+      },
+      {
+        "cid9": "785.4",
+        "label": "Gangrena",
+        "would_be_group": "g13",
+        "reason": "= R02, fora da Portaria (Caminal usa 785.4+250.7).",
+        "aih_1997": 3570
+      }
+    ],
+    "aih_1997": {
+      "total": 12351464,
+      "icsap": 3231302,
+      "share": 0.2616
+    },
+    "validation": {
+      "method": "participação de cada grupo nas AIH codificadas em CID-9 (esta lista) vs em CID-10 (lista oficial), lida do healthbr-data (scripts/estudo-icsap-cid9-fronteira.mjs + estudo-icsap-cid9-analise.py); razão = share9/share10; classes a priori: alta 0,80–1,25, média 0,67–1,50, baixa fora",
+      "recortes_disponiveis": [
+        "A",
+        "B",
+        "C",
+        "C2"
+      ],
+      "primary": "C2 (1997 inteiro vs 1998-03..12, sem os dois meses de transição em que a participação ICSAP total cai a 19–20 %)",
+      "icsap_ratio_C2": 1.047,
+      "comparability": {
+        "g01": "alta",
+        "g02": "alta",
+        "g03": "baixa",
+        "g04": "alta",
+        "g05": "baixa",
+        "g06": "media",
+        "g07": "alta",
+        "g08": "alta",
+        "g09": "alta",
+        "g10": "alta",
+        "g11": "alta",
+        "g12": "alta",
+        "g13": "alta",
+        "g14": "alta",
+        "g15": "alta",
+        "g16": "alta",
+        "g17": "alta",
+        "g18": "alta",
+        "g19": "alta"
+      },
+      "variants_tested": {
+        "g01:vast": {
+          "n9": 271,
+          "ratio_sem": 1.090928904937429,
+          "ratio_com": 1.0959442020338197
+        },
+        "g10:v411": {
+          "n9": 16030,
+          "ratio_sem": 1.1406377009571838,
+          "ratio_com": 1.4394906699079153
+        },
+        "g11:v514": {
+          "n9": 164,
+          "ratio_sem": 1.0482408482923251,
+          "ratio_com": 1.0486284982155893
+        },
+        "g13:vast": {
+          "n9": 343,
+          "ratio_sem": 1.069146706016051,
+          "ratio_com": 1.0722767082365963
+        }
+      }
+    }
+  },
+  "groups": [
+    {
+      "code": "g01",
+      "id": 1,
+      "name_pt": "Doenças preveníveis por imunização e condições sensíveis",
+      "diagnoses": [
+        {
+          "name": "Coqueluche",
+          "cid10": [
+            "A37"
+          ],
+          "cid9": [
+            {
+              "cid9": "033",
+              "label": "Por Bordetella pertussis (b. pertussis)",
+              "codes6": [
+                "003301",
+                "003310",
+                "003387",
+                "003395"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 664
+            },
+            {
+              "cid9": "484.3",
+              "label": "Coqueluche",
+              "codes6": [
+                "048437"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "approximate",
+              "aih_1997": 8,
+              "note": "Pneumonia na coqueluche (rubrica asterisco); A37 inclui a coqueluche com pneumonia (J17.0*)."
+            }
+          ],
+          "codes6": [
+            "003301",
+            "003310",
+            "003387",
+            "003395",
+            "048437"
+          ]
+        },
+        {
+          "name": "Difteria",
+          "cid10": [
+            "A36"
+          ],
+          "cid9": [
+            {
+              "cid9": "032",
+              "label": "Difteria facial",
+              "codes6": [
+                "003204",
+                "003212",
+                "003220",
+                "003239",
+                "003280",
+                "003298"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 215
+            }
+          ],
+          "codes6": [
+            "003204",
+            "003212",
+            "003220",
+            "003239",
+            "003280",
+            "003298"
+          ]
+        },
+        {
+          "name": "Tétano",
+          "cid10": [
+            "A33",
+            "A34",
+            "A35"
+          ],
+          "cid9": [
+            {
+              "cid9": "037",
+              "label": "Tétano (exceto neonatal - 771.3)",
+              "codes6": [
+                "003794"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 1006,
+              "note": "037 cobre A34 (obstétrico) e A35; a CID-9 não separa o obstétrico."
+            },
+            {
+              "cid9": "771.3",
+              "label": "Tétano neonatal",
+              "codes6": [
+                "077135"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 17,
+              "note": "Tétano neonatal = A33."
+            }
+          ],
+          "codes6": [
+            "003794",
+            "077135"
+          ],
+          "gems_not_adopted": [
+            "639.0"
+          ]
+        },
+        {
+          "name": "Parotidite",
+          "cid10": [
+            "B26"
+          ],
+          "cid9": [
+            {
+              "cid9": "072",
+              "label": "Orquite por caxumba",
+              "codes6": [
+                "007200",
+                "007218",
+                "007226",
+                "007234",
+                "007277",
+                "007285",
+                "007293"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 595
+            }
+          ],
+          "codes6": [
+            "007200",
+            "007218",
+            "007226",
+            "007234",
+            "007277",
+            "007285",
+            "007293"
+          ]
+        },
+        {
+          "name": "Rubéola",
+          "cid10": [
+            "B06"
+          ],
+          "cid9": [
+            {
+              "cid9": "056",
+              "label": "Com complicações neurológicas",
+              "codes6": [
+                "005606",
+                "005673",
+                "005681",
+                "005690"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 26
+            }
+          ],
+          "codes6": [
+            "005606",
+            "005673",
+            "005681",
+            "005690"
+          ]
+        },
+        {
+          "name": "Sarampo",
+          "cid10": [
+            "B05"
+          ],
+          "cid9": [
+            {
+              "cid9": "055",
+              "label": "Encefalite pós-sarampo",
+              "codes6": [
+                "005509",
+                "005517",
+                "005525",
+                "005576",
+                "005584",
+                "005592"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 769
+            },
+            {
+              "cid9": "484.0",
+              "label": "Sarampo",
+              "codes6": [
+                "048402"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "approximate",
+              "aih_1997": 67,
+              "note": "Pneumonia no sarampo (asterisco); B05.2 está em B05."
+            }
+          ],
+          "codes6": [
+            "005509",
+            "005517",
+            "005525",
+            "005576",
+            "005584",
+            "005592",
+            "048402"
+          ]
+        },
+        {
+          "name": "Febre Amarela",
+          "cid10": [
+            "A95"
+          ],
+          "cid9": [
+            {
+              "cid9": "060",
+              "label": "Silvestre",
+              "codes6": [
+                "006009",
+                "006017",
+                "006092"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 53
+            }
+          ],
+          "codes6": [
+            "006009",
+            "006017",
+            "006092"
+          ]
+        },
+        {
+          "name": "Hepatite B",
+          "cid10": [
+            "B16"
+          ],
+          "cid9": [
+            {
+              "cid9": "070.2",
+              "label": "Hepatite por vírus B com coma hepático",
+              "codes6": [
+                "007021"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "approximate",
+              "aih_1997": 4,
+              "note": "B16 é hepatite B AGUDA; 070.2/070.3 incluem a crônica (B18.1, fora da lista)."
+            },
+            {
+              "cid9": "070.3",
+              "label": "Hepatite por vírus B s/menção coma hepático",
+              "codes6": [
+                "007030"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "approximate",
+              "aih_1997": 156,
+              "note": "Idem."
+            }
+          ],
+          "codes6": [
+            "007021",
+            "007030"
+          ]
+        },
+        {
+          "name": "Meningite por Haemophilus",
+          "cid10": [
+            "G00.0"
+          ],
+          "cid9": [
+            {
+              "cid9": "320.0",
+              "label": "Meningite por haemophilus",
+              "codes6": [
+                "032000"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 160
+            }
+          ],
+          "codes6": [
+            "032000"
+          ]
+        },
+        {
+          "name": "Meningite Tuberculosa",
+          "cid10": [
+            "A17.0"
+          ],
+          "cid9": [
+            {
+              "cid9": "013.0",
+              "label": "Meningite tuberculosa",
+              "codes6": [
+                "001309"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 96,
+              "note": "Código adaga."
+            },
+            {
+              "cid9": "320.4",
+              "label": "Meningite tuberculosa",
+              "codes6": [
+                "032042"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 181,
+              "note": "Rubrica asterisco 'Meningite tuberculosa' na CID-9 da OMS (o ICD-9-CM a redefine); é a mais usada nos dados de 1997."
+            }
+          ],
+          "codes6": [
+            "001309",
+            "032042"
+          ]
+        },
+        {
+          "name": "Tuberculose miliar",
+          "cid10": [
+            "A19"
+          ],
+          "cid9": [
+            {
+              "cid9": "018",
+              "label": "Aguda",
+              "codes6": [
+                "001805",
+                "001880",
+                "001899"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 133
+            }
+          ],
+          "codes6": [
+            "001805",
+            "001880",
+            "001899"
+          ]
+        },
+        {
+          "name": "Tuberculose Pulmonar",
+          "cid10": [
+            "A15.0",
+            "A15.1",
+            "A15.2",
+            "A15.3",
+            "A16.0",
+            "A16.1",
+            "A16.2",
+            "A15.4",
+            "A15.5",
+            "A15.6",
+            "A15.7",
+            "A15.8",
+            "A15.9",
+            "A16.3",
+            "A16.4",
+            "A16.5",
+            "A16.7",
+            "A16.8",
+            "A16.9",
+            "A17.1",
+            "A17.8",
+            "A17.9"
+          ],
+          "cid9": [
+            {
+              "cid9": "010",
+              "label": "Complexo primário tuberculoso",
+              "codes6": [
+                "001007",
+                "001015",
+                "001082",
+                "001090"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 23,
+              "note": "Infecção tuberculosa primária = A15.7/A16.7 (tuberculose respiratória primária)."
+            },
+            {
+              "cid9": "011",
+              "label": "Tuberculose infiltrativa do pulmão",
+              "codes6": [
+                "001104",
+                "001112",
+                "001120",
+                "001139",
+                "001147",
+                "001155",
+                "001163",
+                "001171",
+                "001180",
+                "001198"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 23407,
+              "note": "Tuberculose pulmonar = A15.0–A15.3, A16.0–A16.2."
+            },
+            {
+              "cid9": "012",
+              "label": "Pleuris tuberculoso",
+              "codes6": [
+                "001201",
+                "001210",
+                "001228",
+                "001236",
+                "001287"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 499,
+              "note": "Outras tuberculoses respiratórias (pleuris, gânglios intratorácicos, laringe) = A15.4–A15.6, A15.8, A16.3–A16.5, A16.8."
+            },
+            {
+              "cid9": "013.1",
+              "label": "Tuberculoma das meninges",
+              "codes6": [
+                "001317"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 1,
+              "note": "Tuberculoma das meninges = A17.1."
+            },
+            {
+              "cid9": "013.8",
+              "label": "Outras",
+              "codes6": [
+                "001384"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 21,
+              "note": "Outras tuberculoses do SNC = A17.8."
+            },
+            {
+              "cid9": "013.9",
+              "label": "Não especificada",
+              "codes6": [
+                "001392"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 11,
+              "note": "Tuberculose do SNC NE = A17.9."
+            }
+          ],
+          "codes6": [
+            "001007",
+            "001015",
+            "001082",
+            "001090",
+            "001104",
+            "001112",
+            "001120",
+            "001139",
+            "001147",
+            "001155",
+            "001163",
+            "001171",
+            "001180",
+            "001198",
+            "001201",
+            "001210",
+            "001228",
+            "001236",
+            "001287",
+            "001317",
+            "001384",
+            "001392"
+          ],
+          "gems_not_adopted": [
+            "013.2",
+            "013.3",
+            "013.4",
+            "013.5",
+            "013.6"
+          ]
+        },
+        {
+          "name": "Outras Tuberculoses",
+          "cid10": [
+            "A18"
+          ],
+          "cid9": [
+            {
+              "cid9": "014",
+              "label": "Tuberculose intestino peritônio gângl mesent",
+              "codes6": [
+                "001490"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 70,
+              "note": "A18.3."
+            },
+            {
+              "cid9": "015",
+              "label": "Coluna vertebral",
+              "codes6": [
+                "001503",
+                "001511",
+                "001520",
+                "001570",
+                "001589",
+                "001597"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 73,
+              "note": "A18.0."
+            },
+            {
+              "cid9": "016",
+              "label": "Rim",
+              "codes6": [
+                "001600",
+                "001619",
+                "001627",
+                "001635",
+                "001643",
+                "001694"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 35,
+              "note": "A18.1."
+            },
+            {
+              "cid9": "017",
+              "label": "Pele e tecido celular subcutâneo",
+              "codes6": [
+                "001708",
+                "001716",
+                "001724",
+                "001732",
+                "001740",
+                "001759",
+                "001767",
+                "001775",
+                "001783"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 678,
+              "note": "A18.2, A18.4–A18.8."
+            },
+            {
+              "cid9": "730.4",
+              "label": "Tuberculose da coluna vertebral",
+              "codes6": [
+                "073040"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 13,
+              "note": "Tuberculose da coluna vertebral (asterisco de 015.0)."
+            },
+            {
+              "cid9": "730.5",
+              "label": "Tuberculose dos ossos dos membros",
+              "codes6": [
+                "073059"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 1,
+              "note": "Tuberculose dos ossos dos membros (asterisco)."
+            },
+            {
+              "cid9": "730.6",
+              "label": "Tuberculose de outros ossos",
+              "codes6": [
+                "073067"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 1,
+              "note": "Tuberculose de outros ossos (asterisco)."
+            }
+          ],
+          "codes6": [
+            "001490",
+            "001503",
+            "001511",
+            "001520",
+            "001570",
+            "001589",
+            "001597",
+            "001600",
+            "001619",
+            "001627",
+            "001635",
+            "001643",
+            "001694",
+            "001708",
+            "001716",
+            "001724",
+            "001732",
+            "001740",
+            "001759",
+            "001767",
+            "001775",
+            "001783",
+            "073040",
+            "073059",
+            "073067"
+          ],
+          "gems_not_adopted": [
+            "363.1",
+            "364.1",
+            "370.3",
+            "370.5",
+            "379.0",
+            "420.0",
+            "422.0",
+            "424.9",
+            "425.8",
+            "601.4",
+            "711.4",
+            "720.8",
+            "730.8",
+            "737.4"
+          ]
+        },
+        {
+          "name": "Febre reumática",
+          "cid10": [
+            "I00",
+            "I01",
+            "I02"
+          ],
+          "cid9": [
+            {
+              "cid9": "390",
+              "label": "Febre reumática s menç comprom cardéaco",
+              "codes6": [
+                "039098"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 6844,
+              "note": "I00."
+            },
+            {
+              "cid9": "391",
+              "label": "Pericardite reumatica ativa",
+              "codes6": [
+                "039101",
+                "039110",
+                "039128",
+                "039187",
+                "039195"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 2878,
+              "note": "I01."
+            },
+            {
+              "cid9": "392",
+              "label": "Com complicacao cardiaca",
+              "codes6": [
+                "039209",
+                "039292"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 333,
+              "note": "I02."
+            }
+          ],
+          "codes6": [
+            "039098",
+            "039101",
+            "039110",
+            "039128",
+            "039187",
+            "039195",
+            "039209",
+            "039292"
+          ]
+        },
+        {
+          "name": "Sífilis",
+          "cid10": [
+            "A51",
+            "A52",
+            "A53"
+          ],
+          "cid9": [
+            {
+              "cid9": "091",
+              "label": "Sífilis genital (primária)",
+              "codes6": [
+                "009105",
+                "009113",
+                "009121",
+                "009130",
+                "009148",
+                "009156",
+                "009164",
+                "009172",
+                "009180",
+                "009199"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 120,
+              "note": "A51 (precoce sintomática)."
+            },
+            {
+              "cid9": "092",
+              "label": "Sífilis precoce latente recid sorol dep trat",
+              "codes6": [
+                "009202",
+                "009296"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 5,
+              "note": "A51.5 (precoce latente)."
+            },
+            {
+              "cid9": "093",
+              "label": "Aneurisma da aorta especif como sifilítico",
+              "codes6": [
+                "009300",
+                "009318",
+                "009326",
+                "009385",
+                "009393"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 33,
+              "note": "A52.0 (cardiovascular)."
+            },
+            {
+              "cid9": "094",
+              "label": "Tabes dorsal",
+              "codes6": [
+                "009407",
+                "009415",
+                "009423",
+                "009431",
+                "009482",
+                "009490"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 49,
+              "note": "A52.1–A52.3 (neurossífilis)."
+            },
+            {
+              "cid9": "095",
+              "label": "Out formas sífilis tardia c sintomatol",
+              "codes6": [
+                "009598"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 5,
+              "note": "A52.7."
+            },
+            {
+              "cid9": "096",
+              "label": "Sífilis latente tardia",
+              "codes6": [
+                "009695"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 5,
+              "note": "A52.8."
+            },
+            {
+              "cid9": "097",
+              "label": "Sífilis tardia",
+              "codes6": [
+                "009709",
+                "009717",
+                "009792"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 281,
+              "note": "A52.9, A53."
+            }
+          ],
+          "codes6": [
+            "009105",
+            "009113",
+            "009121",
+            "009130",
+            "009148",
+            "009156",
+            "009164",
+            "009172",
+            "009180",
+            "009199",
+            "009202",
+            "009296",
+            "009300",
+            "009318",
+            "009326",
+            "009385",
+            "009393",
+            "009407",
+            "009415",
+            "009423",
+            "009431",
+            "009482",
+            "009490",
+            "009598",
+            "009695",
+            "009709",
+            "009717",
+            "009792"
+          ],
+          "gems_not_adopted": [
+            "357.4",
+            "713.5"
+          ]
+        },
+        {
+          "name": "Malária",
+          "cid10": [
+            "B50",
+            "B51",
+            "B52",
+            "B53",
+            "B54"
+          ],
+          "cid9": [
+            {
+              "cid9": "084",
+              "label": "Malária por falciparum (terçã maligna)",
+              "codes6": [
+                "008400",
+                "008419",
+                "008427",
+                "008435",
+                "008443",
+                "008451",
+                "008460",
+                "008478",
+                "008486",
+                "008494"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 19453,
+              "note": "B50–B54."
+            }
+          ],
+          "codes6": [
+            "008400",
+            "008419",
+            "008427",
+            "008435",
+            "008443",
+            "008451",
+            "008460",
+            "008478",
+            "008486",
+            "008494"
+          ],
+          "gems_not_adopted": [
+            "581.8"
+          ]
+        },
+        {
+          "name": "Ascaridíase",
+          "cid10": [
+            "B77"
+          ],
+          "cid9": [
+            {
+              "cid9": "127.0",
+              "label": "Ascaridíase",
+              "codes6": [
+                "012700"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 230
+            }
+          ],
+          "codes6": [
+            "012700"
+          ],
+          "gems_not_adopted": [
+            "484.8"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.091
+    },
+    {
+      "code": "g02",
+      "id": 2,
+      "name_pt": "Gastroenterites infecciosas e complicações",
+      "diagnoses": [
+        {
+          "name": "Desidratação",
+          "cid10": [
+            "E86"
+          ],
+          "cid9": [
+            {
+              "cid9": "276.5",
+              "label": "Depleção de volume liquido",
+              "codes6": [
+                "027650"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI10",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 69705,
+              "note": "Depleção de volume = E86."
+            }
+          ],
+          "codes6": [
+            "027650"
+          ]
+        },
+        {
+          "name": "Gastroenterites",
+          "cid10": [
+            "A00",
+            "A01",
+            "A02",
+            "A03",
+            "A04",
+            "A05",
+            "A06",
+            "A07",
+            "A08",
+            "A09"
+          ],
+          "cid9": [
+            {
+              "cid9": "001",
+              "label": "Devida a Vibrio cholerae",
+              "codes6": [
+                "000108",
+                "000116",
+                "000191"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 2276
+            },
+            {
+              "cid9": "002",
+              "label": "Febre tifóide",
+              "codes6": [
+                "000205",
+                "000213",
+                "000221",
+                "000230",
+                "000299"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 5018
+            },
+            {
+              "cid9": "003",
+              "label": "Gastrenterite por salmonella",
+              "codes6": [
+                "000302",
+                "000310",
+                "000329",
+                "000388",
+                "000396"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 1792
+            },
+            {
+              "cid9": "004",
+              "label": "Shigella dysenteriae",
+              "codes6": [
+                "000400",
+                "000418",
+                "000426",
+                "000434",
+                "000485",
+                "000493"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 222
+            },
+            {
+              "cid9": "005",
+              "label": "Intoxicação alimentar estafilocócica",
+              "codes6": [
+                "000507",
+                "000515",
+                "000523",
+                "000531",
+                "000540",
+                "000582",
+                "000590"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 24796
+            },
+            {
+              "cid9": "006",
+              "label": "Disenteria amebiana aguda s/menção de abcess",
+              "codes6": [
+                "000604",
+                "000612",
+                "000620",
+                "000639",
+                "000647",
+                "000655",
+                "000663",
+                "000680",
+                "000698"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 279
+            },
+            {
+              "cid9": "007",
+              "label": "Balantidíase",
+              "codes6": [
+                "000701",
+                "000710",
+                "000728",
+                "000736",
+                "000787",
+                "000795"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 87
+            },
+            {
+              "cid9": "008",
+              "label": "Escherichia coli",
+              "codes6": [
+                "000809",
+                "000817",
+                "000825",
+                "000833",
+                "000841",
+                "000850",
+                "000868",
+                "000884"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI10"
+              ],
+              "method": "category",
+              "aih_1997": 14000
+            },
+            {
+              "cid9": "009",
+              "label": "Colite enterite gastrenterite infecciosas",
+              "codes6": [
+                "000906",
+                "000914",
+                "000922",
+                "000930"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI10"
+              ],
+              "method": "category",
+              "aih_1997": 603747,
+              "note": "009.0–009.3 = A09 (diarreia e gastroenterite de origem infecciosa presumível); a não infecciosa (558 = K52) fica fora, como na Portaria."
+            }
+          ],
+          "codes6": [
+            "000108",
+            "000116",
+            "000191",
+            "000205",
+            "000213",
+            "000221",
+            "000230",
+            "000299",
+            "000302",
+            "000310",
+            "000329",
+            "000388",
+            "000396",
+            "000400",
+            "000418",
+            "000426",
+            "000434",
+            "000485",
+            "000493",
+            "000507",
+            "000515",
+            "000523",
+            "000531",
+            "000540",
+            "000582",
+            "000590",
+            "000604",
+            "000612",
+            "000620",
+            "000639",
+            "000647",
+            "000655",
+            "000663",
+            "000680",
+            "000698",
+            "000701",
+            "000710",
+            "000728",
+            "000736",
+            "000787",
+            "000795",
+            "000809",
+            "000817",
+            "000825",
+            "000833",
+            "000841",
+            "000850",
+            "000868",
+            "000884",
+            "000906",
+            "000914",
+            "000922",
+            "000930"
+          ],
+          "gems_not_adopted": [
+            "136.5",
+            "995.9"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.135
+    },
+    {
+      "code": "g03",
+      "id": 3,
+      "name_pt": "Anemia",
+      "diagnoses": [
+        {
+          "name": "Anemia por deficiência de ferro",
+          "cid10": [
+            "D50"
+          ],
+          "cid9": [
+            {
+              "cid9": "280",
+              "label": "Anemias por deficiências de ferro",
+              "codes6": [
+                "028096"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 2413,
+              "note": "D50. Em 1997 a prática codificava a anemia carencial NE em 281.9 (35,7 mil AIH) — ver comparabilidade."
+            }
+          ],
+          "codes6": [
+            "028096"
+          ]
+        }
+      ],
+      "comparability": "baixa",
+      "share_ratio_1997_1998": 0.214
+    },
+    {
+      "code": "g04",
+      "id": 4,
+      "name_pt": "Deficiências nutricionais",
+      "diagnoses": [
+        {
+          "name": "Kwashiorkor e outras formas de desnutrição protéico-calórica",
+          "cid10": [
+            "E40",
+            "E41",
+            "E42",
+            "E43",
+            "E44",
+            "E45",
+            "E46"
+          ],
+          "cid9": [
+            {
+              "cid9": "260",
+              "label": "Kwashiorkor",
+              "codes6": [
+                "026093"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 6519,
+              "note": "E40."
+            },
+            {
+              "cid9": "261",
+              "label": "Marasmo nutricional",
+              "codes6": [
+                "026190"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 12549,
+              "note": "E41."
+            },
+            {
+              "cid9": "262",
+              "label": "Out formas desnutriç prot-calóric grav",
+              "codes6": [
+                "026298"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 44380,
+              "note": "E43."
+            },
+            {
+              "cid9": "263",
+              "label": "Desnutrição de grau moderado",
+              "codes6": [
+                "026301",
+                "026310",
+                "026328",
+                "026387",
+                "026395"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 19422,
+              "note": "E44–E46."
+            }
+          ],
+          "codes6": [
+            "026093",
+            "026190",
+            "026298",
+            "026301",
+            "026310",
+            "026328",
+            "026387",
+            "026395"
+          ]
+        },
+        {
+          "name": "Outras deficiências nutricionais",
+          "cid10": [
+            "E50",
+            "E51",
+            "E52",
+            "E53",
+            "E54",
+            "E55",
+            "E56",
+            "E58",
+            "E59",
+            "E60",
+            "E61",
+            "E63",
+            "E64"
+          ],
+          "cid9": [
+            {
+              "cid9": "264",
+              "label": "Com xerose conjuntival",
+              "codes6": [
+                "026409",
+                "026417",
+                "026425",
+                "026433",
+                "026441",
+                "026450",
+                "026468",
+                "026476",
+                "026484",
+                "026492"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 5,
+              "note": "E50."
+            },
+            {
+              "cid9": "265",
+              "label": "Beriberi",
+              "codes6": [
+                "026506",
+                "026514",
+                "026522"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 35,
+              "note": "E51–E52."
+            },
+            {
+              "cid9": "266",
+              "label": "Arriboflavinose",
+              "codes6": [
+                "026603",
+                "026611",
+                "026620",
+                "026697"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 11,
+              "note": "E53."
+            },
+            {
+              "cid9": "267",
+              "label": "Deficiência de ácido ascórbico",
+              "codes6": [
+                "026794"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 71,
+              "note": "E54."
+            },
+            {
+              "cid9": "268",
+              "label": "Raquitismo ativo",
+              "codes6": [
+                "026808",
+                "026816",
+                "026824",
+                "026891"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 93,
+              "note": "E55, E64.3."
+            },
+            {
+              "cid9": "269",
+              "label": "Deficiencia de vitamina k",
+              "codes6": [
+                "026905",
+                "026913",
+                "026921",
+                "026930",
+                "026980",
+                "026999"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 351,
+              "note": "E56, E58–E61, E63, E64."
+            }
+          ],
+          "codes6": [
+            "026409",
+            "026417",
+            "026425",
+            "026433",
+            "026441",
+            "026450",
+            "026468",
+            "026476",
+            "026484",
+            "026492",
+            "026506",
+            "026514",
+            "026522",
+            "026603",
+            "026611",
+            "026620",
+            "026697",
+            "026794",
+            "026808",
+            "026816",
+            "026824",
+            "026891",
+            "026905",
+            "026913",
+            "026921",
+            "026930",
+            "026980",
+            "026999"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.023
+    },
+    {
+      "code": "g05",
+      "id": 5,
+      "name_pt": "Infecções de ouvido, nariz e garganta",
+      "diagnoses": [
+        {
+          "name": "Otite média supurativa",
+          "cid10": [
+            "H66"
+          ],
+          "cid9": [
+            {
+              "cid9": "382",
+              "label": "Otite media aguda supurativa",
+              "codes6": [
+                "038202",
+                "038210",
+                "038229",
+                "038237",
+                "038245",
+                "038296"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 5260,
+              "note": "H66 (supurativa e NE) = 382 (supurativa e NE)."
+            }
+          ],
+          "codes6": [
+            "038202",
+            "038210",
+            "038229",
+            "038237",
+            "038245",
+            "038296"
+          ]
+        },
+        {
+          "name": "Nasofaringite aguda (resfriado comum)",
+          "cid10": [
+            "J00"
+          ],
+          "cid9": [
+            {
+              "cid9": "460",
+              "label": "Nasofaringite aguda (resfriado comum)",
+              "codes6": [
+                "046094"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 81
+            }
+          ],
+          "codes6": [
+            "046094"
+          ]
+        },
+        {
+          "name": "Sinusite aguda",
+          "cid10": [
+            "J01"
+          ],
+          "cid9": [
+            {
+              "cid9": "461",
+              "label": "Maxilar",
+              "codes6": [
+                "046108",
+                "046116",
+                "046124",
+                "046132",
+                "046183",
+                "046191"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 1482
+            }
+          ],
+          "codes6": [
+            "046108",
+            "046116",
+            "046124",
+            "046132",
+            "046183",
+            "046191"
+          ]
+        },
+        {
+          "name": "Faringite aguda",
+          "cid10": [
+            "J02"
+          ],
+          "cid9": [
+            {
+              "cid9": "462",
+              "label": "Faringite aguda",
+              "codes6": [
+                "046299"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 53
+            }
+          ],
+          "codes6": [
+            "046299"
+          ]
+        },
+        {
+          "name": "Amigdalite aguda",
+          "cid10": [
+            "J03"
+          ],
+          "cid9": [
+            {
+              "cid9": "463",
+              "label": "Amigdalite aguda",
+              "codes6": [
+                "046396"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 1074
+            },
+            {
+              "cid9": "034.0",
+              "label": "Angina estreptocócica",
+              "codes6": [
+                "003409"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 65,
+              "note": "Angina estreptocócica = J02.0 (faringite estreptocócica) + J03.0 (amigdalite estreptocócica)."
+            }
+          ],
+          "codes6": [
+            "003409",
+            "046396"
+          ]
+        },
+        {
+          "name": "Infecção aguda das vias aéreas superiores",
+          "cid10": [
+            "J06"
+          ],
+          "cid9": [
+            {
+              "cid9": "465",
+              "label": "Laringofaringite aguda",
+              "codes6": [
+                "046507",
+                "046582",
+                "046590"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 75018,
+              "note": "J06. Ver comparabilidade: 465.9 tinha 73 mil AIH em 1997 e J06 caiu a ~15 mil em 1998."
+            }
+          ],
+          "codes6": [
+            "046507",
+            "046582",
+            "046590"
+          ]
+        },
+        {
+          "name": "Rinite, nasofaringite e faringite crônicas",
+          "cid10": [
+            "J31"
+          ],
+          "cid9": [
+            {
+              "cid9": "472",
+              "label": "Rinite crônica",
+              "codes6": [
+                "047201",
+                "047210",
+                "047228"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:reviewed"
+              ],
+              "method": "category",
+              "aih_1997": 137,
+              "note": "J31."
+            }
+          ],
+          "codes6": [
+            "047201",
+            "047210",
+            "047228"
+          ]
+        }
+      ],
+      "comparability": "baixa",
+      "share_ratio_1997_1998": 4.755
+    },
+    {
+      "code": "g06",
+      "id": 6,
+      "name_pt": "Pneumonias bacterianas",
+      "diagnoses": [
+        {
+          "name": "Pneumonia Pneumocócica",
+          "cid10": [
+            "J13"
+          ],
+          "cid9": [
+            {
+              "cid9": "481",
+              "label": "Pneumonia pneumocócica",
+              "codes6": [
+                "048194"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI11",
+                "caminal2004:expanded"
+              ],
+              "method": "approximate",
+              "aih_1997": 1503,
+              "note": "481 inclui 'pneumonia lobar, organismo NE' (J18.1) — compartilhada com o diagnóstico seguinte."
+            }
+          ],
+          "codes6": [
+            "048194"
+          ]
+        },
+        {
+          "name": "Pneumonia por Haemophilus influenzae",
+          "cid10": [
+            "J14"
+          ],
+          "cid9": [
+            {
+              "cid9": "482.2",
+              "label": "Pneumonia dev haemophilus influenzae",
+              "codes6": [
+                "048224"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI11",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 269
+            }
+          ],
+          "codes6": [
+            "048224"
+          ]
+        },
+        {
+          "name": "Pneumonia por Streptococcus",
+          "cid10": [
+            "J15.3",
+            "J15.4"
+          ],
+          "cid9": [
+            {
+              "cid9": "482.3",
+              "label": "Pneumonia devida a streptococcus",
+              "codes6": [
+                "048232"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI11",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 36,
+              "note": "J15.3–J15.4."
+            }
+          ],
+          "codes6": [
+            "048232"
+          ]
+        },
+        {
+          "name": "Pneumonia bacteriana não especificada",
+          "cid10": [
+            "J15.8",
+            "J15.9"
+          ],
+          "cid9": [
+            {
+              "cid9": "482.8",
+              "label": "Pneumonia dev outras bactérias especificadas",
+              "codes6": [
+                "048283"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "approximate",
+              "aih_1997": 1506,
+              "note": "Outras bactérias especificadas; na CID-10 J15.5 (E. coli) e J15.6 (outras gram-negativas) ficaram FORA da Portaria e aqui não se separam."
+            },
+            {
+              "cid9": "482.9",
+              "label": "Pneumonia bacteriana não especificada",
+              "codes6": [
+                "048291"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI11",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 107661,
+              "note": "J15.9."
+            }
+          ],
+          "codes6": [
+            "048283",
+            "048291"
+          ]
+        },
+        {
+          "name": "Pneumonia lobar não especificada",
+          "cid10": [
+            "J18.1"
+          ],
+          "cid9": [
+            {
+              "cid9": "481",
+              "label": "Pneumonia pneumocócica",
+              "codes6": [
+                "048194"
+              ],
+              "source": [
+                "who-rubric",
+                "gems-2018"
+              ],
+              "method": "approximate",
+              "aih_1997": 1503,
+              "note": "Sem rubrica própria na CID-9: a lobar NE está dentro de 481 (GEMs J18.1 → 481)."
+            }
+          ],
+          "codes6": [
+            "048194"
+          ]
+        }
+      ],
+      "comparability": "media",
+      "share_ratio_1997_1998": 0.761
+    },
+    {
+      "code": "g07",
+      "id": 7,
+      "name_pt": "Asma",
+      "diagnoses": [
+        {
+          "name": "Asma",
+          "cid10": [
+            "J45",
+            "J46"
+          ],
+          "cid9": [
+            {
+              "cid9": "493",
+              "label": "Asma extrinseca",
+              "codes6": [
+                "049301",
+                "049310",
+                "049395"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI05",
+                "ahrq-pqi-v6:PQI15",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 390362,
+              "note": "J45–J46."
+            }
+          ],
+          "codes6": [
+            "049301",
+            "049310",
+            "049395"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 0.997
+    },
+    {
+      "code": "g08",
+      "id": 8,
+      "name_pt": "Doenças pulmonares",
+      "diagnoses": [
+        {
+          "name": "Bronquite aguda",
+          "cid10": [
+            "J20",
+            "J21"
+          ],
+          "cid9": [
+            {
+              "cid9": "466",
+              "label": "Bronquite aguda",
+              "codes6": [
+                "046604",
+                "046612"
+              ],
+              "source": [
+                "who-rubric",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 26229,
+              "note": "J20–J21 (bronquite e bronquiolite agudas)."
+            }
+          ],
+          "codes6": [
+            "046604",
+            "046612"
+          ],
+          "gems_not_adopted": [
+            "041.0",
+            "041.5",
+            "041.8",
+            "079.1",
+            "079.2",
+            "079.3",
+            "079.6",
+            "079.8"
+          ]
+        },
+        {
+          "name": "Bronquite não especificada como aguda ou crônica",
+          "cid10": [
+            "J40"
+          ],
+          "cid9": [
+            {
+              "cid9": "490",
+              "label": "Bronquite não especif se aguda ou crôn",
+              "codes6": [
+                "049093"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 4256,
+              "note": "J40."
+            }
+          ],
+          "codes6": [
+            "049093"
+          ]
+        },
+        {
+          "name": "Bronquite crônica simples e mucopurulenta",
+          "cid10": [
+            "J41"
+          ],
+          "cid9": [
+            {
+              "cid9": "491.0",
+              "label": "Bronquite crônica simples",
+              "codes6": [
+                "049107"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI05",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 279,
+              "note": "J41.0."
+            },
+            {
+              "cid9": "491.1",
+              "label": "Bronquite crônica mucopurulenta",
+              "codes6": [
+                "049115"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI05",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 1902,
+              "note": "J41.1."
+            }
+          ],
+          "codes6": [
+            "049107",
+            "049115"
+          ]
+        },
+        {
+          "name": "Bronquite crônica não especificada",
+          "cid10": [
+            "J42"
+          ],
+          "cid9": [
+            {
+              "cid9": "491.8",
+              "label": "Outras bronquites crônicas",
+              "codes6": [
+                "049182"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI05",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "approximate",
+              "aih_1997": 23467,
+              "note": "Outras bronquites crônicas (J41.8/J42)."
+            },
+            {
+              "cid9": "491.9",
+              "label": "Não especificada",
+              "codes6": [
+                "049190"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI05",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 12791,
+              "note": "J42."
+            }
+          ],
+          "codes6": [
+            "049182",
+            "049190"
+          ]
+        },
+        {
+          "name": "Enfisema",
+          "cid10": [
+            "J43"
+          ],
+          "cid9": [
+            {
+              "cid9": "492",
+              "label": "Enfisema",
+              "codes6": [
+                "049298"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI05",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 58212,
+              "note": "J43."
+            }
+          ],
+          "codes6": [
+            "049298"
+          ]
+        },
+        {
+          "name": "Bronquiectasia",
+          "cid10": [
+            "J47"
+          ],
+          "cid9": [
+            {
+              "cid9": "494",
+              "label": "Bronquectasia",
+              "codes6": [
+                "049492"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI05",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 5262,
+              "note": "J47."
+            }
+          ],
+          "codes6": [
+            "049492"
+          ]
+        },
+        {
+          "name": "Outras doenças pulmonares obstrutivas crônicas",
+          "cid10": [
+            "J44"
+          ],
+          "cid9": [
+            {
+              "cid9": "491.2",
+              "label": "Bronquite crônica obstrutiva",
+              "codes6": [
+                "049123"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI05",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 11494,
+              "note": "Bronquite crônica obstrutiva = J44.8."
+            },
+            {
+              "cid9": "496",
+              "label": "Obstução crônica vias respirat NCOP",
+              "codes6": [
+                "049697"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI05",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 146409,
+              "note": "J44."
+            }
+          ],
+          "codes6": [
+            "049123",
+            "049697"
+          ],
+          "gems_not_adopted": [
+            "493.2"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 0.857
+    },
+    {
+      "code": "g09",
+      "id": 9,
+      "name_pt": "Hipertensão",
+      "diagnoses": [
+        {
+          "name": "Hipertensão essencial",
+          "cid10": [
+            "I10"
+          ],
+          "cid9": [
+            {
+              "cid9": "401",
+              "label": "especificada como maligna",
+              "codes6": [
+                "040100",
+                "040118",
+                "040193"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI07",
+                "cihi-2008",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 147747,
+              "note": "I10. AHRQ e CIHI listam 401.0 e 401.9 e deixam de fora 401.1 (benigna); a Portaria inclui I10 inteira, logo 401 inteira."
+            }
+          ],
+          "codes6": [
+            "040100",
+            "040118",
+            "040193"
+          ]
+        },
+        {
+          "name": "Doença cardíaca hipertensiva",
+          "cid10": [
+            "I11"
+          ],
+          "cid9": [
+            {
+              "cid9": "402",
+              "label": "especificada como maligna",
+              "codes6": [
+                "040207",
+                "040215",
+                "040290"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI07",
+                "cihi-2008",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 9358,
+              "note": "I11."
+            }
+          ],
+          "codes6": [
+            "040207",
+            "040215",
+            "040290"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.223
+    },
+    {
+      "code": "g10",
+      "id": 10,
+      "name_pt": "Angina",
+      "diagnoses": [
+        {
+          "name": "Angina pectoris",
+          "cid10": [
+            "I20"
+          ],
+          "cid9": [
+            {
+              "cid9": "413",
+              "label": "Angina do peito",
+              "codes6": [
+                "041394"
+              ],
+              "source": [
+                "who-rubric",
+                "cihi-2008",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 61182,
+              "note": "I20. A 411 (outras formas agudas/subagudas de doença isquêmica — angina instável, insuficiência coronária aguda, Dressler) ficou FORA: na CID-10 vai sobretudo para I24 (fora da Portaria) e a fronteira 1997/98 confirma (razão 1,14 sem 411, 1,44 com)."
+            }
+          ],
+          "codes6": [
+            "041394"
+          ],
+          "gems_not_adopted": [
+            "411.1"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.141
+    },
+    {
+      "code": "g11",
+      "id": 11,
+      "name_pt": "Insuficiência cardíaca",
+      "diagnoses": [
+        {
+          "name": "Insuficiência cardíaca",
+          "cid10": [
+            "I50"
+          ],
+          "cid9": [
+            {
+              "cid9": "428",
+              "label": "Insuficiencia cardiaca congestiva",
+              "codes6": [
+                "042803",
+                "042811",
+                "042897"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI08",
+                "cihi-2008",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 423606,
+              "note": "I50."
+            }
+          ],
+          "codes6": [
+            "042803",
+            "042811",
+            "042897"
+          ]
+        },
+        {
+          "name": "Edema agudo de pulmão",
+          "cid10": [
+            "J81"
+          ],
+          "cid9": [
+            {
+              "cid9": "518.4",
+              "label": "Edema agudo de pulmão não especificado",
+              "codes6": [
+                "051845"
+              ],
+              "source": [
+                "who-rubric",
+                "cihi-2008",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 19865,
+              "note": "J81."
+            },
+            {
+              "cid9": "514",
+              "label": "Congestão e hipostase pulmonares",
+              "codes6": [
+                "051497"
+              ],
+              "source": [
+                "gems-2018"
+              ],
+              "method": "approximate",
+              "aih_1997": 164,
+              "note": "Congestão e hipostase pulmonares: inclui edema pulmonar NE (J81) e pneumonia hipostática (J18.2, fora). 164 AIH em 1997."
+            }
+          ],
+          "codes6": [
+            "051497",
+            "051845"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.048
+    },
+    {
+      "code": "g12",
+      "id": 12,
+      "name_pt": "Doenças cerebrovasculares",
+      "diagnoses": [
+        {
+          "name": "Doenças cerebrovasculares",
+          "cid10": [
+            "I63",
+            "I64",
+            "I65",
+            "I66",
+            "I67",
+            "I69",
+            "G45",
+            "G46"
+          ],
+          "cid9": [
+            {
+              "cid9": "433",
+              "label": "Da arteria basilar",
+              "codes6": [
+                "043303",
+                "043311",
+                "043320",
+                "043338",
+                "043389",
+                "043397"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 570,
+              "note": "I65 (oclusão de artérias pré-cerebrais); com infarto = I63."
+            },
+            {
+              "cid9": "434",
+              "label": "Trombose cerebral",
+              "codes6": [
+                "043400",
+                "043419",
+                "043494"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 156129,
+              "note": "I66 (oclusão de artérias cerebrais); com infarto = I63."
+            },
+            {
+              "cid9": "435",
+              "label": "Isquemia cerebral transitória",
+              "codes6": [
+                "043591"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 11822,
+              "note": "G45 (isquemia cerebral transitória)."
+            },
+            {
+              "cid9": "436",
+              "label": "Doença cerebrovascular aguda mal def",
+              "codes6": [
+                "043699"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 32706,
+              "note": "I64 (AVC agudo mal definido)."
+            },
+            {
+              "cid9": "437",
+              "label": "Aterosclerose cerebral",
+              "codes6": [
+                "043702",
+                "043710",
+                "043729",
+                "043737",
+                "043745",
+                "043753",
+                "043761",
+                "043788",
+                "043796"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 16301,
+              "note": "I67 (outras cerebrovasculares; 437.2 encefalopatia hipertensiva = I67.4, listada por Caminal no núcleo) e G46 (síndromes vasculares cerebrais)."
+            },
+            {
+              "cid9": "438",
+              "label": "Efeitos tardios doença cerebrovascular",
+              "codes6": [
+                "043893"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 15526,
+              "note": "I69 (sequelas). Hemorragias 430–432 = I60–I62 ficam fora, como na Portaria."
+            }
+          ],
+          "codes6": [
+            "043303",
+            "043311",
+            "043320",
+            "043338",
+            "043389",
+            "043397",
+            "043400",
+            "043419",
+            "043494",
+            "043591",
+            "043699",
+            "043702",
+            "043710",
+            "043729",
+            "043737",
+            "043745",
+            "043753",
+            "043761",
+            "043788",
+            "043796",
+            "043893"
+          ],
+          "gems_not_adopted": [
+            "046.3",
+            "348.3",
+            "362.3",
+            "443.2"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.046
+    },
+    {
+      "code": "g13",
+      "id": 13,
+      "name_pt": "Diabetes mellitus",
+      "diagnoses": [
+        {
+          "name": "Com coma ou cetoacidose",
+          "cid10": [
+            "E10.0",
+            "E10.1",
+            "E11.0",
+            "E11.1",
+            "E12.0",
+            "E12.1",
+            "E13.0",
+            "E13.1",
+            "E14.0",
+            "E14.1"
+          ],
+          "cid9": [
+            {
+              "cid9": "250.1",
+              "label": "Diabetes com cetoacidose",
+              "codes6": [
+                "025011"
+              ],
+              "source": [
+                "who-rubric",
+                "datasus-diagpacto9",
+                "ahrq-pqi-v6:PQI01",
+                "cihi-2008",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 3896,
+              "note": "Cetoacidose = E1x.1."
+            },
+            {
+              "cid9": "250.2",
+              "label": "Diabetes com coma",
+              "codes6": [
+                "025020"
+              ],
+              "source": [
+                "who-rubric",
+                "datasus-diagpacto9",
+                "ahrq-pqi-v6:PQI01",
+                "cihi-2008",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 457,
+              "note": "Coma = E1x.0."
+            }
+          ],
+          "codes6": [
+            "025011",
+            "025020"
+          ],
+          "gems_not_adopted": [
+            "249.1",
+            "249.2",
+            "249.3"
+          ]
+        },
+        {
+          "name": "Com complicações",
+          "cid10": [
+            "E10.2",
+            "E10.3",
+            "E10.4",
+            "E10.5",
+            "E10.6",
+            "E10.7",
+            "E10.8",
+            "E11.2",
+            "E11.3",
+            "E11.4",
+            "E11.5",
+            "E11.6",
+            "E11.7",
+            "E11.8",
+            "E12.2",
+            "E12.3",
+            "E12.4",
+            "E12.5",
+            "E12.6",
+            "E12.7",
+            "E12.8",
+            "E13.2",
+            "E13.3",
+            "E13.4",
+            "E13.5",
+            "E13.6",
+            "E13.7",
+            "E13.8",
+            "E14.2",
+            "E14.3",
+            "E14.4",
+            "E14.5",
+            "E14.6",
+            "E14.7",
+            "E14.8"
+          ],
+          "cid9": [
+            {
+              "cid9": "250.3",
+              "label": "Diabetes com manifestações renais",
+              "codes6": [
+                "025038"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI03",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 987,
+              "note": "Renais = E1x.2 (OMS 250.3 = CM 250.4)."
+            },
+            {
+              "cid9": "250.4",
+              "label": "Diabetes com manifestações oftálmicas",
+              "codes6": [
+                "025046"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI03"
+              ],
+              "method": "exact",
+              "aih_1997": 59,
+              "note": "Oftálmicas = E1x.3."
+            },
+            {
+              "cid9": "250.5",
+              "label": "Diabetes com manifestações neurológicas",
+              "codes6": [
+                "025054"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI03"
+              ],
+              "method": "exact",
+              "aih_1997": 208,
+              "note": "Neurológicas = E1x.4."
+            },
+            {
+              "cid9": "250.6",
+              "label": "Diabetes com transt circulatorios periferico",
+              "codes6": [
+                "025062"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI03"
+              ],
+              "method": "exact",
+              "aih_1997": 2822,
+              "note": "Circulatórias periféricas = E1x.5."
+            },
+            {
+              "cid9": "250.7",
+              "label": "Diabetes com outras manifestações especific",
+              "codes6": [
+                "025070"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI03",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 18745,
+              "note": "Outras manifestações especificadas = E1x.6–E1x.7."
+            },
+            {
+              "cid9": "250.9",
+              "label": "Diabetes com complicações não especificadas",
+              "codes6": [
+                "025097"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI03",
+                "caminal2004:reviewed"
+              ],
+              "method": "exact",
+              "aih_1997": 68361,
+              "note": "Complicações NE = E1x.8."
+            },
+            {
+              "cid9": "362.0",
+              "label": "Retinopatia diabetica",
+              "codes6": [
+                "036200"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "approximate",
+              "aih_1997": 218,
+              "note": "Retinopatia diabética (asterisco de 250.4; H36.0* na CID-10, cujo principal seria E1x.3)."
+            },
+            {
+              "cid9": "357.2",
+              "label": "Polineuropatia nos diabetes mellitus",
+              "codes6": [
+                "035726"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "approximate",
+              "aih_1997": 125,
+              "note": "Polineuropatia diabética (asterisco de 250.5; G63.2*)."
+            }
+          ],
+          "codes6": [
+            "025038",
+            "025046",
+            "025054",
+            "025062",
+            "025070",
+            "025097",
+            "035726",
+            "036200"
+          ],
+          "gems_not_adopted": [
+            "249.3",
+            "249.4",
+            "249.5",
+            "249.6",
+            "249.7",
+            "249.8",
+            "249.9",
+            "250.8",
+            "349.8",
+            "353.5",
+            "355.9",
+            "361.0",
+            "361.8",
+            "366.4",
+            "443.8",
+            "523.8",
+            "536.3",
+            "713.5",
+            "716.8",
+            "785.4"
+          ]
+        },
+        {
+          "name": "Sem complicações específicas",
+          "cid10": [
+            "E10.9",
+            "E11.9",
+            "E12.9",
+            "E13.9",
+            "E14.9"
+          ],
+          "cid9": [
+            {
+              "cid9": "250.0",
+              "label": "Diabetes mellitus sem menção de complicação",
+              "codes6": [
+                "025003"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI14",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 21627,
+              "note": "E1x.9."
+            }
+          ],
+          "codes6": [
+            "025003"
+          ],
+          "gems_not_adopted": [
+            "249.0"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.069
+    },
+    {
+      "code": "g14",
+      "id": 14,
+      "name_pt": "Epilepsias",
+      "diagnoses": [
+        {
+          "name": "Epilepsias",
+          "cid10": [
+            "G40",
+            "G41"
+          ],
+          "cid9": [
+            {
+              "cid9": "345",
+              "label": "Epilepsia não convulsiva generalizada",
+              "codes6": [
+                "034509",
+                "034517",
+                "034525",
+                "034533",
+                "034541",
+                "034550",
+                "034568",
+                "034576",
+                "034584",
+                "034592"
+              ],
+              "source": [
+                "who-rubric",
+                "cihi-2008",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 55448,
+              "note": "G40–G41."
+            }
+          ],
+          "codes6": [
+            "034509",
+            "034517",
+            "034525",
+            "034533",
+            "034541",
+            "034550",
+            "034568",
+            "034576",
+            "034584",
+            "034592"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.148
+    },
+    {
+      "code": "g15",
+      "id": 15,
+      "name_pt": "Infecção no rim e trato urinário",
+      "diagnoses": [
+        {
+          "name": "Nefrite túbulo-intersticial aguda",
+          "cid10": [
+            "N10"
+          ],
+          "cid9": [
+            {
+              "cid9": "590.1",
+              "label": "Pielonefrite aguda e pionefrose aguda",
+              "codes6": [
+                "059013"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI12",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 97968,
+              "note": "Pielonefrite aguda = N10."
+            }
+          ],
+          "codes6": [
+            "059013"
+          ]
+        },
+        {
+          "name": "Nefrite túbulo-intersticial crônica",
+          "cid10": [
+            "N11"
+          ],
+          "cid9": [
+            {
+              "cid9": "590.0",
+              "label": "Pielonefrite crônica e pionefrose crônica",
+              "codes6": [
+                "059005"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 583,
+              "note": "Pielonefrite crônica = N11."
+            }
+          ],
+          "codes6": [
+            "059005"
+          ],
+          "gems_not_adopted": [
+            "593.3",
+            "593.4"
+          ]
+        },
+        {
+          "name": "Nefrite túbulo-intersticial não especificada",
+          "cid10": [
+            "N12"
+          ],
+          "cid9": [
+            {
+              "cid9": "590.3",
+              "label": "Pieloureterite cistica",
+              "codes6": [
+                "059030"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI12"
+              ],
+              "method": "approximate",
+              "aih_1997": 428,
+              "note": "Pieloureterite cística (N28.8 na CID-10) — 428 AIH."
+            },
+            {
+              "cid9": "590.8",
+              "label": "Pielonefrite ou pionefrose",
+              "codes6": [
+                "059080"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI12",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 36009,
+              "note": "Pielonefrite NE = N12."
+            },
+            {
+              "cid9": "590.9",
+              "label": "Infeccao do rim não especificada",
+              "codes6": [
+                "059099"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI12"
+              ],
+              "method": "approximate",
+              "aih_1997": 7820,
+              "note": "Infecção do rim NE (N15.9 na CID-10, fora da Portaria; aqui incluída por ser a NE da categoria). 590.2 (abscesso renal = N15.1) ficou FORA."
+            }
+          ],
+          "codes6": [
+            "059030",
+            "059080",
+            "059099"
+          ]
+        },
+        {
+          "name": "Cistite",
+          "cid10": [
+            "N30"
+          ],
+          "cid9": [
+            {
+              "cid9": "595",
+              "label": "Cistite aguda",
+              "codes6": [
+                "059501",
+                "059510",
+                "059528",
+                "059536",
+                "059544",
+                "059587",
+                "059595"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI12"
+              ],
+              "method": "category",
+              "aih_1997": 881,
+              "note": "N30."
+            }
+          ],
+          "codes6": [
+            "059501",
+            "059510",
+            "059528",
+            "059536",
+            "059544",
+            "059587",
+            "059595"
+          ]
+        },
+        {
+          "name": "Uretrite",
+          "cid10": [
+            "N34"
+          ],
+          "cid9": [
+            {
+              "cid9": "597",
+              "label": "Abcesso uretral",
+              "codes6": [
+                "059706",
+                "059781"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 91,
+              "note": "N34 (uretrite não venérea e síndrome uretral)."
+            }
+          ],
+          "codes6": [
+            "059706",
+            "059781"
+          ],
+          "gems_not_adopted": [
+            "099.4"
+          ]
+        },
+        {
+          "name": "Infecção do trato urinário de localização não especificada",
+          "cid10": [
+            "N39.0"
+          ],
+          "cid9": [
+            {
+              "cid9": "599.0",
+              "label": "Infeccao trato urinário localiz não especif",
+              "codes6": [
+                "059900"
+              ],
+              "source": [
+                "who-rubric",
+                "ahrq-pqi-v6:PQI12",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 13938,
+              "note": "N39.0."
+            }
+          ],
+          "codes6": [
+            "059900"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 0.979
+    },
+    {
+      "code": "g16",
+      "id": 16,
+      "name_pt": "Infecção da pele e tecido subcutâneo",
+      "diagnoses": [
+        {
+          "name": "Erisipela",
+          "cid10": [
+            "A46"
+          ],
+          "cid9": [
+            {
+              "cid9": "035",
+              "label": "Erisipelas",
+              "codes6": [
+                "003590"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 8935,
+              "note": "A46."
+            }
+          ],
+          "codes6": [
+            "003590"
+          ]
+        },
+        {
+          "name": "Impetigo",
+          "cid10": [
+            "L01"
+          ],
+          "cid9": [
+            {
+              "cid9": "684",
+              "label": "Impetigo",
+              "codes6": [
+                "068497"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 317,
+              "note": "L01."
+            }
+          ],
+          "codes6": [
+            "068497"
+          ]
+        },
+        {
+          "name": "Abscesso cutâneo, furúnculo e carbúnculo",
+          "cid10": [
+            "L02"
+          ],
+          "cid9": [
+            {
+              "cid9": "680",
+              "label": "Da face",
+              "codes6": [
+                "068004",
+                "068012",
+                "068020",
+                "068039",
+                "068047",
+                "068055",
+                "068063",
+                "068071",
+                "068080",
+                "068098"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "approximate",
+              "aih_1997": 406,
+              "note": "Furúnculo e carbúnculo = L02; o abscesso cutâneo está em 682 (diagnóstico seguinte, mesmo grupo)."
+            }
+          ],
+          "codes6": [
+            "068004",
+            "068012",
+            "068020",
+            "068039",
+            "068047",
+            "068055",
+            "068063",
+            "068071",
+            "068080",
+            "068098"
+          ]
+        },
+        {
+          "name": "Celulite",
+          "cid10": [
+            "L03"
+          ],
+          "cid9": [
+            {
+              "cid9": "682",
+              "label": "Da face",
+              "codes6": [
+                "068209",
+                "068217",
+                "068225",
+                "068233",
+                "068241",
+                "068250",
+                "068268",
+                "068276",
+                "068284",
+                "068292"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "approximate",
+              "aih_1997": 33045,
+              "note": "Outras celulites e abscessos = L03 + abscesso de L02."
+            },
+            {
+              "cid9": "681",
+              "label": "Dos dedos da mao",
+              "codes6": [
+                "068101",
+                "068110",
+                "068195"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "exact",
+              "aih_1997": 205,
+              "note": "Celulite e abscesso de dedos = L03.0."
+            }
+          ],
+          "codes6": [
+            "068101",
+            "068110",
+            "068195",
+            "068209",
+            "068217",
+            "068225",
+            "068233",
+            "068241",
+            "068250",
+            "068268",
+            "068276",
+            "068284",
+            "068292"
+          ]
+        },
+        {
+          "name": "Linfadenite aguda",
+          "cid10": [
+            "L04"
+          ],
+          "cid9": [
+            {
+              "cid9": "683",
+              "label": "Linfadenite aguda",
+              "codes6": [
+                "068390"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 477,
+              "note": "L04."
+            }
+          ],
+          "codes6": [
+            "068390"
+          ]
+        },
+        {
+          "name": "Outras infecções localizadas na pele e tecido subcutâneo",
+          "cid10": [
+            "L08"
+          ],
+          "cid9": [
+            {
+              "cid9": "686",
+              "label": "Pioderma",
+              "codes6": [
+                "068608",
+                "068616",
+                "068683",
+                "068691"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:expanded"
+              ],
+              "method": "category",
+              "aih_1997": 18978,
+              "note": "L08."
+            }
+          ],
+          "codes6": [
+            "068608",
+            "068616",
+            "068683",
+            "068691"
+          ],
+          "gems_not_adopted": [
+            "039.0"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.014
+    },
+    {
+      "code": "g17",
+      "id": 17,
+      "name_pt": "Doença inflamatória dos órgãos pélvicos femininos",
+      "diagnoses": [
+        {
+          "name": "Salpingite e ooforite",
+          "cid10": [
+            "N70"
+          ],
+          "cid9": [
+            {
+              "cid9": "614.0",
+              "label": "Salpingite e ooforite agudas",
+              "codes6": [
+                "061409"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 33026,
+              "note": "N70.0."
+            },
+            {
+              "cid9": "614.1",
+              "label": "Salpingite e ooforite crônicas",
+              "codes6": [
+                "061417"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 1566,
+              "note": "N70.1."
+            },
+            {
+              "cid9": "614.2",
+              "label": "Salpingite e ooforite",
+              "codes6": [
+                "061425"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 762,
+              "note": "N70.9."
+            }
+          ],
+          "codes6": [
+            "061409",
+            "061417",
+            "061425"
+          ]
+        },
+        {
+          "name": "Doença inflamatória do útero, exceto o colo",
+          "cid10": [
+            "N71"
+          ],
+          "cid9": [
+            {
+              "cid9": "615",
+              "label": "Agudas",
+              "codes6": [
+                "061506",
+                "061514",
+                "061590"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 108,
+              "note": "N71."
+            }
+          ],
+          "codes6": [
+            "061506",
+            "061514",
+            "061590"
+          ]
+        },
+        {
+          "name": "Doença inflamatória do colo do útero",
+          "cid10": [
+            "N72"
+          ],
+          "cid9": [
+            {
+              "cid9": "616.0",
+              "label": "Cervicite e endocervicite",
+              "codes6": [
+                "061603"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 422,
+              "note": "N72."
+            }
+          ],
+          "codes6": [
+            "061603"
+          ]
+        },
+        {
+          "name": "Outras doenças inflamatórias pélvicas femininas",
+          "cid10": [
+            "N73"
+          ],
+          "cid9": [
+            {
+              "cid9": "614.3",
+              "label": "Parametrite e celulite pelvica agudas",
+              "codes6": [
+                "061433"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 80,
+              "note": "N73."
+            },
+            {
+              "cid9": "614.4",
+              "label": "Parametrite celulite pelvic crônic ou n espe",
+              "codes6": [
+                "061441"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 27,
+              "note": "N73."
+            },
+            {
+              "cid9": "614.5",
+              "label": "Peritonite pelvica aguda ou não especificada",
+              "codes6": [
+                "061450"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 1999,
+              "note": "N73."
+            },
+            {
+              "cid9": "614.6",
+              "label": "Aderencias peritoniais pelvicas",
+              "codes6": [
+                "061468"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 672,
+              "note": "N73."
+            },
+            {
+              "cid9": "614.7",
+              "label": "Outras peritonites pelvicas crônicas",
+              "codes6": [
+                "061476"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 7768,
+              "note": "N73."
+            },
+            {
+              "cid9": "614.8",
+              "label": "Outr doenç inflam espec org e tecid pelv fem",
+              "codes6": [
+                "061484"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 1041,
+              "note": "N73."
+            },
+            {
+              "cid9": "614.9",
+              "label": "Doenc inflam n espec org e tecid pelv femini",
+              "codes6": [
+                "061492"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "exact",
+              "aih_1997": 2878,
+              "note": "N73."
+            }
+          ],
+          "codes6": [
+            "061433",
+            "061441",
+            "061450",
+            "061468",
+            "061476",
+            "061484",
+            "061492"
+          ]
+        },
+        {
+          "name": "Doenças da glândula de Bartholin",
+          "cid10": [
+            "N75"
+          ],
+          "cid9": [
+            {
+              "cid9": "616.2",
+              "label": "Cisto da glandula de bartholin",
+              "codes6": [
+                "061620"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 11544,
+              "note": "N75.0."
+            },
+            {
+              "cid9": "616.3",
+              "label": "Abcesso da glandula de bartholin",
+              "codes6": [
+                "061638"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 1858,
+              "note": "N75.1."
+            }
+          ],
+          "codes6": [
+            "061620",
+            "061638"
+          ]
+        },
+        {
+          "name": "Outras afecções inflamatórias da vagina e da vulva",
+          "cid10": [
+            "N76"
+          ],
+          "cid9": [
+            {
+              "cid9": "616.1",
+              "label": "Vaginite e vulvovaginite",
+              "codes6": [
+                "061611"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 292,
+              "note": "N76.0–N76.1."
+            },
+            {
+              "cid9": "616.4",
+              "label": "Outros abcessos da vulva",
+              "codes6": [
+                "061646"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 157,
+              "note": "N76.4."
+            },
+            {
+              "cid9": "616.5",
+              "label": "Úlceracao da vulva",
+              "codes6": [
+                "061654"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 73,
+              "note": "N76.6."
+            },
+            {
+              "cid9": "616.8",
+              "label": "Outras",
+              "codes6": [
+                "061689"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 540,
+              "note": "N76.8."
+            },
+            {
+              "cid9": "616.9",
+              "label": "Não especificadas",
+              "codes6": [
+                "061697"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 211,
+              "note": "N76.8/N76.9."
+            }
+          ],
+          "codes6": [
+            "061611",
+            "061646",
+            "061654",
+            "061689",
+            "061697"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 0.884
+    },
+    {
+      "code": "g18",
+      "id": 18,
+      "name_pt": "Úlcera gastrointestinal",
+      "diagnoses": [
+        {
+          "name": "Úlcera gástrica",
+          "cid10": [
+            "K25"
+          ],
+          "cid9": [
+            {
+              "cid9": "531",
+              "label": "Aguda com hemorragia",
+              "codes6": [
+                "053104",
+                "053112",
+                "053120",
+                "053139",
+                "053147",
+                "053155",
+                "053163",
+                "053171",
+                "053198"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 2651,
+              "note": "K25 (Caminal só lista as hemorrágicas/perfuradas .0, .2, .4, .6; a Portaria inclui K25 inteira)."
+            }
+          ],
+          "codes6": [
+            "053104",
+            "053112",
+            "053120",
+            "053139",
+            "053147",
+            "053155",
+            "053163",
+            "053171",
+            "053198"
+          ]
+        },
+        {
+          "name": "Úlcera duodenal",
+          "cid10": [
+            "K26"
+          ],
+          "cid9": [
+            {
+              "cid9": "532",
+              "label": "Aguda com hemorragia",
+              "codes6": [
+                "053201",
+                "053210",
+                "053228",
+                "053236",
+                "053244",
+                "053252",
+                "053260",
+                "053279",
+                "053295"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 5016,
+              "note": "K26."
+            }
+          ],
+          "codes6": [
+            "053201",
+            "053210",
+            "053228",
+            "053236",
+            "053244",
+            "053252",
+            "053260",
+            "053279",
+            "053295"
+          ]
+        },
+        {
+          "name": "Úlcera péptica de localização não especificada",
+          "cid10": [
+            "K27"
+          ],
+          "cid9": [
+            {
+              "cid9": "533",
+              "label": "Aguda com hemorragia",
+              "codes6": [
+                "053309",
+                "053317",
+                "053325",
+                "053333",
+                "053341",
+                "053350",
+                "053368",
+                "053376",
+                "053392"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 36240,
+              "note": "K27."
+            }
+          ],
+          "codes6": [
+            "053309",
+            "053317",
+            "053325",
+            "053333",
+            "053341",
+            "053350",
+            "053368",
+            "053376",
+            "053392"
+          ]
+        },
+        {
+          "name": "Úlcera gastrojejunal",
+          "cid10": [
+            "K28"
+          ],
+          "cid9": [
+            {
+              "cid9": "534",
+              "label": "Aguda com hemorragia",
+              "codes6": [
+                "053406",
+                "053414",
+                "053422",
+                "053430",
+                "053449",
+                "053457",
+                "053465",
+                "053473",
+                "053490"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "category",
+              "aih_1997": 677,
+              "note": "K28."
+            }
+          ],
+          "codes6": [
+            "053406",
+            "053414",
+            "053422",
+            "053430",
+            "053449",
+            "053457",
+            "053465",
+            "053473",
+            "053490"
+          ]
+        },
+        {
+          "name": "Hematêmese",
+          "cid10": [
+            "K92.0"
+          ],
+          "cid9": [
+            {
+              "cid9": "578.0",
+              "label": "Hematemese",
+              "codes6": [
+                "057800"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 3358,
+              "note": "K92.0."
+            }
+          ],
+          "codes6": [
+            "057800"
+          ]
+        },
+        {
+          "name": "Melena",
+          "cid10": [
+            "K92.1"
+          ],
+          "cid9": [
+            {
+              "cid9": "578.1",
+              "label": "Melena",
+              "codes6": [
+                "057819"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 843,
+              "note": "K92.1."
+            }
+          ],
+          "codes6": [
+            "057819"
+          ]
+        },
+        {
+          "name": "Hemorragia gastrointestinal não especificada",
+          "cid10": [
+            "K92.2"
+          ],
+          "cid9": [
+            {
+              "cid9": "578.9",
+              "label": "Hemorragia trato gastrintestinal não especif",
+              "codes6": [
+                "057894"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 76717,
+              "note": "K92.2."
+            }
+          ],
+          "codes6": [
+            "057894"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 1.097
+    },
+    {
+      "code": "g19",
+      "id": 19,
+      "name_pt": "Doenças relacionadas ao pré-natal e parto",
+      "diagnoses": [
+        {
+          "name": "Infecção do trato urinário na gravidez",
+          "cid10": [
+            "O23"
+          ],
+          "cid9": [
+            {
+              "cid9": "646.6",
+              "label": "Infecções do trato geniturinario na gravidez",
+              "codes6": [
+                "064661"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "approximate",
+              "aih_1997": 9201,
+              "note": "Infecções do trato geniturinário na gravidez = O23; a CID-9 inclui também as do puerpério (O86.1–O86.2, fora)."
+            },
+            {
+              "cid9": "646.5",
+              "label": "Bacteriuria assintomática na gravidez",
+              "codes6": [
+                "064653"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 5,
+              "note": "Bacteriúria assintomática na gravidez = O23.4 (5 AIH)."
+            }
+          ],
+          "codes6": [
+            "064653",
+            "064661"
+          ]
+        },
+        {
+          "name": "Sífilis congênita",
+          "cid10": [
+            "A50"
+          ],
+          "cid9": [
+            {
+              "cid9": "090",
+              "label": "Sífilis congênita precoce sintomática",
+              "codes6": [
+                "009008",
+                "009016",
+                "009024",
+                "009032",
+                "009040",
+                "009059",
+                "009067",
+                "009075",
+                "009091"
+              ],
+              "source": [
+                "who-rubric",
+                "caminal2004:core"
+              ],
+              "method": "category",
+              "aih_1997": 1738,
+              "note": "A50."
+            }
+          ],
+          "codes6": [
+            "009008",
+            "009016",
+            "009024",
+            "009032",
+            "009040",
+            "009059",
+            "009067",
+            "009075",
+            "009091"
+          ]
+        },
+        {
+          "name": "Síndrome da rubéola congênita",
+          "cid10": [
+            "P35.0"
+          ],
+          "cid9": [
+            {
+              "cid9": "771.0",
+              "label": "Rubéola congênita",
+              "codes6": [
+                "077100"
+              ],
+              "source": [
+                "who-rubric"
+              ],
+              "method": "exact",
+              "aih_1997": 24,
+              "note": "P35.0."
+            }
+          ],
+          "codes6": [
+            "077100"
+          ]
+        }
+      ],
+      "comparability": "alta",
+      "share_ratio_1997_1998": 0.855
+    }
+  ]
+}

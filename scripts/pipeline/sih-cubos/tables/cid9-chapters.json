@@ -1,0 +1,136 @@
+{
+  "metadata": {
+    "description": "Categoria CID-9 (OMS, 1975) → capítulo CID-10 equivalente, por faixa de categoria, com as exceções que a CID-10 moveu de capítulo. Usado pelo builder (cid_chapter dos cubos de 1992–1997) e pelo servidor.",
+    "evidence": "docs/analise-002-sih-1992-1997.md §3 — bate com os 10 grupos IDB do DATASUS; exceções cobrem 0,15 % das AIH de 1992–1997",
+    "generated_by": "scripts/cid9-tables.py",
+    "generated_at": "2026-09-08T13:26:05Z"
+  },
+  "ranges": [
+    {
+      "from": 1,
+      "to": 139,
+      "chapter": 1
+    },
+    {
+      "from": 140,
+      "to": 239,
+      "chapter": 2
+    },
+    {
+      "from": 240,
+      "to": 279,
+      "chapter": 4
+    },
+    {
+      "from": 280,
+      "to": 289,
+      "chapter": 3
+    },
+    {
+      "from": 290,
+      "to": 319,
+      "chapter": 5
+    },
+    {
+      "from": 320,
+      "to": 359,
+      "chapter": 6
+    },
+    {
+      "from": 360,
+      "to": 379,
+      "chapter": 7
+    },
+    {
+      "from": 380,
+      "to": 389,
+      "chapter": 8
+    },
+    {
+      "from": 390,
+      "to": 459,
+      "chapter": 9
+    },
+    {
+      "from": 460,
+      "to": 519,
+      "chapter": 10
+    },
+    {
+      "from": 520,
+      "to": 579,
+      "chapter": 11
+    },
+    {
+      "from": 580,
+      "to": 629,
+      "chapter": 14
+    },
+    {
+      "from": 630,
+      "to": 676,
+      "chapter": 15
+    },
+    {
+      "from": 680,
+      "to": 709,
+      "chapter": 12
+    },
+    {
+      "from": 710,
+      "to": 739,
+      "chapter": 13
+    },
+    {
+      "from": 740,
+      "to": 759,
+      "chapter": 17
+    },
+    {
+      "from": 760,
+      "to": 779,
+      "chapter": 16
+    },
+    {
+      "from": 780,
+      "to": 799,
+      "chapter": 18
+    },
+    {
+      "from": 800,
+      "to": 999,
+      "chapter": 19
+    }
+  ],
+  "prefixes": [
+    {
+      "prefix": "E",
+      "categories": "E800–E999",
+      "chapter": 20,
+      "code6_prefix": "1"
+    },
+    {
+      "prefix": "V",
+      "categories": "V01–V82",
+      "chapter": 21,
+      "code6_prefix": "2"
+    }
+  ],
+  "exceptions": [
+    {
+      "category": "135",
+      "chapter": 3,
+      "note": "Sarcoidose: CID-9 cap. I → CID-10 D86 (cap. III)"
+    },
+    {
+      "category": "279",
+      "chapter": 3,
+      "note": "Transtornos do mecanismo imunitário: CID-9 cap. III → CID-10 D80–D89 (cap. III; a faixa 240–279 vai para o IV)"
+    },
+    {
+      "category": "446",
+      "chapter": 13,
+      "note": "Poliarterite nodosa e afins: CID-9 cap. VII circulatório → CID-10 M30–M31 (cap. XIII)"
+    }
+  ]
+}

@@ -23,7 +23,7 @@ admissions) in 3 lines of R or Python code.
 | SINASC Live births (microdata) | `sinasc/` | ~85M | 1994–2022 | ✅ Available |
 | SIH Hospital admissions — AIH reduzida (RD, microdata) | `sih/rd/` | ~415M | 1992–present | ✅ Available |
 | SIH Professional services — acts per admission (SP, microdata) | `sih/sp/` | ~3.20B | 1997–present | ✅ Available |
-| SIH Hospital admissions — yearly cubes (causes, monthly series, ICSAP by municipality; derived from `sih/rd/` by [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp)) | `sih/cubos/` | 34 years, ~1.5 GB | 1992–2025 (1992–1997 in ICD-9 decoded by table, `uf` = hospital file state, nominal currency of the time; `race` null before 2008; ICSAP share in the csapAIH universe — see [sih-cubos-README](guides/dataset-cards/sih-cubos-README.md)) | ✅ Available |
+| SIH Hospital admissions — yearly cubes (causes, monthly series, ICSAP by municipality; derived from `sih/rd/` by the [`sih-cubos` pipeline](scripts/pipeline/sih-cubos/) of this repo, rebuilt weekly when the mirror changes; consumed by [sih-br-mcp](https://github.com/SidneyBissoli/sih-br-mcp)) | `sih/cubos/` | 34 years, ~1.5 GB | 1992–2025 (1992–1997 in ICD-9 decoded by table, `uf` = hospital file state, nominal currency of the time; `race` null before 2008; ICSAP share in the csapAIH universe — see [sih-cubos-README](guides/dataset-cards/sih-cubos-README.md)) | ✅ Available |
 
 Everything under this bucket is also served from the custom domain
 `https://data.sidneybissoli.com/` (same paths as the `r2.dev` URL, which

@@ -12,8 +12,8 @@ means running a pipeline, the sync engine, or the maintenance tooling.
 
 Docs are Portuguese-first; code comments/log messages are mixed PT/EN. Keep that style.
 The canonical operational reference is `docs/reference-pipelines-pt.md` (one section per
-pipeline + §15 automated maintenance) — update it whenever pipeline behaviour changes,
-and bump its "Última atualização" footer.
+pipeline, §15 automated maintenance, §16 the derived `sih/cubos/` pipeline) — update it
+whenever pipeline behaviour changes, and bump its "Última atualização" footer.
 
 ## Non-negotiable data principles (see docs/project-pt.md §9)
 
@@ -51,6 +51,7 @@ and bump its "Última atualização" footer.
 | `sinasc/` | `sinasc-pipeline-r.R` | R (read.dbc) | DATASUS FTP .dbc, 1994–2022 | `controle_versao_sinasc.csv` |
 | `sih/rd/` (AIH reduzida) | `sih-pipeline-r.R` (`SIH_TIPO=RD`, default) | R (read.dbc) | DATASUS FTP .dbc, 1992–present | `controle_versao_sih_rd.csv` |
 | `sih/sp/` (serviços profissionais) | `sih-pipeline-r.R` (`SIH_TIPO=SP`) | R (read.dbc) | DATASUS FTP .dbc, 1997–present | `controle_versao_sih_sp.csv` |
+| `sih/cubos/` (yearly cubes, **derived**) | `scripts/pipeline/sih-cubos/` (`build-aggregations.R` + Node gates) | R (arrow, healthbR) + Node | `sih/rd/` via healthbR, 1992–present | `controle_versao_sih_cubos.csv` (one row per build; **state is the channel**, not git) |
 
 Shared mechanics every pipeline follows:
 - **Version-control CSV = the source of truth for "already processed".** Pipelines skip
@@ -62,6 +63,13 @@ Shared mechanics every pipeline follows:
   uses `scripts/pipeline/manifest_utils.py` (boto3, needs `R2_*` env vars; silently skipped
   if absent); R pipelines each define `update_manifest_r2()` on top of the configured
   `rclone` remote `r2`.
+- **`sih/cubos/` is the exception to most of the above** (2026-09-08; it came from
+  sih-br-mcp): it is *derived* data (aggregation, CID decoding by table, ICSAP), runs on a
+  GitHub-hosted runner (`.github/workflows/rebuild-sih-cubes.yml`, Tue 06:00 UTC + dispatch
+  from sync-check after maintenance), reads the previous state from the channel
+  (`canal-state.mjs`) rather than from its CSV, and is gated (count vs mirror manifest,
+  sidecar delta, smoke of the reference consumer sih-br-mcp checked out at master). Never
+  more than 2 years per run (runner memory). Recipe: `scripts/pipeline/sih-cubos/README.md`.
 - Pipelines are designed to run on an ephemeral **Hetzner VPS (Ubuntu, x86)**, not locally:
   R `parallel::mclapply` prefetch is unix-only, paths like `/root/...` are assumed. On
   Windows you can parse-check and unit-test, not run end-to-end.
@@ -90,7 +98,8 @@ Shared mechanics every pipeline follows:
        3. run pipelines in order sinasc → sipni-microdados → sipni-covid → sih-rd → sih-sp,
           each under `timeout 14h` (sinasc 4h); log + checkpoints pushed to R2 after each
        4. commit + push controle CSVs as healthbr-maintenance-bot (this push re-triggers
-          sync-check to refresh the dashboard)
+          sync-check to refresh the dashboard, and sync-check then runs
+          `gh workflow run rebuild-sih-cubes.yml` so stale SIH cubes are rebuilt)
        5. write r2:maintenance/last-run.json ("started" left there = run died)
      then upload last-run.log and `hcloud server delete $(hostname)`
 .github/workflows/maintenance-reaper.yml (every 3h): deletes maint VPS that are off or >48h old
@@ -128,6 +137,10 @@ rclone cat r2:healthbr-data/maintenance/last-run.json
 HC=/c/Users/SIDNEY/AppData/Local/Microsoft/WinGet/Packages/HetznerCloud.CLI_Microsoft.Winget.Source_8wekyb3d8bbwe/hcloud.exe
 "$HC" --context healthbr server list --selector healthbr=maintenance-run
 ssh -o StrictHostKeyChecking=no root@<ip>   # maint VPS reuse IPs → known_hosts warnings are expected
+
+# SIH cubes (derived; GitHub-hosted runner, not the VPS)
+gh workflow run rebuild-sih-cubes.yml -f years=2025          # one year; ufs=all for a NEW year
+node scripts/pipeline/sih-cubos/canal-state.mjs --out state  # what is published (manifest + sidecars)
 
 # Publish dataset cards (guides/dataset-cards/) to HF + R2 after editing them
 python scripts/maintenance/publish-cards.py sih-sp sinasc      # or --all, --only hf|r2, --dry-run

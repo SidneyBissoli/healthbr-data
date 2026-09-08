@@ -103,8 +103,9 @@ regenerou = SHA-256; partição retirada = chave ausente), não tudo sobre ela. 
 regravado pelo sync-check a cada rodada (`scripts/sync/manifest_summary.py`), logo
 depois de o manifesto mudar — o contrato é o `last_updated` idêntico: confira-o
 contra o do manifesto (um `GET` com `Range: bytes=0-511` basta) e, se o resumo
-estiver atrás, leia o manifesto inteiro. Consumidor de referência: a checagem de
-frescor e o rebuild de cubos do `sih-br-mcp`.
+estiver atrás, leia o manifesto inteiro. Consumidor de referência: o job `decide` de
+`rebuild-sih-cubes.yml` (pipeline `sih-cubos` deste repositório), que mede o frescor
+dos cubos publicados com o `scripts/freshness-check.mjs` do `sih-br-mcp`.
 
 ## 5. Notas por dataset que o consumidor precisa conhecer
 

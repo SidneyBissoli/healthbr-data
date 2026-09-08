@@ -1,0 +1,264 @@
+{
+  "metadata": {
+    "description": "Universo de cálculo do % ICSAP, como o pacote R csapAIH define por padrão (procobst.rm, parto.rm, longa.rm): internações excluídas do numerador E do denominador antes da classificação. A lista de diagnósticos CSAP (Portaria 221/2008) não muda.",
+    "method_source": {
+      "name": "csapAIH — Classificar Condições Sensíveis à Atenção Primária (pacote R)",
+      "author": "Fúlvio Borges Nedel",
+      "version": "0.0.4.8 (2026-01-16)",
+      "url": "https://github.com/fulvionedel/csapAIH",
+      "license": "GPL-3",
+      "functions": [
+        "csapAIH()",
+        "proc.obst()",
+        "partos()"
+      ]
+    },
+    "generated_by": "scripts/csap-universe-tables.py",
+    "generated_at": "2026-09-08T13:26:05Z",
+    "rules_order": [
+      "procedimento_obstetrico",
+      "parto",
+      "longa_permanencia"
+    ],
+    "notes": [
+      "PROC_REA tem 10 dígitos (SIGTAP) de 2008 em diante e 8 dígitos (tabela antiga do SIH) de 1992 a 2007; as duas listas de procedimentos se aplicam pelo comprimento do código.",
+      "A lista SIGTAP é a do csapAIH ao pé da letra; a da tabela antiga vem dos grupos partos normais, cesáreos e abortamentos de PROCOBST.CNV (DATASUS), o equivalente da época.",
+      "Diagnóstico de parto em CID-9: 650 e 669.5–669.7 (não há na CID-9 da OMS um código de 'parto múltiplo' como O84; 651 é gestação múltipla e não conta).",
+      "IDENT = 5 (AIH de longa permanência) vale em todas as eras (IDENT.CNV)."
+    ]
+  },
+  "procedures_sigtap": [
+    {
+      "code": "0310010012",
+      "name": "ASSISTENCIA AO PARTO S/ DISTOCIA"
+    },
+    {
+      "code": "0310010020",
+      "name": "ATENDIMENTO AO RECEM-NASCIDO EM SALA DE PARTO"
+    },
+    {
+      "code": "0310010039",
+      "name": "PARTO NORMAL"
+    },
+    {
+      "code": "0310010047",
+      "name": "PARTO NORMAL EM GESTACAO DE ALTO RISCO"
+    },
+    {
+      "code": "0411010018",
+      "name": "DESCOLAMENTO MANUAL DE PLACENTA"
+    },
+    {
+      "code": "0411010026",
+      "name": "PARTO CESARIANO EM GESTACAO ALTO RISCO"
+    },
+    {
+      "code": "0411010034",
+      "name": "PARTO CESARIANO"
+    },
+    {
+      "code": "0411010042",
+      "name": "PARTO CESARIANO C/ LAQUEADURA TUBARIA"
+    },
+    {
+      "code": "0411020013",
+      "name": "CURETAGEM POS-ABORTAMENTO / PUERPERAL"
+    },
+    {
+      "code": "0411020021",
+      "name": "EMBRIOTOMIA"
+    }
+  ],
+  "procedures_old_table": [
+    {
+      "code": "35001011",
+      "name": "PARTO NORMAL",
+      "group": "partos normais"
+    },
+    {
+      "code": "35006013",
+      "name": "PARTO COM MANOBRAS",
+      "group": "partos normais"
+    },
+    {
+      "code": "35007010",
+      "name": "PARTO COM ECLAMPSIA",
+      "group": "partos normais"
+    },
+    {
+      "code": "35021012",
+      "name": "PARTO NORMAL COM ATENDIMENTO DO RECEM NASCIDO NA SA",
+      "group": "partos normais"
+    },
+    {
+      "code": "35023015",
+      "name": "PARTO COM ECLAMPSIA COM ATENDIMENTO DO RECEM NASCID",
+      "group": "partos normais"
+    },
+    {
+      "code": "35024011",
+      "name": "PARTO COM MANOBRAS COM ATENDIMENTO DO RECEM NASCIDO",
+      "group": "partos normais"
+    },
+    {
+      "code": "35025018",
+      "name": "PARTO NORMAL - EXCLUSIVAMENTE PARA HOSPITAIS AMIGOS",
+      "group": "partos normais"
+    },
+    {
+      "code": "35027010",
+      "name": "PARTO NORMAL EM GESTANTE DE ALTO RISCO",
+      "group": "partos normais"
+    },
+    {
+      "code": "35080019",
+      "name": "PARTO NORMAL SEM DISTOCIA REALIZADO POR ENFERMEIRO(",
+      "group": "partos normais"
+    },
+    {
+      "code": "35086017",
+      "name": "ASSISTENCIA AO PERIODO PREMONITORIO E AO PARTO NORM",
+      "group": "partos normais"
+    },
+    {
+      "code": "35087013",
+      "name": "ASSISTENCIA AO PERIODO PREMONITORIO E AO PARTO NORM",
+      "group": "partos normais"
+    },
+    {
+      "code": "35009012",
+      "name": "CESARIANA",
+      "group": "partos cesáreos"
+    },
+    {
+      "code": "35022019",
+      "name": "CESARIANA COM ATENDIMENTO DO RECEM NASCIDO NA SALA",
+      "group": "partos cesáreos"
+    },
+    {
+      "code": "35026014",
+      "name": "CESARIANA - EXCLUSIVAMENTE PARA HOSPITAIS AMIGOS DA",
+      "group": "partos cesáreos"
+    },
+    {
+      "code": "35028017",
+      "name": "CESARIANA EM GESTANTE DE ALTO RISCO",
+      "group": "partos cesáreos"
+    },
+    {
+      "code": "35082011",
+      "name": "CESARIANA COM LAQUEADURA TUBARIA EM PACIENTE COM CE",
+      "group": "partos cesáreos"
+    },
+    {
+      "code": "35083018",
+      "name": "CESARIANA COM LAQUEADURA TUBARIA EM PACIENTE COM CE",
+      "group": "partos cesáreos"
+    },
+    {
+      "code": "35084014",
+      "name": "CESARIANA COM LAQUEADURA TUBARIA EM PACIENTE COM CE",
+      "group": "partos cesáreos"
+    },
+    {
+      "code": "35085010",
+      "name": "CESARIANA COM LAQUEADURA TUBARIA EM PACIENTE COM CE",
+      "group": "partos cesáreos"
+    },
+    {
+      "code": "35014016",
+      "name": "CURETAGEM POS ABORTO",
+      "group": "abortamentos"
+    },
+    {
+      "code": "35088010",
+      "name": "ESVAZIAMENTO UTERINO POS ABORTO POR ASPIRACAO MANUA",
+      "group": "abortamentos"
+    },
+    {
+      "code": "35008016",
+      "name": "CIRURGIA DA PRENHEZ ECTOPICA",
+      "group": "abortamentos"
+    }
+  ],
+  "delivery_diagnosis_cid10": [
+    "O80",
+    "O81",
+    "O82",
+    "O83",
+    "O84"
+  ],
+  "delivery_diagnosis_cid9": {
+    "rubrics": [
+      "650",
+      "669.5",
+      "669.6",
+      "669.7"
+    ],
+    "codes6": [
+      {
+        "code6": "065005",
+        "rubric": "650.0",
+        "label": "Código inválido - fora da CID",
+        "valid": false
+      },
+      {
+        "code6": "065013",
+        "rubric": "650.1",
+        "label": "Código inválido - fora da CID",
+        "valid": false
+      },
+      {
+        "code6": "065030",
+        "rubric": "650.3",
+        "label": "Código inválido - fora da CID",
+        "valid": false
+      },
+      {
+        "code6": "065056",
+        "rubric": "650.5",
+        "label": "Código inválido - fora da CID",
+        "valid": false
+      },
+      {
+        "code6": "065064",
+        "rubric": "650.6",
+        "label": "Código inválido - fora da CID",
+        "valid": false
+      },
+      {
+        "code6": "065080",
+        "rubric": "650.8",
+        "label": "Código inválido - fora da CID",
+        "valid": false
+      },
+      {
+        "code6": "065099",
+        "rubric": "650",
+        "label": "Parto normal",
+        "valid": true
+      },
+      {
+        "code6": "066958",
+        "rubric": "669.5",
+        "label": "Parto p forcip ou vacuo-extrator s/menc indi",
+        "valid": true
+      },
+      {
+        "code6": "066966",
+        "rubric": "669.6",
+        "label": "Extracao pelvica",
+        "valid": true
+      },
+      {
+        "code6": "066974",
+        "rubric": "669.7",
+        "label": "Parto por cesarea",
+        "valid": true
+      }
+    ]
+  },
+  "long_stay_ident": [
+    "5"
+  ]
+}

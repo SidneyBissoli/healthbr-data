@@ -32,6 +32,7 @@ CARDS = {
     "sih-rd":                   ("sih-rd-README.md",                   "sih-rd",                   "sih/rd"),
     "sih-sp":                   ("sih-sp-README.md",                   "sih-sp",                   "sih/sp"),
     "sih-index":                ("sih-index-README.md",                None,                       "sih"),
+    "sih-cubos":                ("sih-cubos-README.md",                "sih-cubos",                "sih/cubos"),
 }
 
 
@@ -69,6 +70,8 @@ def main():
             if a.dry_run:
                 print(f"[{i}] (dry) HF {repo_id}/README.md ← {path.name}")
             else:
+                # repo novo (ex.: sih-cubos, 2026-09-08) nasce aqui; existente não muda
+                api.create_repo(repo_id, repo_type="dataset", exist_ok=True)
                 api.upload_file(path_or_fileobj=str(path), path_in_repo="README.md",
                                 repo_id=repo_id, repo_type="dataset",
                                 commit_message=f"{a.message} ({path.name})")

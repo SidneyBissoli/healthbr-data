@@ -1,0 +1,18 @@
+{
+  "name": "healthbr-sih-cubos",
+  "version": "2.7.0",
+  "private": true,
+  "description": "Pipeline dos cubos anuais do SIH/SUS (sih/cubos/): gates em Node do rebuild-sih-cubes.yml. O builder é R (build-aggregations.R); a versão aqui acompanha BUILDER_VERSION.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "canal:state": "node canal-state.mjs --out state",
+    "delta:selftest": "node cube-delta.mjs --selftest --fixtures state/sidecars",
+    "manifest": "node cubes-manifest.mjs --data ../../../data/sih-cubos --years all --verify --tables tables --out cubes-manifest.json"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "^1.5.5-r.4"
+  }
+}

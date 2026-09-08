@@ -1149,9 +1149,78 @@ próprio script.
   controle do bootstrap vive na VPS antiga em `/root/data/` — commitá-lo
   ao repo habilita a automação para esse dataset.
 
+## 16. PIPELINE SIH-CUBOS: `sih/rd/` (Parquet) → cubos anuais → R2
+
+Dataset **derivado** — a exceção do bucket (docs/project-pt.md §9 vale para
+redistribuição; aqui há agregação, decodificação da CID-9 por tabela e
+classificação ICSAP). Veio do `sih-br-mcp` em 2026-09-08 (workflow
+`rebuild-cubes.yml`, commit `a3284c0`), onde rodou em produção de 06 a 08/09/2026
+e produziu os 34 anos (1992–2025, 420,1 M internações, 1,58 GB) hoje no canal.
+Receita completa: `scripts/pipeline/sih-cubos/README.md`; card:
+`guides/dataset-cards/sih-cubos-README.md`.
+
+### O que produz
+
+Por ano de internação: `sih_causas_<ano>.parquet`, `sih_series_<ano>.parquet`,
+`sih_icsap_<ano>.parquet` e o sidecar `sih_provenance_<ano>.json` (partições de
+`sih/rd/` lidas com URL/MD5/tamanho/data de download de cada `.dbc`, totais,
+versão e commit do builder, eras, moedas). Mais `manifest.json` (SHA-256 de
+cada arquivo e das tabelas) e `tables/*.json` (contrato de classificação:
+CID-9 → categoria/capítulo, ICSAP CID-10 e CID-9, universo csapAIH). Base:
+`https://data.sidneybissoli.com/sih/cubos/`.
+
+### Como roda (`.github/workflows/rebuild-sih-cubes.yml`, runner do GitHub)
+
+- **Gatilhos:** cron terça 06:00 UTC (a manutenção de segunda já assentou);
+  `workflow_dispatch` com `years`, `ufs`, `force`; e o `sync-check.yml` dispara
+  (`gh workflow run`) no evento push dos CSVs de controle — fim da manutenção.
+- **Estado = o canal.** Nenhum sidecar no git: `canal-state.mjs` baixa
+  manifesto + sidecars publicados; o sidecar anterior é o "antes" do delta e a
+  origem das UFs de arquivo. O único commit por run é a linha em
+  `data/controle_versao_sih_cubos.csv` (histórico; a carga inicial de 34 linhas
+  veio dos sidecars publicados em 08/09/2026).
+- **`decide`:** frescor de cada cubo frente a `sih/rd/manifest-summary.json`,
+  medido com o `scripts/freshness-check.mjs` do consumidor de referência
+  (checkout de `SidneyBissoli/sih-br-mcp`, público); autoteste do gate de
+  delta; escolhe os anos (manual > force > atrás > nada; 2 por rodada).
+- **`build`:** R + healthbR main + arrow (RSPM); `rebuild-cubes.R`; gate 1
+  (contagem por partição = manifesto de `sih/rd/`); gate 2 `cube-delta.mjs`
+  (partição perdida sem retirada, queda > 1 %, janela regredida, escopo);
+  gate 3 smoke stdio do sih-br-mcp sobre os cubos novos; `publish-cubes.sh`
+  (`cubes-manifest.mjs --verify` com DuckDB; cubos → tabelas → manifesto por
+  último; `Content-Length` conferido pelo domínio).
+- **Limites:** 2 anos por run (memória), 20–35 min por par; fila 1 + 1.
+- **Segredos:** `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT` (os
+  do sync-check). Nenhum PAT: o consumidor é público.
+
+### Reprodução das tabelas
+
+```bash
+cd scripts/pipeline/sih-cubos
+bash tables/generators/fetch-insumos.sh        # TAB_SIH_199201-199712.zip (canal ou FTP) → insumos/tab/
+python tables/generators/estudo-1992-1997-cnv.py
+python tables/generators/cid9-tables.py        # tables/cid9-codes.json, cid9-chapters.json
+python tables/generators/csap-universe-tables.py
+```
+
+`csap-groups.json` (Portaria 221/2008) e `csap-groups-cid9.json` (lista CID-9
+derivada) são de autoria, não gerados. O sih-br-mcp embarca cópias em
+`src/data/` e confere o SHA-256 no CI contra `manifest.json.tables`.
+
+# Rodar
+gh workflow run rebuild-sih-cubes.yml -f years=2025             # um ano
+gh workflow run rebuild-sih-cubes.yml -f years=2026 -f ufs=all  # ano NOVO
+# Monitorar
+gh run list --workflow rebuild-sih-cubes.yml --limit 5
+node scripts/pipeline/sih-cubos/canal-state.mjs --out state     # o que está publicado
+
 ---
 
-*Última atualização: 18/ago/2026 — `SIH_WORKERS` (UFs de um mês em
+*Última atualização: 08/set/2026 — §16 pipeline `sih-cubos` (produtor dos
+cubos anuais do SIH migrado do sih-br-mcp; estado = canal; tabelas de
+classificação assinadas no manifesto; `controle_versao_sih_cubos.csv`;
+sync-check dispara `rebuild-sih-cubes.yml` em vez do repository_dispatch);
+18/ago: `SIH_WORKERS` (UFs de um mês em
 paralelo, opt-in), `publish-cards.py`, seção de reprodutibilidade em todos os
 cards, `backfill-metadata.py` (metadado nos Parquets 1.0.0 do SIH RD/SINASC),
 COVID 1.2.1 (portal novo, hash de publicação descoberto, CSV com versão/commit),

@@ -1,0 +1,124 @@
+# Pipeline `sih-cubos` — cubos anuais do SIH/SUS (`sih/cubos/`)
+
+Receita do dataset derivado `sih/cubos/` (card: `guides/dataset-cards/sih-cubos-README.md`;
+referência operacional: `docs/reference-pipelines-pt.md` §16). O produtor dos cubos é
+**este repositório** desde 2026-09-08; até então era o `sih-br-mcp` (workflow
+`rebuild-cubes.yml`, commit `a3284c0`), que agora é **consumidor** do canal, como o
+`healthbR`. A decisão de desenho ("healthbr-data é produtor; MCP é consumidor") é de
+2026-09-07 e está registrada no CONTEXT.md do sih-br-mcp (decisão 27).
+
+## O que sai
+
+Por ano de internação (`DT_INTER`), três cubos Parquet e um sidecar de proveniência:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `sih_causas_<ano>.parquet` | internações por mês, UF, capítulo/grupo CID, revisão da CID, sexo, idade, raça, CSAP |
+| `sih_series_<ano>.parquet` | séries mensais por UF, capítulo e revisão da CID |
+| `sih_icsap_<ano>.parquet` | ICSAP por município de residência, grupo CSAP e estrato demográfico (com `n_total` do estrato) |
+| `sih_provenance_<ano>.json` | safra do cubo: partições de `sih/rd/` lidas (URL, MD5, tamanho, data de download de cada `.dbc`), totais, versão e commit do builder, eras, moedas, notas |
+
+Mais o `manifest.json` do canal (tamanho e SHA-256 de cada arquivo, resumo do sidecar por
+ano, e o bloco `tables` com o SHA-256 das tabelas de classificação), e as próprias
+tabelas em `sih/cubos/tables/*.json`. Base pública:
+`https://data.sidneybissoli.com/sih/cubos/`.
+
+## Cadeia de reprodução (política do bucket: `docs/policy-reproducibility-pt.md`)
+
+```
+Ministério da Saúde / DATASUS (RD<UF><AAMM>.dbc, FTP)
+  → sih/rd/ (Parquet 1:1, sih-pipeline-r.R; manifesto com MD5 e data de download)
+  → build-aggregations.R (lê sih/rd/ pelo healthbR; tabelas de tables/)
+  → sih/cubos/ (cubos + sidecar + manifesto + tables/)
+```
+
+- **Builder:** `build-aggregations.R` (`BUILDER_VERSION` 2.7.0). A 2.7.0 é a 2.6.1 do
+  sih-br-mcp mudada de casa — mesma agregação, cubos byte a byte iguais (provado em
+  2026-09-08: 2023/RR local = fixture do sih-br-mcp; 2025 no runner = delta zero).
+  Regras de janela, eras (CID-9 1992–1997, `uf` de arquivo até 1997, raça nula antes
+  de 2008, moedas), universo ICSAP do csapAIH e sidecar estão no cabeçalho do script.
+- **Linha de comando:** `rebuild-cubes.R --years 2023[,2024] [--ufs RR,AC|all] [--out <dir>]`.
+  As UFs de arquivo de um ano existente vêm do **sidecar anterior** (o workflow o baixa
+  do canal para a pasta de saída); ano novo exige `--ufs`.
+- **Tabelas de classificação (`tables/`)** — contrato versionado, assinado no manifesto:
+  `cid9-codes.json`, `cid9-chapters.json` (CID-9 de 6 dígitos → categoria e capítulo
+  CID-10), `csap-groups.json` (ICSAP oficial, Portaria 221/2008, CID-10),
+  `csap-groups-cid9.json` (lista ICSAP DERIVADA para CID-9, não oficial),
+  `csap-universe.json` (universo do % ICSAP como o csapAIH). Os três primeiros e o
+  último são GERADOS por `tables/generators/` a partir de insumos públicos:
+
+  ```bash
+  cd scripts/pipeline/sih-cubos
+  bash tables/generators/fetch-insumos.sh            # TAB_SIH_199201-199712.zip → insumos/tab/ (gitignored)
+  python tables/generators/estudo-1992-1997-cnv.py   # insumos/cid9_codes.csv + relatório do DV
+  python tables/generators/cid9-tables.py            # tables/cid9-codes.json, cid9-chapters.json
+  python tables/generators/csap-universe-tables.py   # tables/csap-universe.json
+  ```
+
+  O zip vem do FTP do DATASUS (`SIHSUS/199201_200712/Auxiliar/`) e uma cópia está no
+  canal em `sih/cubos/insumos/` (SHA-256
+  `b433310785e08b5d2d0c5a438f495ac6b2af9a10d86d8741a3252bc268b1ff88`) para a cadeia não
+  depender do FTP. Regenerar muda só `metadata.generated_at`. `csap-groups.json` e
+  `csap-groups-cid9.json` são tabelas de autoria (Portaria; `docs/analise-003` do
+  sih-br-mcp) — editadas à mão, não geradas. O sih-br-mcp embarca cópias em `src/data/`
+  e o CI dele confere o SHA-256 contra `manifest.json.tables`.
+
+## Como roda: `.github/workflows/rebuild-sih-cubes.yml`
+
+- **Gatilhos:** cron terça 06:00 UTC; `workflow_dispatch` (`years`, `ufs`, `force`); e o
+  `sync-check.yml` dispara ao fim da rodada pós-manutenção (`gh workflow run`).
+- **`decide`:** baixa o estado do canal (`canal-state.mjs`: manifesto + 34 sidecars),
+  compila o consumidor de referência (checkout de `SidneyBissoli/sih-br-mcp`) e mede o
+  frescor de cada cubo com `scripts/freshness-check.mjs` dele contra
+  `sih/rd/manifest-summary.json`; roda o autoteste do gate de delta; escolhe os anos
+  (manual > force > atrás > nada; máximo 2 por rodada automática).
+- **`build`:** R + healthbR (GitHub main; o CRAN limita o SIH a 2008+) + arrow pelo
+  RSPM; sidecar publicado → `before/` e pasta de saída; `Rscript rebuild-cubes.R`;
+  **gate 1** (contagem por partição = manifesto de `sih/rd/`, dentro do builder);
+  **gate 2** `cube-delta.mjs` (partição perdida sem retirada, queda > 1 %, janela
+  regredida, escopo mudado sem `ufs`); **gate 3** smoke stdio do consumidor sobre os
+  cubos novos; `publish-cubes.sh` (`cubes-manifest.mjs --verify` com DuckDB → cubos →
+  tabelas → manifesto por último → conferência de `Content-Length` pelo domínio);
+  linha em `data/controle_versao_sih_cubos.csv` (commit do bot; único commit por run).
+- **Estado = o canal.** Nenhum sidecar é versionado aqui. Para saber o que está
+  publicado: `node canal-state.mjs --out state`.
+- **Limites:** 2 anos por run (memória do runner); fila de 1 rodando + 1 pendente;
+  ~20–35 min por par de anos.
+
+### Rodar e monitorar
+
+```bash
+gh workflow run rebuild-sih-cubes.yml -f years=2025            # rebuild de um ano
+gh workflow run rebuild-sih-cubes.yml -f years=2026 -f ufs=all # cubo NOVO
+gh run list --workflow rebuild-sih-cubes.yml --limit 5
+gh run watch <id>
+# conferir o canal contra os sidecars (o ?v= fura o cache de 300 s)
+curl -s "https://data.sidneybissoli.com/sih/cubos/manifest.json?v=$(date +%s)" | node -e '
+  const m=JSON.parse(require("fs").readFileSync(0));const y=Object.values(m.years);
+  console.log(y.length,"anos",y.reduce((s,a)=>s+a.records_in_cube,0).toLocaleString("pt-BR"),"internações",
+  Object.keys(m.tables||{}).length,"tabelas")'
+```
+
+Localmente (Windows serve; precisa do healthbR dev instalado e de `npm ci` nesta pasta):
+
+```bash
+"/c/Program Files/R/R-4.6.1/bin/Rscript.exe" scripts/pipeline/sih-cubos/rebuild-cubes.R --years 2023 --ufs RR --out /tmp/prova
+node scripts/pipeline/sih-cubos/cube-delta.mjs --selftest --fixtures scripts/pipeline/sih-cubos/state/sidecars
+```
+
+## Arquivos
+
+| Arquivo | Papel |
+|---|---|
+| `build-aggregations.R` | builder (agregação, sidecar, gate 1) |
+| `rebuild-cubes.R` | CLI do builder para o workflow e para a mão |
+| `canal-state.mjs` | baixa manifesto + sidecars do canal (estado) |
+| `cube-delta.mjs` | gate 2 (+ `--selftest`) |
+| `cubes-manifest.mjs` | manifesto assinado (`--verify` com DuckDB; `--tables`) |
+| `publish-cubes.sh` | publicação ordenada no R2 + conferência pelo domínio |
+| `controle.mjs` | linha por build em `data/controle_versao_sih_cubos.csv` (`seed` fez a carga inicial dos 34 anos em 2026-09-08) |
+| `tables/`, `tables/generators/` | contrato de classificação e sua regeneração |
+| `package.json` | `@duckdb/node-api` para o `--verify` |
+
+Insumos e saídas locais são gitignored: `data/sih-cubos/`, `state/`, `node_modules/`,
+`tables/generators/insumos/`, `cubes-manifest.json`, `previous-manifest.json`.

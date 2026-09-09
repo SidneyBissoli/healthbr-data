@@ -50,6 +50,26 @@ reeditado. Localmente: `Rscript scripts/pipeline/sih-cubos/build-population.R --
 em 2026-09-08: build local = parquets do sih-br-mcp linha a linha nos três arquivos
 (`EXCEPT ALL` = 0; `pop_uf` byte a byte, sha `49e6e6f7…`).
 
+### Pré-agregados da ICSAP (`derive-icsap-summary.mjs`, desde 2026-09-09)
+
+Derivados dos cubos JÁ PUBLICADOS (função pura — nada dos microdados), no mesmo
+prefixo, assinados no bloco `icsap_summary` do manifesto (1.3.0; PLAN-005 do
+sih-br-mcp, item `sih:serie-pre-agregada`):
+
+| Arquivo | Conteúdo | Para quê |
+|---|---|---|
+| `sih_icsap_resumo.parquet` | universe (csapaih/all) × year × uf × cid_revision × csap_group, com n_icsap, total_days, total_value, deaths e o n_total do denominador; TODOS os anos num arquivo (~276 KB, 35.887 linhas em 1992–2025) | a série de 34 anos do sih-br-mcp cai de 310 s (DISTINCT refeito a cada consulta em 1/4 vCPU) para ~1 s, inclusive a frio |
+| `sih_icsap_estratos_YYYY.parquet` | um registro por estrato (chaves cruas do cubo + n_total) — o DISTINCT gravado uma vez (~2,5 MB/ano recente) | denominador de filtros finos (município, sexo, idade, raça) sem refazer o DISTINCT |
+| `icsap_summary_provenance.json` | `built_at`, versão do derivador, `derived_from` (sha256 do cubo-fonte POR ANO), contagens | contrato de frescor |
+
+Regra de frescor: `cubes-manifest.mjs --summary` REPROVA se o `derived_from` de
+qualquer ano não bater com o sha256 do cubo no bloco `years` final; sem a flag, o
+bloco herdado gera AVISO quando um rebuild o deixou velho — e o consumidor cai no
+caminho lento naquele ano. **Rodar `build-sih-summary.yml` depois de todo rebuild
+de cubos** (só `workflow_dispatch`, ~5 min: selftest → deriva com sha conferido →
+`publish-cubes.sh none "" "" "" <pasta>`). Localmente:
+`node scripts/pipeline/sih-cubos/derive-icsap-summary.mjs --out <dir>`.
+
 ## Cadeia de reprodução (política do bucket: `docs/policy-reproducibility-pt.md`)
 
 ```

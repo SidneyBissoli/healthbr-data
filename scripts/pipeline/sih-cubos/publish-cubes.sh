@@ -2,7 +2,7 @@
 # Publica cubos + sidecars + manifesto em sih/cubos/ do bucket healthbr-data
 # (R2), servido em https://data.sidneybissoli.com/sih/cubos/.
 #
-# Uso: publish-cubes.sh <anos separados por vírgula | all | none> [pasta-de-dados] [pasta-das-tabelas] [pasta-da-população]
+# Uso: publish-cubes.sh <anos separados por vírgula | all | none> [pasta-de-dados] [pasta-das-tabelas] [pasta-da-população] [pasta-do-resumo-icsap]
 # Exige R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY e R2_ENDPOINT no ambiente (os
 # mesmos secrets que o sync-check.yml usa; token "Object Read & Write" do
 # bucket healthbr-data). Usa o AWS CLI v2 (pré-instalado no ubuntu-latest)
@@ -12,6 +12,11 @@
 # (pop_uf, pop_uf_agregado, pop_municipios .parquet + pop_provenance.json) ao
 # lado dos cubos, assinados no bloco `population` do manifesto; `none` na 1ª
 # posição = nenhum ano (só tabelas e/ou população; os anos herdam do anterior).
+# Com a 5ª (build-sih-summary.yml), publica os PRÉ-AGREGADOS da ICSAP
+# (sih_icsap_resumo.parquet + sih_icsap_estratos_YYYY.parquet +
+# icsap_summary_provenance.json, de derive-icsap-summary.mjs), assinados no
+# bloco `icsap_summary` — o manifesto RECUSA resumo derivado de cubo que não
+# é o publicado (frescor por sha256; PLAN-005 do sih-br-mcp).
 #
 # Ordem: (1) baixa o manifesto anterior; (2) gera o novo com --verify (DuckDB
 # confere cada cubo contra o sidecar e cada arquivo de população contra o
@@ -25,6 +30,7 @@ YEARS_ARG="${1:?uso: publish-cubes.sh <anos|all|none> [pasta] [tabelas] [popula�
 DATA_DIR="${2:-data/sih-cubos}"
 TABLES_DIR="${3:-}"
 POP_DIR="${4:-}"
+SUMMARY_DIR="${5:-}"
 POP_FILES=(pop_uf.parquet pop_uf_agregado.parquet pop_municipios.parquet pop_provenance.json)
 : "${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID ausente}"
 : "${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY ausente}"
@@ -60,7 +66,11 @@ YEARS_CSV=$(echo $YEARS | tr ' ' ',')
 if [ -n "$POP_DIR" ]; then
   for F in "${POP_FILES[@]}"; do [ -f "$POP_DIR/$F" ] || { echo "::error::população: falta $POP_DIR/$F"; exit 1; }; done
 fi
-echo "publish-cubes: anos $YEARS_CSV de $DATA_DIR${TABLES_DIR:+; tabelas de $TABLES_DIR}${POP_DIR:+; população de $POP_DIR}"
+if [ -n "$SUMMARY_DIR" ]; then
+  [ -f "$SUMMARY_DIR/sih_icsap_resumo.parquet" ] || { echo "::error::resumo: falta $SUMMARY_DIR/sih_icsap_resumo.parquet"; exit 1; }
+  [ -f "$SUMMARY_DIR/icsap_summary_provenance.json" ] || { echo "::error::resumo: falta $SUMMARY_DIR/icsap_summary_provenance.json"; exit 1; }
+fi
+echo "publish-cubes: anos $YEARS_CSV de $DATA_DIR${TABLES_DIR:+; tabelas de $TABLES_DIR}${POP_DIR:+; população de $POP_DIR}${SUMMARY_DIR:+; pré-agregados ICSAP de $SUMMARY_DIR}"
 
 # (1) manifesto anterior — pode não existir na primeira publicação
 if ! curl -fsSL --max-time 30 "$PUBLIC_BASE/manifest.json" -o previous-manifest.json 2>/dev/null; then
@@ -74,6 +84,7 @@ fi
 EXTRA_FLAGS=()
 if [ -n "$TABLES_DIR" ]; then EXTRA_FLAGS+=(--tables "$TABLES_DIR"); fi
 if [ -n "$POP_DIR" ]; then EXTRA_FLAGS+=(--population "$POP_DIR"); fi
+if [ -n "$SUMMARY_DIR" ]; then EXTRA_FLAGS+=(--summary "$SUMMARY_DIR"); fi
 node "$HERE/cubes-manifest.mjs" --data "$DATA_DIR" --years "$YEARS_CSV" \
   --previous previous-manifest.json --verify "${EXTRA_FLAGS[@]}" \
   --base-url "$PUBLIC_BASE/" --out cubes-manifest.json
@@ -112,6 +123,15 @@ if [ -n "$POP_DIR" ]; then
   done
 fi
 
+# (3d) pré-agregados da ICSAP — resumo único + estratos por ano + sidecar
+if [ -n "$SUMMARY_DIR" ]; then
+  put "$SUMMARY_DIR/sih_icsap_resumo.parquet" "sih_icsap_resumo.parquet" "application/vnd.apache.parquet"
+  for E in "$SUMMARY_DIR"/sih_icsap_estratos_*.parquet; do
+    put "$E" "$(basename "$E")" "application/vnd.apache.parquet"
+  done
+  put "$SUMMARY_DIR/icsap_summary_provenance.json" "icsap_summary_provenance.json" "application/json"
+fi
+
 # (4) manifesto por último, com cache curto
 aws s3 cp cubes-manifest.json "s3://$BUCKET/$PREFIX/manifest.json" --endpoint-url "$ENDPOINT" \
   --content-type "application/json" --cache-control "public, max-age=300" --only-show-errors
@@ -138,11 +158,16 @@ fi
 if [ -n "$POP_DIR" ]; then
   for F in "${POP_FILES[@]}"; do check "$POP_DIR/$F" "$F"; done
 fi
+if [ -n "$SUMMARY_DIR" ]; then
+  check "$SUMMARY_DIR/sih_icsap_resumo.parquet" "sih_icsap_resumo.parquet"
+  for E in "$SUMMARY_DIR"/sih_icsap_estratos_*.parquet; do check "$E" "$(basename "$E")"; done
+  check "$SUMMARY_DIR/icsap_summary_provenance.json" "icsap_summary_provenance.json"
+fi
 check cubes-manifest.json manifest.json
 [ "$falhas" -eq 0 ] || exit 1
 echo "publish-cubes: OK — $PUBLIC_BASE/manifest.json"
 {
   echo "### Publicado em \`$PUBLIC_BASE/\`"
   echo
-  echo "Anos: $YEARS_CSV${TABLES_DIR:+; tabelas de classificação}${POP_DIR:+; população (pop_uf, pop_uf_agregado, pop_municipios + pop_provenance.json)}. Manifesto: $PUBLIC_BASE/manifest.json"
+  echo "Anos: $YEARS_CSV${TABLES_DIR:+; tabelas de classificação}${POP_DIR:+; população (pop_uf, pop_uf_agregado, pop_municipios + pop_provenance.json)}${SUMMARY_DIR:+; pré-agregados ICSAP (resumo + estratos + sidecar)}. Manifesto: $PUBLIC_BASE/manifest.json"
 } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"

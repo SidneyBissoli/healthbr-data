@@ -62,13 +62,48 @@ sih-br-mcp, item `sih:serie-pre-agregada`):
 | `sih_icsap_estratos_YYYY.parquet` | um registro por estrato (chaves cruas do cubo + n_total) — o DISTINCT gravado uma vez (~2,5 MB/ano recente) | denominador de filtros finos (município, sexo, idade, raça) sem refazer o DISTINCT |
 | `icsap_summary_provenance.json` | `built_at`, versão do derivador, `derived_from` (sha256 do cubo-fonte POR ANO), contagens | contrato de frescor |
 
-Regra de frescor: `cubes-manifest.mjs --summary` REPROVA se o `derived_from` de
-qualquer ano não bater com o sha256 do cubo no bloco `years` final; sem a flag, o
-bloco herdado gera AVISO quando um rebuild o deixou velho — e o consumidor cai no
-caminho lento naquele ano. **Rodar `build-sih-summary.yml` depois de todo rebuild
-de cubos** (só `workflow_dispatch`, ~5 min: selftest → deriva com sha conferido →
-`publish-cubes.sh none "" "" "" <pasta>`). Localmente:
-`node scripts/pipeline/sih-cubos/derive-icsap-summary.mjs --out <dir>`.
+### Pré-agregados do cubo de causas (`derive-causas-summary.mjs`, desde 2026-09-10)
+
+Mesma receita, agora sobre o cubo mais pesado do canal (1.253 MB nos 34 anos).
+Assinados no bloco `causas_summary` do manifesto (1.4.0; PLAN-006 do sih-br-mcp,
+item `sih:causas-pre-agregada`):
+
+| Arquivo | Conteúdo | Para quê |
+|---|---|---|
+| `sih_causas_resumo.parquet` | **grão A**: year × uf × cid_chapter × cid_revision × is_csap × exclusion, com n, days, value (DECIMAL 18,2) e deaths; TODOS os anos num arquivo (569 KB, 47.790 linhas em 1992–2025) | internações, óbitos, dias e gasto por UF e capítulo na série longa, sem baixar 1,25 GB |
+| `sih_causas_estratos_YYYY.parquet` | **grão B**: o grão A mais sexo, faixa etária quinquenal e raça (18,8 MB nos 34 anos; 0,25 MB em 1995 contra 22,8 MB do cubo) | recortes demográficos sem o cubo pesado |
+| `causas_summary_provenance.json` | `built_at`, versão do derivador, `derived_from` (sha256 do cubo-fonte POR ANO), grão declarado e totais por ano | contrato de frescor e moeda da conferência |
+
+A **faixa etária é a mesma de `pop_uf_agregado.parquet`** (`0-4` … `75-79`,
+`80 e +`; idade ausente ou negativa = faixa nula, que entra no total e fica fora
+de qualquer recorte etário): é o que deixa o consumidor reusar a regra que já
+existe para a taxa antes de 2000 — recorte só nos limites das faixas. **Fora do
+grão de propósito** (medido e rejeitado): mês, categoria CID de 3 dígitos
+(`cid_group`) e grupo CSAP; o grão com a categoria de 3 dígitos custaria 333 MB e
+694 s de derivação. Quem pede isso segue no cubo de causas, com o número certo.
+
+O grão A é uma **rolagem do grão B**, não uma segunda leitura dos cubos: cada ano
+do B é conferido contra o cubo nas quatro medidas durante a derivação, e o A
+contra os mesmos totais — nada sai do derivador sem reproduzir o cubo de onde
+veio. Medido em 2026-09-10, com uma thread (como no container `basic`):
+"internações, dias, gasto e óbitos por ano, 34 anos" custa **0,01 s pelo grão A
+contra 5,50 s pelos cubos**, com resposta idêntica.
+
+### Frescor e operação dos dois resumos
+
+Regra de frescor: `cubes-manifest.mjs --summary` / `--causas-summary` REPROVA se o
+`derived_from` de qualquer ano não bater com o sha256 do cubo correspondente no
+bloco `years` final; sem a flag, o bloco herdado gera AVISO quando um rebuild o
+deixou velho — e o consumidor cai no caminho lento naquele ano. **Rodar
+`build-sih-summary.yml` depois de todo rebuild de cubos**: ele deriva e publica os
+DOIS resumos no mesmo run (só `workflow_dispatch`; selftest dos dois derivadores →
+deriva com sha conferido, `.derive-cache` compartilhado → `publish-cubes.sh none
+data/sih-cubos "" "" <pasta> <pasta>`). Publicar um sem o outro é o defeito a
+evitar: os dois blocos vivem no mesmo manifesto e o rebuild de um ano invalida os
+dois. Localmente:
+`node scripts/pipeline/sih-cubos/derive-icsap-summary.mjs --out <dir>` e
+`node scripts/pipeline/sih-cubos/derive-causas-summary.mjs --out <dir>`
+(a máquina de baixar cubo conferindo hash é compartilhada, em `summary-lib.mjs`).
 
 ## Cadeia de reprodução (política do bucket: `docs/policy-reproducibility-pt.md`)
 

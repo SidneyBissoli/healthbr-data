@@ -2,7 +2,7 @@
 # Publica cubos + sidecars + manifesto em sih/cubos/ do bucket healthbr-data
 # (R2), servido em https://data.sidneybissoli.com/sih/cubos/.
 #
-# Uso: publish-cubes.sh <anos separados por vírgula | all | none> [pasta-de-dados] [pasta-das-tabelas] [pasta-da-população] [pasta-do-resumo-icsap]
+# Uso: publish-cubes.sh <anos separados por vírgula | all | none> [pasta-de-dados] [pasta-das-tabelas] [pasta-da-população] [pasta-do-resumo-icsap] [pasta-do-resumo-de-causas]
 # Exige R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY e R2_ENDPOINT no ambiente (os
 # mesmos secrets que o sync-check.yml usa; token "Object Read & Write" do
 # bucket healthbr-data). Usa o AWS CLI v2 (pré-instalado no ubuntu-latest)
@@ -16,7 +16,13 @@
 # (sih_icsap_resumo.parquet + sih_icsap_estratos_YYYY.parquet +
 # icsap_summary_provenance.json, de derive-icsap-summary.mjs), assinados no
 # bloco `icsap_summary` — o manifesto RECUSA resumo derivado de cubo que não
-# é o publicado (frescor por sha256; PLAN-005 do sih-br-mcp).
+# é o publicado (frescor por sha256; PLAN-005 do sih-br-mcp). Com a 6ª,
+# publica os PRÉ-AGREGADOS do cubo de CAUSAS (sih_causas_resumo.parquet, grão
+# A; sih_causas_estratos_YYYY.parquet, grão B; causas_summary_provenance.json,
+# de derive-causas-summary.mjs), assinados no bloco `causas_summary` com o
+# MESMO contrato de frescor (PLAN-006). As duas pastas costumam ser a MESMA:
+# build-sih-summary.yml deriva os dois resumos lado a lado, porque um rebuild
+# de cubos que deixe um fresco e o outro velho é o defeito a evitar.
 #
 # Ordem: (1) baixa o manifesto anterior; (2) gera o novo com --verify (DuckDB
 # confere cada cubo contra o sidecar e cada arquivo de população contra o
@@ -31,6 +37,7 @@ DATA_DIR="${2:-data/sih-cubos}"
 TABLES_DIR="${3:-}"
 POP_DIR="${4:-}"
 SUMMARY_DIR="${5:-}"
+CAUSAS_SUMMARY_DIR="${6:-}"
 POP_FILES=(pop_uf.parquet pop_uf_agregado.parquet pop_municipios.parquet pop_provenance.json)
 : "${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID ausente}"
 : "${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY ausente}"
@@ -70,7 +77,11 @@ if [ -n "$SUMMARY_DIR" ]; then
   [ -f "$SUMMARY_DIR/sih_icsap_resumo.parquet" ] || { echo "::error::resumo: falta $SUMMARY_DIR/sih_icsap_resumo.parquet"; exit 1; }
   [ -f "$SUMMARY_DIR/icsap_summary_provenance.json" ] || { echo "::error::resumo: falta $SUMMARY_DIR/icsap_summary_provenance.json"; exit 1; }
 fi
-echo "publish-cubes: anos $YEARS_CSV de $DATA_DIR${TABLES_DIR:+; tabelas de $TABLES_DIR}${POP_DIR:+; população de $POP_DIR}${SUMMARY_DIR:+; pré-agregados ICSAP de $SUMMARY_DIR}"
+if [ -n "$CAUSAS_SUMMARY_DIR" ]; then
+  [ -f "$CAUSAS_SUMMARY_DIR/sih_causas_resumo.parquet" ] || { echo "::error::resumo de causas: falta $CAUSAS_SUMMARY_DIR/sih_causas_resumo.parquet"; exit 1; }
+  [ -f "$CAUSAS_SUMMARY_DIR/causas_summary_provenance.json" ] || { echo "::error::resumo de causas: falta $CAUSAS_SUMMARY_DIR/causas_summary_provenance.json"; exit 1; }
+fi
+echo "publish-cubes: anos $YEARS_CSV de $DATA_DIR${TABLES_DIR:+; tabelas de $TABLES_DIR}${POP_DIR:+; população de $POP_DIR}${SUMMARY_DIR:+; pré-agregados ICSAP de $SUMMARY_DIR}${CAUSAS_SUMMARY_DIR:+; pré-agregados de causas de $CAUSAS_SUMMARY_DIR}"
 
 # (1) manifesto anterior — pode não existir na primeira publicação
 if ! curl -fsSL --max-time 30 "$PUBLIC_BASE/manifest.json" -o previous-manifest.json 2>/dev/null; then
@@ -85,6 +96,7 @@ EXTRA_FLAGS=()
 if [ -n "$TABLES_DIR" ]; then EXTRA_FLAGS+=(--tables "$TABLES_DIR"); fi
 if [ -n "$POP_DIR" ]; then EXTRA_FLAGS+=(--population "$POP_DIR"); fi
 if [ -n "$SUMMARY_DIR" ]; then EXTRA_FLAGS+=(--summary "$SUMMARY_DIR"); fi
+if [ -n "$CAUSAS_SUMMARY_DIR" ]; then EXTRA_FLAGS+=(--causas-summary "$CAUSAS_SUMMARY_DIR"); fi
 node "$HERE/cubes-manifest.mjs" --data "$DATA_DIR" --years "$YEARS_CSV" \
   --previous previous-manifest.json --verify "${EXTRA_FLAGS[@]}" \
   --base-url "$PUBLIC_BASE/" --out cubes-manifest.json
@@ -132,6 +144,15 @@ if [ -n "$SUMMARY_DIR" ]; then
   put "$SUMMARY_DIR/icsap_summary_provenance.json" "icsap_summary_provenance.json" "application/json"
 fi
 
+# (3e) pré-agregados do cubo de CAUSAS — grão A (um arquivo) + grão B por ano + sidecar
+if [ -n "$CAUSAS_SUMMARY_DIR" ]; then
+  put "$CAUSAS_SUMMARY_DIR/sih_causas_resumo.parquet" "sih_causas_resumo.parquet" "application/vnd.apache.parquet"
+  for E in "$CAUSAS_SUMMARY_DIR"/sih_causas_estratos_*.parquet; do
+    put "$E" "$(basename "$E")" "application/vnd.apache.parquet"
+  done
+  put "$CAUSAS_SUMMARY_DIR/causas_summary_provenance.json" "causas_summary_provenance.json" "application/json"
+fi
+
 # (4) manifesto por último, com cache curto
 aws s3 cp cubes-manifest.json "s3://$BUCKET/$PREFIX/manifest.json" --endpoint-url "$ENDPOINT" \
   --content-type "application/json" --cache-control "public, max-age=300" --only-show-errors
@@ -163,11 +184,16 @@ if [ -n "$SUMMARY_DIR" ]; then
   for E in "$SUMMARY_DIR"/sih_icsap_estratos_*.parquet; do check "$E" "$(basename "$E")"; done
   check "$SUMMARY_DIR/icsap_summary_provenance.json" "icsap_summary_provenance.json"
 fi
+if [ -n "$CAUSAS_SUMMARY_DIR" ]; then
+  check "$CAUSAS_SUMMARY_DIR/sih_causas_resumo.parquet" "sih_causas_resumo.parquet"
+  for E in "$CAUSAS_SUMMARY_DIR"/sih_causas_estratos_*.parquet; do check "$E" "$(basename "$E")"; done
+  check "$CAUSAS_SUMMARY_DIR/causas_summary_provenance.json" "causas_summary_provenance.json"
+fi
 check cubes-manifest.json manifest.json
 [ "$falhas" -eq 0 ] || exit 1
 echo "publish-cubes: OK — $PUBLIC_BASE/manifest.json"
 {
   echo "### Publicado em \`$PUBLIC_BASE/\`"
   echo
-  echo "Anos: $YEARS_CSV${TABLES_DIR:+; tabelas de classificação}${POP_DIR:+; população (pop_uf, pop_uf_agregado, pop_municipios + pop_provenance.json)}${SUMMARY_DIR:+; pré-agregados ICSAP (resumo + estratos + sidecar)}. Manifesto: $PUBLIC_BASE/manifest.json"
+  echo "Anos: $YEARS_CSV${TABLES_DIR:+; tabelas de classificação}${POP_DIR:+; população (pop_uf, pop_uf_agregado, pop_municipios + pop_provenance.json)}${SUMMARY_DIR:+; pré-agregados ICSAP (resumo + estratos + sidecar)}${CAUSAS_SUMMARY_DIR:+; pré-agregados de causas (grão A + grão B por ano + sidecar)}. Manifesto: $PUBLIC_BASE/manifest.json"
 } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"

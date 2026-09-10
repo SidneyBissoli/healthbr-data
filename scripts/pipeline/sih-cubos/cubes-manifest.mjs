@@ -38,6 +38,13 @@
 //                    derivado de cubo que não é o publicado NÃO é assinado.
 //                    Sem a flag, mantém o bloco anterior (com aviso se ficou
 //                    velho em relação aos anos republicados)
+//   --causas-summary <dir>  assina os PRÉ-AGREGADOS do cubo de CAUSAS (1.4.0,
+//                    2026-09-10, sih:causas-pre-agregada / PLAN-006):
+//                    sih_causas_resumo.parquet (grão A),
+//                    sih_causas_estratos_YYYY.parquet (grão B) e
+//                    causas_summary_provenance.json, de derive-causas-summary.mjs.
+//                    MESMO contrato de frescor, agora contra o sha256 do cubo
+//                    de CAUSAS de cada ano.
 //   --verify         confere cada cubo com DuckDB antes de assinar: soma de `n`
 //                    em causas e séries = records_in_cube do sidecar; UFs
 //                    distintas = ufs_arquivo do sidecar; e cada arquivo de
@@ -54,6 +61,7 @@ const dataDir = String(args.data ?? "data/sih-cubos");
 const tablesDir = args.tables ? String(args.tables) : null;
 const populationDir = args.population ? String(args.population) : null;
 const summaryDir = args.summary ? String(args.summary) : null;
+const causasSummaryDir = args["causas-summary"] ? String(args["causas-summary"]) : null;
 const outPath = String(args.out ?? "cubes-manifest.json");
 const baseUrl = String(args["base-url"] ?? "https://data.sidneybissoli.com/sih/cubos/");
 const verify = args.verify === true;
@@ -79,7 +87,7 @@ const years =
     : !args.years || args.years === "all"
       ? yearsFromDir()
       : String(args.years).split(",").map((s) => Number(s.trim())).filter(Boolean);
-if (years.length === 0 && !tablesDir && !populationDir && !summaryDir) fail("nenhum ano para publicar (sidecar + 3 Parquet em " + dataDir + ") e nem --tables/--population");
+if (years.length === 0 && !tablesDir && !populationDir && !summaryDir && !causasSummaryDir) fail("nenhum ano para publicar (sidecar + 3 Parquet em " + dataDir + ") e nem --tables/--population/--summary/--causas-summary");
 
 async function sha256(path) {
   return new Promise((resolve, reject) => {
@@ -129,7 +137,7 @@ if (args.previous && existsSync(String(args.previous))) {
 }
 
 const manifest = {
-  manifest_version: "1.3.0",
+  manifest_version: "1.4.0",
   dataset: "sih/cubos",
   description:
     "Cubos agregados do SIH/SUS (internações por causa, séries mensais e ICSAP por município) derivados dos microdados RD de sih/rd/ pela pipeline sih-cubos do healthbr-data (scripts/pipeline/sih-cubos/). Um sidecar de proveniência por ano; tabelas de classificação em tables/; denominadores populacionais (IBGE Projeção 2024 por UF; DATASUS POPBR/POPSVS por município) em pop_*.parquet com sidecar pop_provenance.json.",
@@ -148,6 +156,7 @@ const manifest = {
   tables: previous.tables ?? {},
   population: previous.population ?? null,
   icsap_summary: previous.icsap_summary ?? null,
+  causas_summary: previous.causas_summary ?? null,
   years: { ...previous.years },
 };
 
@@ -241,34 +250,75 @@ for (const year of years) {
 // Anos em ordem no JSON final
 manifest.years = Object.fromEntries(Object.entries(manifest.years).sort(([a], [b]) => Number(a) - Number(b)));
 
-// Pré-agregados da ICSAP (derive-icsap-summary.mjs) — assinados por último
-// porque o contrato de frescor compara o derived_from do sidecar com o bloco
-// `years` FINAL: um resumo derivado de cubo que não é o publicado não sobe.
-if (summaryDir) {
-  if (!existsSync(summaryDir)) fail(`--summary: pasta ${summaryDir} não existe`);
-  const sprovPath = join(summaryDir, "icsap_summary_provenance.json");
-  if (!existsSync(sprovPath)) fail(`--summary: sem ${sprovPath}`);
+// Pré-agregados (derive-icsap-summary.mjs, PLAN-005; derive-causas-summary.mjs,
+// PLAN-006) — assinados por último porque o contrato de frescor compara o
+// derived_from do sidecar com o bloco `years` FINAL: um resumo derivado de cubo
+// que não é o publicado não sobe. Os dois blocos têm a MESMA forma (resumo +
+// estratos por ano + sidecar) e o mesmo contrato, então quem assina é um só; o
+// que muda por bloco são os nomes dos arquivos, o cubo-fonte e a verificação.
+async function assinarPreAgregados({ dir, flag, blockKey, cubeKind, deriver, provName, resumoName, estratoName, rotulo, verificar }) {
+  if (!dir) {
+    if (!manifest[blockKey]) return;
+    // Bloco herdado: avisar se algum ano republicado NESTE run o deixou velho.
+    const stale = Object.entries(manifest.years).filter(([y, e]) => manifest[blockKey].derived_from?.[y] !== e.files?.[cubeKind]?.sha256);
+    if (stale.length > 0) {
+      console.error(`cubes-manifest: AVISO — ${blockKey} herdado está VELHO para ${stale.map(([y]) => y).join(", ")}; rode build-sih-summary.yml (o consumidor cai no caminho lento nesses anos)`);
+    }
+    return;
+  }
+  if (!existsSync(dir)) fail(`${flag}: pasta ${dir} não existe`);
+  const sprovPath = join(dir, provName);
+  if (!existsSync(sprovPath)) fail(`${flag}: sem ${sprovPath}`);
   const sprov = JSON.parse(readFileSync(sprovPath, "utf8"));
   if (!sprov.built_at || !sprov.derived_from || !sprov.files?.resumo || !sprov.files?.estratos) {
-    fail("--summary: icsap_summary_provenance.json sem built_at/derived_from/files");
+    fail(`${flag}: ${provName} sem built_at/derived_from/files`);
   }
   for (const [y, entry] of Object.entries(manifest.years)) {
     const src = sprov.derived_from[y];
-    if (!src) fail(`--summary: sem derived_from para ${y} — rode derive-icsap-summary.mjs de novo`);
-    if (src !== entry.files?.icsap?.sha256) {
-      fail(`--summary: ${y} derivado do cubo ${src.slice(0, 12)}…, publicado é ${entry.files?.icsap?.sha256?.slice(0, 12)}… — resumo velho, rode derive-icsap-summary.mjs`);
+    if (!src) fail(`${flag}: sem derived_from para ${y} — rode ${deriver} de novo`);
+    if (src !== entry.files?.[cubeKind]?.sha256) {
+      fail(`${flag}: ${y} derivado do cubo ${src.slice(0, 12)}…, publicado é ${entry.files?.[cubeKind]?.sha256?.slice(0, 12)}… — resumo velho, rode ${deriver}`);
     }
   }
-  const sfiles = {};
-  const resumoPath = join(summaryDir, "sih_icsap_resumo.parquet");
-  if (!existsSync(resumoPath)) fail("--summary: falta sih_icsap_resumo.parquet");
+  const resumoPath = join(dir, resumoName);
+  if (!existsSync(resumoPath)) fail(`${flag}: falta ${resumoName}`);
   if (verify) {
     const { conn, q } = await duckdb();
-    const pr = resumoPath.replace(/\\/g, "/");
-    const [r] = await q(`SELECT count(*) AS rows, count(DISTINCT year) AS years FROM read_parquet('${pr}')`);
-    if (Number(r.rows) !== Number(sprov.files.resumo.rows)) fail(`resumo: ${r.rows} linhas != ${sprov.files.resumo.rows} do sidecar`);
-    if (Number(r.years) !== Object.keys(manifest.years).length) fail(`resumo: ${r.years} anos != ${Object.keys(manifest.years).length} do manifesto`);
-    const tot = await q(`SELECT universe, SUM(n_icsap) AS n FROM read_parquet('${pr}') WHERE csap_group IS NOT NULL GROUP BY universe`);
+    const [r] = await q(`SELECT count(*) AS rows, count(DISTINCT year) AS years FROM read_parquet('${resumoPath.replace(/\\/g, "/")}')`);
+    if (Number(r.rows) !== Number(sprov.files.resumo.rows)) fail(`${resumoName}: ${r.rows} linhas != ${sprov.files.resumo.rows} do sidecar`);
+    if (Number(r.years) !== Object.keys(manifest.years).length) fail(`${resumoName}: ${r.years} anos != ${Object.keys(manifest.years).length} do manifesto`);
+    await verificar({ q, resumoPath: resumoPath.replace(/\\/g, "/"), sprov });
+    conn.closeSync?.();
+  }
+  const sfiles = { resumo: { name: resumoName, size_bytes: statSync(resumoPath).size, sha256: await sha256(resumoPath) }, estratos: {} };
+  for (const y of Object.keys(manifest.years)) {
+    const name = estratoName(y);
+    const pe = join(dir, name);
+    if (!existsSync(pe)) fail(`${flag}: falta ${name}`);
+    sfiles.estratos[y] = { name, size_bytes: statSync(pe).size, sha256: await sha256(pe) };
+  }
+  sfiles.provenance = { name: provName, size_bytes: statSync(sprovPath).size, sha256: await sha256(sprovPath) };
+  manifest[blockKey] = {
+    built_at: sprov.built_at,
+    builder_version: sprov.builder?.version ?? null,
+    derived_from: sprov.derived_from,
+    files: sfiles,
+  };
+  console.error(`cubes-manifest: pré-agregados ${rotulo} assinados de ${dir} (resumo + ${Object.keys(sfiles.estratos).length} estratos${verify ? ", verificados com DuckDB" : ""})`);
+}
+
+await assinarPreAgregados({
+  dir: summaryDir,
+  flag: "--summary",
+  blockKey: "icsap_summary",
+  cubeKind: "icsap",
+  deriver: "derive-icsap-summary.mjs",
+  provName: "icsap_summary_provenance.json",
+  resumoName: "sih_icsap_resumo.parquet",
+  estratoName: (y) => `sih_icsap_estratos_${y}.parquet`,
+  rotulo: "da ICSAP",
+  verificar: async ({ q, resumoPath, sprov }) => {
+    const tot = await q(`SELECT universe, SUM(n_icsap) AS n FROM read_parquet('${resumoPath}') WHERE csap_group IS NOT NULL GROUP BY universe`);
     for (const t of tot) {
       if (sprov.totals?.[t.universe] != null && Number(t.n) !== Number(sprov.totals[t.universe])) {
         fail(`resumo: n_icsap ${t.universe} = ${t.n} != ${sprov.totals[t.universe]} do sidecar`);
@@ -279,30 +329,47 @@ if (summaryDir) {
       const [re] = await q(`SELECT count(*) AS rows FROM read_parquet('${pe}')`);
       if (Number(re.rows) !== Number(meta.rows)) fail(`estratos ${y}: ${re.rows} linhas != ${meta.rows} do sidecar`);
     }
-    conn.closeSync?.();
-  }
-  sfiles.resumo = { name: "sih_icsap_resumo.parquet", size_bytes: statSync(resumoPath).size, sha256: await sha256(resumoPath) };
-  sfiles.estratos = {};
-  for (const y of Object.keys(manifest.years)) {
-    const name = `sih_icsap_estratos_${y}.parquet`;
-    const pe = join(summaryDir, name);
-    if (!existsSync(pe)) fail(`--summary: falta ${name}`);
-    sfiles.estratos[y] = { name, size_bytes: statSync(pe).size, sha256: await sha256(pe) };
-  }
-  sfiles.provenance = { name: "icsap_summary_provenance.json", size_bytes: statSync(sprovPath).size, sha256: await sha256(sprovPath) };
-  manifest.icsap_summary = {
-    built_at: sprov.built_at,
-    builder_version: sprov.builder?.version ?? null,
-    derived_from: sprov.derived_from,
-    files: sfiles,
-  };
-  console.error(`cubes-manifest: pré-agregados da ICSAP assinados de ${summaryDir} (resumo + ${Object.keys(sfiles.estratos).length} estratos${verify ? ", verificados com DuckDB" : ""})`);
-} else if (manifest.icsap_summary) {
-  // Bloco herdado: avisar se algum ano republicado NESTE run o deixou velho.
-  const stale = Object.entries(manifest.years).filter(([y, e]) => manifest.icsap_summary.derived_from?.[y] !== e.files?.icsap?.sha256);
-  if (stale.length > 0) {
-    console.error(`cubes-manifest: AVISO — icsap_summary herdado está VELHO para ${stale.map(([y]) => y).join(", ")}; rode build-sih-summary.yml (o consumidor cai no caminho lento nesses anos)`);
-  }
-}
+  },
+});
+
+await assinarPreAgregados({
+  dir: causasSummaryDir,
+  flag: "--causas-summary",
+  blockKey: "causas_summary",
+  cubeKind: "causas",
+  deriver: "derive-causas-summary.mjs",
+  provName: "causas_summary_provenance.json",
+  resumoName: "sih_causas_resumo.parquet",
+  estratoName: (y) => `sih_causas_estratos_${y}.parquet`,
+  rotulo: "do cubo de causas",
+  // O grão A é uma ROLAGEM do grão B: conferir aqui é conferir os dois de uma
+  // vez, ANO A ANO e nas QUATRO medidas, contra os totais que o derivador
+  // gravou depois de compará-los com o cubo. Se alguém trocar um arquivo entre
+  // a derivação e a publicação, é aqui que aparece.
+  verificar: async ({ q, resumoPath, sprov }) => {
+    const porAno = await q(
+      `SELECT year, SUM(n) AS n, SUM(days) AS days, SUM(value) AS value, SUM(deaths) AS deaths FROM read_parquet('${resumoPath}') GROUP BY year`,
+    );
+    for (const r of porAno) {
+      const esperado = sprov.files.estratos[String(r.year)];
+      if (!esperado) fail(`sih_causas_resumo: ano ${r.year} não está no sidecar`);
+      for (const k of ["n", "days", "value", "deaths"]) {
+        if (Number(r[k]) !== Number(esperado[k])) fail(`sih_causas_resumo ${r.year}: ${k} ${r[k]} != ${esperado[k]} do sidecar (conferido contra o cubo na derivação)`);
+      }
+    }
+    for (const [y, meta] of Object.entries(sprov.files.estratos)) {
+      const pe = join(causasSummaryDir, `sih_causas_estratos_${y}.parquet`).replace(/\\/g, "/");
+      const [re] = await q(
+        `SELECT count(*) AS rows, SUM(n) AS n, SUM(days) AS days, SUM(value) AS value, SUM(deaths) AS deaths FROM read_parquet('${pe}')`,
+      );
+      for (const k of ["rows", "n", "days", "value", "deaths"]) {
+        if (Number(re[k]) !== Number(meta[k])) fail(`sih_causas_estratos_${y}: ${k} ${re[k]} != ${meta[k]} do sidecar`);
+      }
+    }
+  },
+});
 writeFileSync(outPath, JSON.stringify(manifest, null, 2) + "\n");
-console.error(`cubes-manifest: ${Object.keys(manifest.years).length} ano(s)${manifest.population ? `, população até ${manifest.population.last_year}` : ", sem população"} em ${outPath}`);
+console.error(
+  `cubes-manifest: ${Object.keys(manifest.years).length} ano(s)${manifest.population ? `, população até ${manifest.population.last_year}` : ", sem população"}` +
+    `${manifest.icsap_summary ? ", resumo ICSAP" : ""}${manifest.causas_summary ? ", resumo de causas" : ""} em ${outPath}`,
+);

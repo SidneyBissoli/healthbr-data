@@ -42,3 +42,8 @@ scripts/pipeline/sih-cubos/cubes-manifest.json
 scripts/pipeline/sih-cubos/previous-manifest.json
 scripts/pipeline/sih-cubos/tables/generators/insumos/
 data/sih-population/
+
+# Pré-agregados: cubos baixados para derivar (.derive-cache) e a saída da
+# derivação. O estado é o canal; nada disto vai para o git.
+data/sih-summary/
+.derive-cache/

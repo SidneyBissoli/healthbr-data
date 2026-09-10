@@ -34,39 +34,18 @@
 // Determinismo: todo COPY tem ORDER BY completo (lição do golden que se
 // reproduz: GROUP BY sem ORDER BY sai na ordem das threads) e `value` soma
 // como DECIMAL(18,2) (soma paralela de DOUBLE muda o último dígito).
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+// A máquina de baixar cubo conferindo hash, abrir o DuckDB e escrever o
+// sidecar mora em summary-lib.mjs, compartilhada com derive-causas-summary.mjs
+// (PLAN-006): o mesmo `.derive-cache` serve os dois derivadores.
+import { mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { duckdb, ensureCube, ensureDirs, failWith, loadManifest, parseArgs, posix, wantedYears, writeProvenance } from "./summary-lib.mjs";
 
-const VERSION = "1.0.0";
-const DEFAULT_MANIFEST = "https://data.sidneybissoli.com/sih/cubos/manifest.json";
+const VERSION = "1.1.0";
 
-const args = Object.fromEntries(
-  process.argv.slice(2).map((a, i, all) => (a.startsWith("--") ? [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true] : [])).filter((p) => p.length),
-);
-
-function fail(msg) {
-  console.error(`derive-icsap-summary: ${msg}`);
-  process.exit(1);
-}
-const posix = (p) => p.replace(/\\/g, "/");
-
-async function duckdb() {
-  const { DuckDBInstance } = await import("@duckdb/node-api");
-  const inst = await DuckDBInstance.create(":memory:");
-  const conn = await inst.connect();
-  await conn.run("SET threads TO 4");
-  const q = async (sql) => (await conn.runAndReadAll(sql)).getRowObjectsJS();
-  return { conn, q, run: (sql) => conn.run(sql) };
-}
-
-function sha256Of(path) {
-  const h = createHash("sha256");
-  h.update(readFileSync(path));
-  return h.digest("hex");
-}
+const args = parseArgs();
+const fail = failWith("derive-icsap-summary");
 
 // ---------------------------------------------------------------------------
 // SQL — o MESMO desenho do consumidor (sih-br-mcp src/db/duckdb.ts): chaves do
@@ -172,45 +151,19 @@ async function selftest() {
 // Derivação real: manifesto → baixa cada cubo ICSAP (verificando sha256) →
 // estratos por ano + resumo único + sidecar de proveniência.
 // ---------------------------------------------------------------------------
-async function fetchTo(url, path) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} em ${url}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  writeFileSync(path, buf);
-}
-
 async function main() {
   const outDir = String(args.out ?? "data/sih-summary");
   const workDir = String(args.work ?? ".derive-cache");
-  mkdirSync(outDir, { recursive: true });
-  mkdirSync(workDir, { recursive: true });
+  ensureDirs(outDir, workDir);
 
-  const manifestArg = String(args.manifest ?? DEFAULT_MANIFEST);
-  const manifest = manifestArg.startsWith("http")
-    ? await (await fetch(manifestArg)).json()
-    : JSON.parse(await readFile(manifestArg, "utf8"));
-  if (!manifest?.years || Object.keys(manifest.years).length === 0) fail("manifesto sem anos");
-  const base = String(manifest.base_url ?? DEFAULT_MANIFEST.replace("manifest.json", ""));
-
-  const wanted = !args.years || args.years === "all"
-    ? Object.keys(manifest.years).map(Number).sort((x, y) => x - y)
-    : String(args.years).split(",").map((s) => Number(s.trim())).filter(Boolean);
+  const { manifest, base } = await loadManifest(args.manifest, fail);
+  const wanted = wantedYears(manifest, args.years);
 
   const derivedFrom = {};
   const estratosMeta = {};
   const { q, run } = await duckdb();
   for (const year of wanted) {
-    const entry = manifest.years[String(year)];
-    if (!entry?.files?.icsap?.sha256) fail(`${year}: manifesto sem sha256 do cubo ICSAP`);
-    const sha = entry.files.icsap.sha256;
-    const local = join(workDir, `sih_icsap_${year}.parquet`);
-    // ?v=<sha256>: chave de cache por versão — a borda pode segurar o objeto
-    // reescrito por até 300 s (canal reescrito no lugar; contrato do canal).
-    if (!existsSync(local) || sha256Of(local) !== sha) {
-      await fetchTo(`${base}${entry.files.icsap.name}?v=${sha}`, local);
-      const got = sha256Of(local);
-      if (got !== sha) fail(`${year}: sha256 baixado ${got} != ${sha} do manifesto`);
-    }
+    const { path: local, sha } = await ensureCube({ kind: "icsap", year, manifest, base, workDir, fail });
     derivedFrom[String(year)] = sha;
     const out = join(outDir, `sih_icsap_estratos_${year}.parquet`);
     await run(sqlEstratos(local, out));
@@ -224,8 +177,7 @@ async function main() {
   const [{ rows: resumoRows }] = await q(`SELECT count(*) AS rows FROM read_parquet('${posix(resumoPath)}')`);
   const totals = await q(`SELECT universe, SUM(n_icsap) AS n_icsap FROM read_parquet('${posix(resumoPath)}') WHERE csap_group IS NOT NULL GROUP BY universe ORDER BY universe`);
 
-  const prov = {
-    built_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+  writeProvenance(outDir, "icsap_summary_provenance.json", {
     builder: { name: "derive-icsap-summary.mjs", version: VERSION },
     source: "cubos sih_icsap_*.parquet publicados no canal sih/cubos/ (função pura; nada dos microdados)",
     manifest_generated_at: manifest.generated_at ?? null,
@@ -235,8 +187,7 @@ async function main() {
       estratos: estratosMeta,
     },
     totals: Object.fromEntries(totals.map((t) => [t.universe, Number(t.n_icsap)])),
-  };
-  writeFileSync(join(outDir, "icsap_summary_provenance.json"), JSON.stringify(prov, null, 2) + "\n");
+  });
   console.error(`derive-icsap-summary: resumo ok (${resumoRows} linhas, ${statSync(resumoPath).size} bytes; anos ${wanted[0]}–${wanted[wanted.length - 1]})`);
 }
 

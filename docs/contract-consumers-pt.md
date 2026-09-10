@@ -107,7 +107,7 @@ estiver atrás, leia o manifesto inteiro. Consumidor de referência: o job `deci
 `rebuild-sih-cubes.yml` (pipeline `sih-cubos` deste repositório), que mede o frescor
 dos cubos publicados com o `scripts/freshness-check.mjs` do `sih-br-mcp`.
 
-**`sih/cubos/manifest.json` (1.2.0) e o que o consumidor pode assumir.** Além de
+**`sih/cubos/manifest.json` (1.4.0) e o que o consumidor pode assumir.** Além de
 `years` (um bloco por ano com `built_at`, `window_complete`, `records_in_cube` e
 `files.{causas,series,icsap,provenance}` com `name`, `size_bytes`, `sha256`) e de
 `tables` (SHA-256 de cada `tables/*.json`), o manifesto traz, desde 2026-09-08, o
@@ -122,6 +122,30 @@ trata a ausência como "sem denominador", nunca como erro do canal. Esquemas:
 `pop_uf` (`year, uf, sex M/F, age 0–90, population`), `pop_municipios` (`year, source,
 municipality_code, uf, sex M/F/total, age_group, population`; `age_group` nulo = idade
 ignorada na fonte), `pop_uf_agregado` (`year, uf, sex, age_group, population`).
+
+**Os blocos de PRÉ-AGREGADOS: `icsap_summary` (1.3.0, 08/09) e `causas_summary`
+(1.4.0, 10/09).** São atalhos DERIVADOS dos cubos publicados — nunca uma segunda
+fonte. Cada bloco traz `built_at`, `builder_version`, `derived_from` (um sha256 por
+ano) e `files.{resumo,estratos,provenance}`, com `estratos` indexado por ano; os
+arquivos vivem no mesmo prefixo e se baixam e conferem como um ano de cubo.
+
+| Bloco | Resumo (um arquivo, todos os anos) | Estratos (por ano) | Derivado de |
+|---|---|---|---|
+| `icsap_summary` | `sih_icsap_resumo.parquet`: `universe, year, uf, cid_revision, csap_group, n_icsap, total_days, total_value, deaths, n_total` | `sih_icsap_estratos_YYYY.parquet`: chaves cruas do estrato + `n_total` | `files.icsap` do ano |
+| `causas_summary` | `sih_causas_resumo.parquet`: `year, uf, cid_chapter, cid_revision, is_csap, exclusion, n, days, value, deaths` | `sih_causas_estratos_YYYY.parquet`: o mesmo grão MAIS `sex, age_group, race` | `files.causas` do ano |
+
+**Contrato de frescor, que o consumidor DEVE aplicar ano a ano:** use o resumo de um
+ano apenas se `derived_from[ano]` for igual ao `sha256` do cubo daquele ano em
+`years[ano].files.<cubo>`. Quando um rebuild republica um ano e a derivação ainda não
+rodou, esse ano fica com resumo velho — o consumidor cai no cubo, que continua certo.
+Bloco `null` ou ausente é manifesto anterior ao recurso, não erro do canal.
+
+Nos estratos de causas, `age_group` usa **as mesmas faixas de `pop_uf_agregado`**
+(`0-4` … `75-79`, `80 e +`), e é NULO para idade ausente ou negativa — essa linha
+entra no total e fica fora de qualquer recorte etário. Um recorte por idade só é
+atendível pelo pré-agregado se começar em múltiplo de 5 e terminar em 4 ou 9, ou for
+80 e mais; fora disso, leia o cubo. `month`, `cid_group` (categoria CID de 3 dígitos)
+e `csap_group` NÃO estão no pré-agregado de causas: existem só no cubo.
 
 **Cache de borda e objetos reescritos no lugar (medido em 2026-09-08).** Tudo em
 `sih/cubos/` é reescrito com o MESMO nome a cada rebuild, e a borda do domínio honra o
@@ -190,4 +214,4 @@ nota no card do dataset, entrada neste documento com data, e aviso no
 `inst/healthbr-data-integration.md` do `healthbR`. Layout de partição e
 "tudo string" não mudam.
 
-*Última atualização: 18/ago/2026.*
+*Última atualização: 10/set/2026.*

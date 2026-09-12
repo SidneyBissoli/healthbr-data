@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Notas construtivas — DataSenado Lake Aberto</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 16mm 16mm;
+    @bottom-center { content: counter(page); }
+  }
+
+  :root {
+    --ink:        #16202e;
+    --ink-soft:   #3d4a5c;
+    --muted:      #6b7889;
+    --rule:       #d7dde5;
+    --rule-soft:  #e8ecf1;
+    --navy:       #123a63;
+    --teal:       #0f6b6b;
+    --amber:      #b06a12;
+    --red:        #9b2c2c;
+    --wash:       #f4f7fa;
+    --wash-warm:  #fdf8f1;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { font-size: 10pt; }
+
+  body {
+    margin: 0;
+    font-family: "Charter", "Georgia", "Times New Roman", serif;
+    color: var(--ink);
+    line-height: 1.42;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sans { font-family: "Inter", "Helvetica Neue", Arial, sans-serif; }
+
+  /* ---------- capa ---------- */
+  .cover {
+    padding-top: 4mm;
+    border-top: 3pt solid var(--navy);
+    margin-bottom: 9mm;
+  }
+  .eyebrow {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 7.6pt;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--teal);
+    font-weight: 700;
+    margin: 5mm 0 3mm;
+  }
+  h1 {
+    font-size: 25pt;
+    line-height: 1.1;
+    margin: 0 0 2mm;
+    letter-spacing: -.015em;
+    color: var(--navy);
+    font-weight: 600;
+  }
+  .subtitle {
+    font-size: 12.5pt;
+    color: var(--ink-soft);
+    margin: 0 0 6mm;
+    line-height: 1.35;
+    font-style: italic;
+  }
+  .meta {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 8.2pt;
+    color: var(--muted);
+    line-height: 1.65;
+    border-top: .6pt solid var(--rule);
+    border-bottom: .6pt solid var(--rule);
+    padding: 3mm 0;
+    display: grid;
+    grid-template-columns: 26mm 1fr;
+    gap: 1mm 4mm;
+  }
+  .meta dt { font-weight: 700; color: var(--ink-soft); }
+  .meta dd { margin: 0; }
+
+  /* ---------- estrutura ---------- */
+  h2 {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 13pt;
+    color: var(--navy);
+    margin: 5mm 0 2.2mm;
+    padding-bottom: 1.5mm;
+    border-bottom: 1.2pt solid var(--navy);
+    font-weight: 700;
+    letter-spacing: -.01em;
+    break-after: avoid;
+  }
+  h3 {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 10pt;
+    color: var(--ink);
+    margin: 5mm 0 1.5mm;
+    font-weight: 700;
+    break-after: avoid;
+  }
+  p { margin: 0 0 2.6mm; text-align: justify; hyphens: auto; }
+  strong { font-weight: 700; color: var(--ink); }
+  em { font-style: italic; }
+  code {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: .86em;
+    background: var(--wash);
+    padding: .4mm 1mm;
+    border-radius: 1.5pt;
+  }
+
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin-bottom: 1.4mm; text-align: justify; }
+
+  /* ---------- veredito ---------- */
+  .verdict {
+    background: var(--wash);
+    border-left: 3pt solid var(--teal);
+    padding: 4mm 5mm;
+    margin: 0 0 5mm;
+    break-inside: avoid;
+  }
+  .verdict p:last-child { margin-bottom: 0; }
+  .verdict .lead {
+    font-size: 10.4pt;
+    line-height: 1.42;
+    color: var(--navy);
+    font-weight: 600;
+  }
+
+  /* ---------- tabelas ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.7pt;
+    margin: 0 0 4mm;
+    font-family: "Inter", Arial, sans-serif;
+    line-height: 1.4;
+  }
+  thead th {
+    background: var(--navy);
+    color: #fff;
+    text-align: left;
+    padding: 2mm 2.4mm;
+    font-weight: 600;
+    font-size: 8pt;
+    letter-spacing: .02em;
+  }
+  tbody td {
+    padding: 1.9mm 2.4mm;
+    border-bottom: .5pt solid var(--rule-soft);
+    vertical-align: top;
+  }
+  tbody tr:nth-child(even) { background: #fafbfd; }
+  tr { break-inside: avoid; }
+
+  .sev {
+    display: inline-block;
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: .05em;
+    padding: .6mm 1.6mm;
+    border-radius: 2pt;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .sev-b { background: var(--red); }
+  .sev-a { background: var(--amber); }
+  .sev-m { background: var(--muted); }
+
+  /* ---------- destaques ---------- */
+  .callout {
+    border: .7pt solid var(--rule);
+    border-top: 2pt solid var(--amber);
+    background: var(--wash-warm);
+    padding: 3.5mm 4mm;
+    margin: 0 0 4mm;
+    break-inside: avoid;
+  }
+  .callout h3 { margin-top: 0; color: var(--amber); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .good {
+    border: .7pt solid var(--rule);
+    border-top: 2pt solid var(--teal);
+    background: #f3f9f8;
+    padding: 3.5mm 4mm;
+    margin: 0 0 4mm;
+    break-inside: avoid;
+  }
+  .good h3 { margin-top: 0; color: var(--teal); }
+  .good ul { margin-bottom: 0; }
+
+  .questions { counter-reset: q; list-style: none; padding-left: 0; }
+  .questions li {
+    counter-increment: q;
+    position: relative;
+    padding-left: 8mm;
+    margin-bottom: 1.8mm;
+    break-inside: avoid;
+  }
+  .questions li::before {
+    content: counter(q);
+    position: absolute;
+    left: 0; top: .3mm;
+    width: 5.4mm; height: 5.4mm;
+    background: var(--navy);
+    color: #fff;
+    border-radius: 50%;
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 7.6pt;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .phases { list-style: none; padding-left: 0; }
+  .phases li {
+    padding: 2.4mm 0 2.4mm 24mm;
+    border-bottom: .5pt solid var(--rule-soft);
+    position: relative;
+    break-inside: avoid;
+    text-align: left;
+  }
+  .phases li:last-child { border-bottom: none; }
+  .phase-tag {
+    position: absolute; left: 0; top: 2.4mm;
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 7.4pt;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--teal);
+    width: 22mm;
+  }
+  .phase-new .phase-tag { color: var(--red); }
+
+  .footnote {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 7.6pt;
+    color: var(--muted);
+    line-height: 1.5;
+    border-top: .6pt solid var(--rule);
+    padding-top: 2.2mm;
+    margin-top: 2.5mm;
+    text-align: left;
+  }
+  .footnote-grid {
+    column-count: 2;
+    column-gap: 7mm;
+    column-fill: balance;
+  }
+  .footnote p {
+    text-align: left;
+    margin-bottom: 1.8mm;
+    break-inside: avoid;
+  }
+
+  .pagebreak { break-before: page; }
+  .tight { margin-bottom: 1.4mm; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="eyebrow">Segunda rodada &middot; Perfil: arquiteto de solução</div>
+  <h1>DataSenado Lake&nbsp;Aberto</h1>
+  <p class="subtitle">Notas construtivas de arquitetura —<br>em resposta ao feedback do time</p>
+  <dl class="meta">
+    <dt>Natureza</dt>
+    <dd>Complemento à revisão cética de 27/ago: toma o objetivo declarado como dado e projeta a partir dele. Abre com o acerto de contas — o que se retira, o que se mantém.</dd>
+    <dt>Objetivo assumido</dt>
+    <dd>Interface analítica e conversacional no browser, via HTTPS range, majoritariamente sobre assets estáticos governados por CDN, com backend serverless minimalista para agregações intensas, caches e modelos conversacionais do Senado; WebMCP para os modelos do próprio usuário.</dd>
+    <dt>Data</dt>
+    <dd>27 de agosto de 2026</dd>
+  </dl>
+</div>
+
+<h2>Acerto de contas com o feedback</h2>
+
+<table>
+  <thead><tr><th style="width:40mm">Ponto do time</th><th>Posição revista</th></tr></thead>
+  <tbody>
+    <tr><td><strong>"workerd e miniflare são open source"</strong></td>
+    <td><strong>Retirado.</strong> Correto: <code>workerd</code> é Apache-2.0, <code>miniflare</code> idem, Durable Objects rodam no próprio <code>workerd</code> — e desde ago/2026 existe o <code>celld</code> (Ryan Dahl, Apache-2.0, alpha) trazendo Durable Objects para infra própria. O risco que atribuí a aprisionamento é, na verdade, operacional e menor. Sobrevive só o que o time já pratica: caminho do dado em HTTP/S3 puro.</td></tr>
+    <tr><td><strong>"Time travel é consequência, não feature"</strong></td>
+    <td><strong>Reformulado — com convergência.</strong> Releases imutáveis + publicação atômica + retenção dão histórico endereçável de graça, sem formato de tabela. É exatamente a opção que a primeira revisão apontou como a mais barata e recomendou. A crítica válida que fica é editorial: o material vende "time travel" como atributo, convidando o leitor a cobrá-lo como feature. E consequência também ocupa disco: a política de retenção precisa ser escrita (§2).</td></tr>
+    <tr><td><strong>"Iceberg / DuckLake atrapalhariam leveza e range"</strong></td>
+    <td><strong>Concordo — e já concordava.</strong> Foram listados como alternativas, com recomendação explícita de não adotar se time travel não fosse requisito nomeado. Não é. Encerrado: Parquet + manifestos + releases imutáveis.</td></tr>
+    <tr><td><strong>"Ignorou a centralidade do browser + serverless mínimo"</strong></td>
+    <td><strong>Aceito em parte.</strong> O parecer gastou mais tinta em governança que em desenho — custo real do perfil cético. Registro um fato: o backend para agregações intensas e modelos do Senado não estava nas 8 páginas (workerd aparecia como "aceleração opcional"). Com essa peça no centro, críticas mudam de natureza — e duas se <em>resolvem</em> dentro dela (privacidade e cotas). Vale dar a ela, no material, o lugar que tem de fato.</td></tr>
+    <tr><td><strong>"Pelo em ovo"</strong></td>
+    <td><strong>Em parte sim</strong> (contradições editoriais, indicadores sem meta). <strong>Em parte não</strong>: LGPD para microdados de survey, posicionamento frente ao <code>dados.senado.leg.br</code>, acessibilidade legal e licença/citação são os itens que travam um lançamento público no Senado. Seguem em pé — agora com solução, não só objeção.</td></tr>
+  </tbody>
+</table>
+
+<h2>O alvo, convertido em seis regras de projeto</h2>
+
+<div class="good">
+  <ul>
+    <li><strong>R1</strong> — Toda resposta padrão do portal sai de asset estático. O backend serve a cauda longa, nunca o caminho feliz.</li>
+    <li><strong>R2</strong> — SQL arbitrário só executa no browser do usuário (DuckDB-WASM, dado público, compute do próprio usuário).</li>
+    <li><strong>R3</strong> — O servidor só executa consultas nomeadas: parametrizadas, versionadas, com allowlist.</li>
+    <li><strong>R4</strong> — Todo asset de release é imutável e cacheável para sempre (<code>immutable, max-age=1y</code>).</li>
+    <li><strong>R5</strong> — Só ponteiros são mutáveis: um <code>current.json</code> minúsculo por dataset, TTL 60s. Atualizar = trocar o ponteiro. CDN sem purge, por construção.</li>
+    <li><strong>R6</strong> — Cota, sessão e telemetria só existem onde há computação do Senado. Isso dissolve a contradição "sem login × cotas": as duas promessas são verdadeiras, em camadas diferentes.</li>
+  </ul>
+</div>
+
+<h2>Anatomia do lake</h2>
+
+<p><strong>Layout:</strong> <code>/{dataset}/releases/{ts}-r042/</code> (imutável: <code>data/*.parquet</code>, <code>delta/</code> opcional, <code>manifest.json</code>, <code>dcat.jsonld</code>) + <code>/{dataset}/current.json</code> (ponteiro) + <code>/catalog.json</code> global. Publicação atômica: escrever release → validar → trocar o ponteiro; rollback é apontar de volta. O histórico é a lista de releases retidos, endereçáveis por URL — <code>?release=r041</code> reproduz a análise daquele momento: é o "link reproduzível" do material, de graça.</p>
+
+<p><strong>Parquet dimensionado para range + WASM:</strong> arquivos de 100–500&nbsp;MB no detalhe e ≤&nbsp;10&nbsp;MB nos agregados de visão; row groups de 8–32&nbsp;MB comprimidos (a granularidade real do range request); ordenação pela coluna de filtro dominante (min/max de row group vira índice de graça); zstd; bloom filter nas colunas de igualdade de alta cardinalidade; particionamento em diretórios só pelas 1–2 dimensões mais filtradas — fragmentar demais multiplica requests.</p>
+
+<p><strong>Proveniência que viaja com o arquivo:</strong> chave <code>datasenado</code> no schema metadata de cada Parquet (dataset, release, fonte, hash, pipeline, commit, licença). Custa zero no pipeline e responde "de onde veio isto?" quando o arquivo já saiu do portal.</p>
+
+<p><strong>Retenção (a regra que a consequência precisa):</strong> todos os releases por 24 meses; depois, 1 por trimestre; correção de dado pessoal ou erro grave ⇒ tombstone auditável (manifesto fica, dado sai, motivo registrado). Datasets sensíveis: conforme RIPD.</p>
+
+<h2>Três camadas — o teto do WASM resolvido por desenho</h2>
+
+<table>
+  <thead><tr><th style="width:22mm">Camada</th><th>Conteúdo</th><th>Regra</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tier A</strong></td><td>Agregados de visão, ≤ ~10 MB por asset — um Parquet pequeno por visualização default.</td><td>Toda página default renderiza só com Tier A. Carrega em qualquer celular.</td></tr>
+    <tr><td><strong>Tier B</strong></td><td>Detalhe curado, particionado para range + WASM.</td><td>Drill-down e SQL local no browser, com envelope declarado e testado (ex.: varreduras até ~1–2 GB, desktop).</td></tr>
+    <tr><td><strong>Tier C</strong></td><td>Consultas nomeadas no backend.</td><td>O que não cabe em A nem B. Nunca o caminho feliz.</td></tr>
+  </tbody>
+</table>
+
+<p>No pipeline R + <code>targets</code>, Tier A, manifestos, DCAT e catálogo são <em>targets</em> derivados no mesmo DAG dos dados — recomputam por hash de conteúdo, e a descoberta sai do mesmo lugar que o dado.</p>
+
+<h2>Backend serverless mínimo — um contrato, três serviços</h2>
+
+<p><strong>1. Consultas nomeadas.</strong> <code>POST /q/{query_id}</code>, parâmetros validados por schema; cada consulta é SQL versionado no repositório com limites declarados. Resposta gravada content-addressed por <code>(release_id, query_id, params_hash)</code> e servida pela CDN como <code>immutable</code>: novo release ⇒ chave nova ⇒ invalidação por construção, nunca purge — "gerenciar caches" vira consequência do esquema de chaves. Rate limit por IP só nos misses. Se SQL livre no servidor for mesmo necessário: DuckDB read-only em container isolado com tetos duros — opção B; lançar sem, e deixar a demanda provar.</p>
+
+<div class="callout">
+  <h3>2. Privacidade embutida — o achado de LGPD, resolvido neste desenho</h3>
+  <p>O achado central da revisão cética era: <em>um asset estático não pode negar uma consulta</em>, e microdado de survey é reidentificável por cruzamento. O backend que já está no plano para agregações intensas é <strong>o único lugar da arquitetura onde controle de divulgação é aplicável</strong>. Então: datasets administrativos e agregados → estático, irrestrito (a maioria do catálogo; nada muda). Datasets com microdado de pessoa natural → o estático publica só agregados pré-suprimidos; o acesso fino sai <em>só</em> por consulta nomeada com limiar mínimo de célula (k ≥ n) imposto no servidor. A pergunta deixa de ser "publicar ou não" e vira <strong>"por qual camada"</strong>. A classificação (o que é sensível, qual k) continua vindo do RIPD com o encarregado — pré-requisito que nenhum arranjo técnico substitui.</p>
+</div>
+
+<p><strong>3. Modelos do Senado.</strong> Endpoint streaming com tool-use restrito ao mesmo contrato de ferramentas do portal; nunca SQL livre (R3). Cotas e sessão moram aqui — e só aqui (R6): é o único ponto com custo marginal real. E campo aberto de survey é entrada não confiável: o assistente lê texto de milhares de respondentes, e um deles pode conter instrução plantada — dado a citar, nunca instrução a seguir.</p>
+
+<h2>Agentes: um contrato, dois transportes</h2>
+
+<p>Definir as ferramentas uma vez, como JSON Schema neutro (<code>search_datasets</code>, <code>get_schema</code>, <code>list_releases</code>, <code>run_named_query</code>, <code>run_local_sql</code> <em>browser-only</em>, <code>get_citation</code>). Transporte 1: WebMCP no portal, para os modelos do usuário — adaptador de ~100 linhas em <code>document.modelContext</code>; quando a spec mudar de novo, muda o adaptador, não o produto. Transporte 2: servidor MCP clássico, mesmo schema, para clientes fora do browser — custa pouco além do que o transporte 1 já obriga a especificar, e entrega o caso "agentes usam o lake" hoje. Modelo de segurança auditável em uma frase: <strong>SQL arbitrário só existe em <code>run_local_sql</code>, no WASM do usuário, sobre dado público.</strong></p>
+
+<h2>O que continua precisando de dono</h2>
+
+<ol class="questions">
+  <li><strong>RIPD / classificação LGPD antes do primeiro microdado de survey.</strong> O §Privacidade dá o mecanismo; a decisão é institucional.</li>
+  <li><strong>Posicionamento frente a <code>dados.senado.leg.br</code>, à API existente e ao PDA 2026–2028.</strong> Uma página; nenhuma stack resolve colisão de mandato.</li>
+  <li><strong>Acessibilidade eMAG/WCAG como critério de aceite do portal</strong> — obrigação legal; a MPA estática é o melhor ponto de partida possível.</li>
+  <li><strong>Runbook + segunda pessoa capaz de operar o pipeline.</strong></li>
+  <li><strong>Política de retenção publicada</strong> — a consequência vira compromisso.</li>
+</ol>
+
+<div class="verdict">
+  <p class="lead">Medir sem login: frescor (origem → flip do ponteiro), confiabilidade (pipeline + p95 da CDN) e uso do backend. Análise 100% no browser é invisível ao servidor por construção — é o preço da privacidade que a própria arquitetura oferece. Dizer isso no material vale mais como argumento do que como lacuna.</p>
+</div>
+
+<div class="footnote">
+  <p><strong>Relação com a revisão cética (27/ago).</strong> Este documento não a substitui: retira o que não se sustentou (lock-in do workerd), registra convergências que o texto anterior deixou parecer divergências (time travel por releases imutáveis; recusa a Iceberg/DuckLake) e mantém, com solução anexada, o que continua em pé. Versão completa com layouts, números e o blueprint: <code>reviews/2026-08-datasenado-lake-notas-construtivas.md</code>.</p>
+</div>
+
+</body>
+</html>

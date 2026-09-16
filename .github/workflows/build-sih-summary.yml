@@ -28,12 +28,20 @@ name: Build SIH pre-aggregated summaries (ICSAP + causas)
 # O `.derive-cache` também é compartilhado (summary-lib.mjs): cada cubo é
 # baixado e conferido uma vez só.
 #
-# QUANDO RODAR: depois de TODO rebuild de cubos (rebuild-sih-cubes.yml) que
-# republique qualquer ano — o manifesto AVISA ("icsap_summary/causas_summary
-# herdado está VELHO") quando um ano republicado deixou um resumo para trás, e
-# o consumidor cai no caminho lento naquele ano até este workflow rodar. Só à
-# mão (workflow_dispatch), como o da população; encadeamento automático ficou
-# fora dos dois planos de propósito (escopo).
+# QUANDO RODA: ENCADEADO a todo rebuild de cubos (workflow_run ao término de
+# "Rebuild SIH cubes", desde 16/09/2026) e à mão (workflow_dispatch). O job
+# `decide` pergunta ao manifesto publicado, com summary-stale.mjs, se algum
+# bloco ficou VELHO (derived_from ≠ sha256 do cubo publicado) e só então deriva;
+# o rebuild agendado que não republicou nada chega aqui toda terça e termina em
+# segundos, sem baixar 1,25 GB de cubo. À mão roda sempre.
+#
+# Por que encadeado. Até 16/09/2026 era só à mão, "fora do escopo" dos dois
+# planos, e o assinador do manifesto AVISAVA no log ("icsap_summary herdado
+# está VELHO para 2025; rode build-sih-summary.yml"). O rebuild de 15/09
+# republicou 2025, o aviso ficou no log, ninguém leu: o consumidor caiu no
+# caminho lento em 2025 e a imagem do sih-br-mcp reprovou no aquecimento por um
+# estrato que o próprio servidor não usaria. Aviso em log não é acionamento;
+# a raiz é o encadeamento que faltava, e é isto.
 #
 # GATES (nada sobe se falhar):
 #   1. selftest dos DOIS derivadores, com mini-cubo embutido: na ICSAP,
@@ -54,6 +62,10 @@ name: Build SIH pre-aggregated summaries (ICSAP + causas)
 # os três reescrevem o manifest.json (cada um herda os blocos que não constrói).
 
 on:
+  workflow_run:
+    workflows: ["Rebuild SIH cubes"]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
     inputs:
       reason:
@@ -74,7 +86,49 @@ env:
   SUMMARY_OUT: ${{ github.workspace }}/data/sih-summary
 
 jobs:
+  # Encadeado (workflow_run): deriva só se há bloco velho frente ao manifesto
+  # publicado. Rebuild que falhou não publicou manifesto novo — nada a fazer.
+  # À mão (workflow_dispatch): roda sempre, como antes.
+  decide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.frescor.outputs.run }}
+      reason: ${{ steps.frescor.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Selftest do juiz de frescor
+        run: node $PIPE/summary-stale.mjs --selftest
+      - name: Há resumo velho frente ao manifesto publicado?
+        id: frescor
+        env:
+          EVENT: ${{ github.event_name }}
+          REBUILD_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          REBUILD_URL: ${{ github.event.workflow_run.html_url }}
+          REASON_INPUT: ${{ github.event.inputs.reason }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=${REASON_INPUT:-workflow_dispatch}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$REBUILD_CONCLUSION" != "success" ]; then
+            echo "rebuild terminou em '$REBUILD_CONCLUSION' — sem manifesto novo, nada a derivar"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=rebuild $REBUILD_CONCLUSION" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          OUT=$(node $PIPE/summary-stale.mjs --manifest "${CUBES_BASE}manifest.json" --github-output)
+          echo "$OUT"
+          echo "reason=encadeado ao rebuild ${REBUILD_URL} — $(echo "$OUT" | tail -1)" >> "$GITHUB_OUTPUT"
+          echo "$OUT" | tail -1 >> "$GITHUB_STEP_SUMMARY"
+
   build:
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
     # 90 min (era 45 até o PLAN-006): agora baixa também os 1,25 GB dos cubos
     # de causas. Local, com os dois já em cache, a derivação inteira leva
@@ -118,7 +172,7 @@ jobs:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: |
           bash $PIPE/publish-cubes.sh none data/sih-cubos "" "" "$SUMMARY_OUT" "$SUMMARY_OUT"
-          if [ -n "${{ github.event.inputs.reason }}" ]; then echo "Motivo: ${{ github.event.inputs.reason }}" >> "$GITHUB_STEP_SUMMARY"; fi
+          echo "Motivo: ${{ needs.decide.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v7
         if: always()

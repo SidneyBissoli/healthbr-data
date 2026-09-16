@@ -94,9 +94,15 @@ contra 5,50 s pelos cubos**, com resposta idêntica.
 Regra de frescor: `cubes-manifest.mjs --summary` / `--causas-summary` REPROVA se o
 `derived_from` de qualquer ano não bater com o sha256 do cubo correspondente no
 bloco `years` final; sem a flag, o bloco herdado gera AVISO quando um rebuild o
-deixou velho — e o consumidor cai no caminho lento naquele ano. **Rodar
-`build-sih-summary.yml` depois de todo rebuild de cubos**: ele deriva e publica os
-DOIS resumos no mesmo run (só `workflow_dispatch`; selftest dos dois derivadores →
+deixou velho — e o consumidor cai no caminho lento naquele ano. **`build-sih-summary.yml`
+roda ENCADEADO a todo rebuild de cubos** (`workflow_run` ao término de `Rebuild SIH
+cubes`, desde 16/09/2026): o job `decide` pergunta ao manifesto publicado, com
+`summary-stale.mjs` (mesmo contrato de frescor do assinador e do consumidor), se
+algum bloco ficou velho e só então deriva — o rebuild agendado que não republicou
+nada termina em segundos, sem baixar os cubos. Também roda à mão
+(`workflow_dispatch`, sempre). Nasceu do rebuild de 15/09/2026, que republicou
+2025 e deixou o aviso num log que ninguém leu. Ele deriva e publica os DOIS
+resumos no mesmo run (selftest dos dois derivadores →
 deriva com sha conferido, `.derive-cache` compartilhado → `publish-cubes.sh none
 data/sih-cubos "" "" <pasta> <pasta>`). Publicar um sem o outro é o defeito a
 evitar: os dois blocos vivem no mesmo manifesto e o rebuild de um ano invalida os

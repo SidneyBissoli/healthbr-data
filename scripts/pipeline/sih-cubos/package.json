@@ -9,6 +9,8 @@
   },
   "scripts": {
     "canal:state": "node canal-state.mjs --out state",
+    "summary:stale": "node summary-stale.mjs",
+    "summary:selftest": "node summary-stale.mjs --selftest",
     "delta:selftest": "node cube-delta.mjs --selftest --fixtures state/sidecars",
     "manifest": "node cubes-manifest.mjs --data ../../../data/sih-cubos --years all --verify --tables tables --out cubes-manifest.json"
   },

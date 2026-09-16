@@ -262,7 +262,7 @@ async function assinarPreAgregados({ dir, flag, blockKey, cubeKind, deriver, pro
     // Bloco herdado: avisar se algum ano republicado NESTE run o deixou velho.
     const stale = Object.entries(manifest.years).filter(([y, e]) => manifest[blockKey].derived_from?.[y] !== e.files?.[cubeKind]?.sha256);
     if (stale.length > 0) {
-      console.error(`cubes-manifest: AVISO — ${blockKey} herdado está VELHO para ${stale.map(([y]) => y).join(", ")}; rode build-sih-summary.yml (o consumidor cai no caminho lento nesses anos)`);
+      console.error(`cubes-manifest: AVISO — ${blockKey} herdado está VELHO para ${stale.map(([y]) => y).join(", ")}; build-sih-summary.yml roda encadeado ao fim deste workflow e deriva de novo (se não rodar, dispare à mão — o consumidor cai no caminho lento nesses anos até lá)`);
     }
     return;
   }

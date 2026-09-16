@@ -70,7 +70,10 @@ Shared mechanics every pipeline follows:
   from sync-check after maintenance), reads the previous state from the channel
   (`canal-state.mjs`) rather than from its CSV, and is gated (count vs mirror manifest,
   sidecar delta, smoke of the reference consumer sih-br-mcp checked out at master). Never
-  more than 2 years per run (runner memory). Recipe: `scripts/pipeline/sih-cubos/README.md`.
+  more than 2 years per run (runner memory). Recipe: `scripts/pipeline/sih-cubos/README.md`. The pre-aggregated
+  summaries (`build-sih-summary.yml`) are chained to every cube rebuild via
+  `workflow_run` and only derive when `summary-stale.mjs` finds a stale block
+  (2026-09-16); manual `workflow_dispatch` still runs unconditionally.
 - Pipelines are designed to run on an ephemeral **Hetzner VPS (Ubuntu, x86)**, not locally:
   R `parallel::mclapply` prefetch is unix-only, paths like `/root/...` are assumed. On
   Windows you can parse-check and unit-test, not run end-to-end.

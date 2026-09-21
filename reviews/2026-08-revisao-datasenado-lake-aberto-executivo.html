@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Revisão crítica — DataSenado Lake Aberto</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 16mm 16mm;
+    @bottom-center { content: counter(page); }
+  }
+
+  :root {
+    --ink:        #16202e;
+    --ink-soft:   #3d4a5c;
+    --muted:      #6b7889;
+    --rule:       #d7dde5;
+    --rule-soft:  #e8ecf1;
+    --navy:       #123a63;
+    --teal:       #0f6b6b;
+    --amber:      #b06a12;
+    --red:        #9b2c2c;
+    --wash:       #f4f7fa;
+    --wash-warm:  #fdf8f1;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { font-size: 10.2pt; }
+
+  body {
+    margin: 0;
+    font-family: "Charter", "Georgia", "Times New Roman", serif;
+    color: var(--ink);
+    line-height: 1.47;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sans { font-family: "Inter", "Helvetica Neue", Arial, sans-serif; }
+
+  /* ---------- capa ---------- */
+  .cover {
+    padding-top: 4mm;
+    border-top: 3pt solid var(--navy);
+    margin-bottom: 9mm;
+  }
+  .eyebrow {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 7.6pt;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--teal);
+    font-weight: 700;
+    margin: 5mm 0 3mm;
+  }
+  h1 {
+    font-size: 25pt;
+    line-height: 1.1;
+    margin: 0 0 2mm;
+    letter-spacing: -.015em;
+    color: var(--navy);
+    font-weight: 600;
+  }
+  .subtitle {
+    font-size: 12.5pt;
+    color: var(--ink-soft);
+    margin: 0 0 6mm;
+    line-height: 1.35;
+    font-style: italic;
+  }
+  .meta {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 8.2pt;
+    color: var(--muted);
+    line-height: 1.65;
+    border-top: .6pt solid var(--rule);
+    border-bottom: .6pt solid var(--rule);
+    padding: 3mm 0;
+    display: grid;
+    grid-template-columns: 26mm 1fr;
+    gap: 1mm 4mm;
+  }
+  .meta dt { font-weight: 700; color: var(--ink-soft); }
+  .meta dd { margin: 0; }
+
+  /* ---------- estrutura ---------- */
+  h2 {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 13pt;
+    color: var(--navy);
+    margin: 6.5mm 0 2.6mm;
+    padding-bottom: 1.5mm;
+    border-bottom: 1.2pt solid var(--navy);
+    font-weight: 700;
+    letter-spacing: -.01em;
+    break-after: avoid;
+  }
+  h3 {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 10pt;
+    color: var(--ink);
+    margin: 5mm 0 1.5mm;
+    font-weight: 700;
+    break-after: avoid;
+  }
+  p { margin: 0 0 2.6mm; text-align: justify; hyphens: auto; }
+  strong { font-weight: 700; color: var(--ink); }
+  em { font-style: italic; }
+  code {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: .86em;
+    background: var(--wash);
+    padding: .4mm 1mm;
+    border-radius: 1.5pt;
+  }
+
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin-bottom: 1.4mm; text-align: justify; }
+
+  /* ---------- veredito ---------- */
+  .verdict {
+    background: var(--wash);
+    border-left: 3pt solid var(--teal);
+    padding: 4mm 5mm;
+    margin: 0 0 5mm;
+    break-inside: avoid;
+  }
+  .verdict p:last-child { margin-bottom: 0; }
+  .verdict .lead {
+    font-size: 11.4pt;
+    line-height: 1.42;
+    color: var(--navy);
+    font-weight: 600;
+  }
+
+  /* ---------- tabelas ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.7pt;
+    margin: 0 0 4mm;
+    font-family: "Inter", Arial, sans-serif;
+    line-height: 1.4;
+  }
+  thead th {
+    background: var(--navy);
+    color: #fff;
+    text-align: left;
+    padding: 2mm 2.4mm;
+    font-weight: 600;
+    font-size: 8pt;
+    letter-spacing: .02em;
+  }
+  tbody td {
+    padding: 1.9mm 2.4mm;
+    border-bottom: .5pt solid var(--rule-soft);
+    vertical-align: top;
+  }
+  tbody tr:nth-child(even) { background: #fafbfd; }
+  tr { break-inside: avoid; }
+
+  .sev {
+    display: inline-block;
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: .05em;
+    padding: .6mm 1.6mm;
+    border-radius: 2pt;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .sev-b { background: var(--red); }
+  .sev-a { background: var(--amber); }
+  .sev-m { background: var(--muted); }
+
+  /* ---------- destaques ---------- */
+  .callout {
+    border: .7pt solid var(--rule);
+    border-top: 2pt solid var(--amber);
+    background: var(--wash-warm);
+    padding: 3.5mm 4mm;
+    margin: 0 0 4mm;
+    break-inside: avoid;
+  }
+  .callout h3 { margin-top: 0; color: var(--amber); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .good {
+    border: .7pt solid var(--rule);
+    border-top: 2pt solid var(--teal);
+    background: #f3f9f8;
+    padding: 3.5mm 4mm;
+    margin: 0 0 4mm;
+    break-inside: avoid;
+  }
+  .good h3 { margin-top: 0; color: var(--teal); }
+  .good ul { margin-bottom: 0; }
+
+  .questions { counter-reset: q; list-style: none; padding-left: 0; }
+  .questions li {
+    counter-increment: q;
+    position: relative;
+    padding-left: 8mm;
+    margin-bottom: 2.4mm;
+    break-inside: avoid;
+  }
+  .questions li::before {
+    content: counter(q);
+    position: absolute;
+    left: 0; top: .3mm;
+    width: 5.4mm; height: 5.4mm;
+    background: var(--navy);
+    color: #fff;
+    border-radius: 50%;
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 7.6pt;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .phases { list-style: none; padding-left: 0; }
+  .phases li {
+    padding: 2.4mm 0 2.4mm 24mm;
+    border-bottom: .5pt solid var(--rule-soft);
+    position: relative;
+    break-inside: avoid;
+    text-align: left;
+  }
+  .phases li:last-child { border-bottom: none; }
+  .phase-tag {
+    position: absolute; left: 0; top: 2.4mm;
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 7.4pt;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--teal);
+    width: 22mm;
+  }
+  .phase-new .phase-tag { color: var(--red); }
+
+  .footnote {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 7.6pt;
+    color: var(--muted);
+    line-height: 1.5;
+    border-top: .6pt solid var(--rule);
+    padding-top: 2.2mm;
+    margin-top: 2.5mm;
+    text-align: left;
+  }
+  .footnote-grid {
+    column-count: 2;
+    column-gap: 7mm;
+    column-fill: balance;
+  }
+  .footnote p {
+    text-align: left;
+    margin-bottom: 1.8mm;
+    break-inside: avoid;
+  }
+
+  .pagebreak { break-before: page; }
+  .tight { margin-bottom: 1.4mm; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="eyebrow">Parecer técnico independente &middot; Revisão cética</div>
+  <h1>DataSenado Lake&nbsp;Aberto</h1>
+  <p class="subtitle">Uma leitura crítica da proposta, à luz dos objetivos<br>que ela mesma declara</p>
+  <dl class="meta">
+    <dt>Documento revisado</dt>
+    <dd>DataSenado Lake Aberto — Produto, casos de uso, benefícios e visão de implantação (8 páginas, material para alinhamento de stakeholders)</dd>
+    <dt>Escopo</dt>
+    <dd>Arquitetura de dados, governança de dado público, maturidade tecnológica e posicionamento institucional</dd>
+    <dt>Base de comparação</dt>
+    <dd>Projeto <code>healthbr-data</code> (mesma arquitetura, em produção) e estado da arte em publicação de dados abertos, ago/2026</dd>
+    <dt>Data</dt>
+    <dd>27 de agosto de 2026</dd>
+  </dl>
+</div>
+
+<h2>Veredito</h2>
+
+<div class="verdict">
+  <p class="lead">A aposta arquitetural central está certa. O projeto é apresentado com uma maturidade maior do que a que possui — e é aí que está o risco.</p>
+  <p>Parquet servido como arquivo estático e consultado por DuckDB é, hoje, a escolha correta para dados abertos de escala pequena e média. Não é modismo: é a mesma arquitetura que sustenta o <code>healthbr-data</code> em produção, com 1,9 bilhão de registros e custo de infraestrutura da ordem de R$ 40 a 150 por mês, e que convergiu como padrão em Observable Framework, Evidence.dev e nos repositórios de dados do Hugging Face. Rejeitar banco analítico central e orquestração pesada é decisão madura, não economia preguiçosa.</p>
+  <p><strong>O problema não está no armazenamento.</strong> Está em promessas que o material ainda não pode sustentar, em ausências que um produto de dado público do Senado não pode ter, no silêncio sobre o que o Senado já opera, e em contradições internas que um leitor técnico atento encontra em uma única leitura.</p>
+</div>
+
+<div class="good">
+  <h3>O que está certo e deve sobreviver a qualquer reformulação</h3>
+  <ul>
+    <li><strong>Parquet + arquivos estáticos + DuckDB.</strong> Custo marginal por consumidor próximo de zero, superfície operacional mínima, formato aberto lido por R, Python, JavaScript e SQL.</li>
+    <li><strong>Recusar infraestrutura pesada.</strong> A maioria dos portais públicos falha por excesso de infraestrutura, não por falta.</li>
+    <li><strong>Sem login.</strong> É a decisão isolada que mais aumenta o uso real de dado público.</li>
+    <li><strong>Reprodutibilidade e proveniência desde o desenho.</strong> Raro no setor público; é o maior diferencial do projeto.</li>
+    <li><strong>Tratar agentes de IA como consumidor de primeira classe.</strong> A visão está correta e antecipada — apenas o mecanismo escolhido está imaturo.</li>
+  </ul>
+</div>
+
+<h2>Os riscos que exigem decisão</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:13mm">Grau</th>
+      <th style="width:42mm">Risco</th>
+      <th>O que decidir</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="sev sev-b">BLOQ.</span></td>
+      <td><strong>Dados pessoais e reidentificação</strong><br><span style="color:var(--muted)">Ausente nas 8 páginas</span></td>
+      <td>O DataSenado publica microdados de pesquisa de opinião. Os três recursos mais vendidos — combinar bases, séries históricas completas e SQL irrestrito operado por agentes — são exatamente os vetores de reidentificação por cruzamento. E há uma assimetria estrutural: <strong>um arquivo estático não pode negar uma consulta.</strong> Uma API aplica supressão de célula e recusa; um Parquet em CDN publica o conjunto inteiro, para sempre. O INEP já restringiu microdados por esse motivo (Parecer PF/INEP 18/2022). <em>Classificar os conjuntos por sensibilidade e envolver o DPO antes da primeira publicação — que é irreversível.</em></td>
+    </tr>
+    <tr>
+      <td><span class="sev sev-b">BLOQ.</span></td>
+      <td><strong>Colisão com o que o Senado já tem</strong></td>
+      <td>Já existem <code>dados.senado.leg.br</code> (catálogo), a API pública de dados abertos e o Plano de Dados Abertos 2026–2028 com comitê de governança. O material propõe <code>data.senado.leg.br</code> — a um caractere do catálogo existente — e rejeita “API pública pesada” num órgão que opera uma API pública. <em>Definir e escrever o posicionamento: camada analítica do ecossistema existente, não catálogo concorrente.</em></td>
+    </tr>
+    <tr>
+      <td><span class="sev sev-b">BLOQ.</span></td>
+      <td><strong>“Time travel” sem formato de tabela</strong></td>
+      <td>A Fase 1 promete releases incrementais, manifestos, estado atual, deltas e linhagem — que é, funcionalmente, a definição de um formato de tabela. A escolha real não é “com ou sem lakehouse”, é <strong>formato padronizado ou formato caseiro</strong>. Um formato caseiro exige leitor próprio em cada linguagem e nenhuma ferramenta de terceiros funciona sem adaptação. <em>Decidir entre Iceberg com metadados estáticos, DuckLake, ou cortar a promessa de time travel — que é a opção mais barata e mais honesta.</em></td>
+    </tr>
+    <tr>
+      <td><span class="sev sev-a">ALTO</span></td>
+      <td><strong>WebMCP apresentado como pronto</strong></td>
+      <td>O material o lista sob “o que já nasce pronto”. É uma proposta de <em>Community Group</em> do W3C, de fev/2026 — não é padrão nem <em>Working Draft</em>. A superfície da API já migrou de <code>navigator.modelContext</code> para <code>document.modelContext</code>, e o repositório oficial marca a spec como experimental. <em>Rebaixar para aposta exploratória e entregar “agent-native” agora pelo caminho estável: catálogo legível por máquina + Parquet + servidor MCP convencional, que funciona hoje em qualquer cliente.</em></td>
+    </tr>
+    <tr>
+      <td><span class="sev sev-a">ALTO</span></td>
+      <td><strong>Tetos do DuckDB-WASM não declarados</strong></td>
+      <td>A documentação oficial do DuckDB é explícita: o cliente WASM usa <strong>uma única thread por padrão</strong>, o multithreading <strong>permanece experimental</strong>, e o WebAssembly <strong>limita a memória a 4&nbsp;GB</strong> — com navegadores podendo impor menos. Não há <em>spilling</em> para disco: a consulta que não cabe é cancelada. Multithread exige isolamento cross-origin, que por sua vez dificulta o “reuso por outros sistemas” prometido. <em>Declarar o envelope de operação em números e definir agora o plano B: pré-agregados publicados como datasets de primeira classe.</em></td>
+    </tr>
+    <tr>
+      <td><span class="sev sev-a">ALTO</span></td>
+      <td><strong>Metadados de descoberta e citação ausentes</strong></td>
+      <td>Nada sobre DCAT-AP, schema.org <code>Dataset</code>, licença por dataset ou identificador persistente. Um catálogo sem vocabulário padrão é mais um silo — o oposto do objetivo de “mais acesso”. <em>É a lacuna de melhor relação custo-benefício de todas: são artefatos de geração estática, encaixam no pipeline que já produz manifestos, e custam dias.</em></td>
+    </tr>
+    <tr>
+      <td><span class="sev sev-a">ALTO</span></td>
+      <td><strong>Acessibilidade — obrigação legal</strong></td>
+      <td>O art. 63 da Lei 13.146/2015 torna obrigatória a acessibilidade em sítios de órgãos de governo; o eMAG é o modelo brasileiro. Um portal cujo conteúdo é renderizado no cliente por WASM é a classe de interface que falha em leitor de tela quando isso não é requisito desde o primeiro sprint. <em>Critério de aceite da Fase 2, não ajuste posterior. A escolha por site estático é um trunfo aqui — basta usá-la de propósito.</em></td>
+    </tr>
+    <tr>
+      <td><span class="sev sev-a">ALTO</span></td>
+      <td><strong>Dependência de fornecedor não declarada</strong></td>
+      <td><code>workerd</code>, Workers e sobretudo Durable Objects são Cloudflare, e Durable Objects não tem equivalente portável — é a peça de maior <em>lock-in</em> da stack, apresentada como opcional. <em>Manter o caminho do dado em armazenamento S3 puro (migração em horas), isolar o resto atrás de uma interface e declarar onde os dados ficam fisicamente.</em></td>
+    </tr>
+    <tr>
+      <td><span class="sev sev-m">MÉDIO</span></td>
+      <td><strong>Sem dimensionamento</strong></td>
+      <td>Seis fases sem uma data, um FTE, um valor em reais ou um volume de dado. É exatamente a informação de que o público-alvo do documento precisa para dizer sim. <em>Um quadro com ordem de grandeza por fase, mesmo com incerteza declarada de ±50%, vale mais que nenhuma estimativa.</em></td>
+    </tr>
+    <tr>
+      <td><span class="sev sev-m">MÉDIO</span></td>
+      <td><strong>Reprodutibilidade sem mecanismo</strong></td>
+      <td>“Provenance” e “lineage” aparecem em cinco das oito páginas, mas não se diz onde mora cada garantia nem como um terceiro a verifica sem consultar o Senado. <em>Gravar a proveniência dentro do próprio Parquet, não só no catálogo: o metadado embutido continua respondendo “de onde veio isto?” quando o arquivo já está no notebook de um jornalista, três anos depois.</em></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <h3>Seis contradições internas que um leitor técnico encontra em uma leitura</h3>
+  <p class="tight"><strong>1.</strong> “Sem login” × “cotas de uso por perfil”. &nbsp; <strong>2.</strong> “Evitamos API pública” × persona desenvolvedor “recebe APIs”. &nbsp; <strong>3.</strong> “Leveza, menos dependências” × onze tecnologias de front-end na mesma página.</p>
+  <p><strong>4.</strong> “Sem banco central” × time travel, deltas e catálogo. &nbsp; <strong>5.</strong> “Sem servidores” × workerd e Durable Objects. &nbsp; <strong>6.</strong> “Reduz superfície de ataque” × SQL arbitrário no cliente e agentes operando a interface.</p>
+  <p>A correção é editorial e barata. O custo de deixá-las é de credibilidade — e credibilidade, num material de alinhamento, é o produto.</p>
+</div>
+
+<h2>Recomendação de sequenciamento</h2>
+
+<p>O documento inicia a execução pela Fase 1, já com <em>time travel</em>. A proposta abaixo intercala uma fase preliminar e reordena a camada de agentes. A lógica é única: <strong>tudo que é irreversível deve ser decidido antes de existirem consumidores.</strong> Layout de partição, política de dados pessoais e formato de tabela custam semanas hoje e anos depois.</p>
+
+<ul class="phases">
+  <li class="phase-new">
+    <span class="phase-tag">Fase 0 — nova</span>
+    <strong>Decisões e contratos (4 a 6 semanas, quase sem código).</strong> Classificação LGPD dos conjuntos e relatório de impacto para os microdados de pesquisa; decisão sobre formato de tabela; layout de partição congelado; contrato de consumo e política de reprodutibilidade; licença e forma de citação; posicionamento frente ao catálogo existente e ao Plano de Dados Abertos; envelope de operação declarado.
+  </li>
+  <li>
+    <span class="phase-tag">Fase 1</span>
+    <strong>Lake mínimo, real, estreito.</strong> Dois ou três datasets publicados de ponta a ponta, sem <em>time travel</em>, com proveniência embutida no Parquet, manifesto, DCAT e página de dataset. O objetivo não é a plataforma: é provar o caminho completo com dado de verdade e usuário de verdade.
+  </li>
+  <li>
+    <span class="phase-tag">Fase 2</span>
+    <strong>Portal, com acessibilidade como critério de aceite.</strong> Envelope de operação declarado, plano B de pré-agregados implementado, conformidade eMAG/WCAG&nbsp;AA avaliada antes do lançamento.
+  </li>
+  <li>
+    <span class="phase-tag">Fase 3</span>
+    <strong>Agentes pelo caminho estável primeiro.</strong> Servidor MCP convencional sobre o catálogo e os Parquet — funciona hoje, em qualquer cliente, sem <em>origin trial</em>. WebMCP como experimento paralelo, com critério de descontinuação escrito.
+  </li>
+  <li>
+    <span class="phase-tag">Fases 4–6</span>
+    Como no documento, com a ressalva de que a governança hoje alocada em “Publicação institucional” precisa estar resolvida na Fase 0, não no final.
+  </li>
+</ul>
+
+<p><strong>Publicar um dataset real antes de construir a plataforma inteira</strong> é a forma mais barata de descobrir o que está errado nesta revisão e no próprio documento. O <code>healthbr-data</code> validou a arquitetura publicando um dataset e só depois generalizou; a ordem inversa é onde projetos de plataforma costumam se perder.</p>
+
+<h2>As perguntas que os stakeholders farão</h2>
+
+<p>Um material de alinhamento vale pelo que antecipa. Estas seis não estão respondidas no documento atual, e todas serão feitas:</p>
+
+<ol class="questions">
+  <li><strong>Isto substitui o <code>dados.senado.leg.br</code>?</strong> Se não, qual a divisão de responsabilidade — e quem decide?</li>
+  <li><strong>Quanto custa, quem opera, e o que acontece se essa pessoa sair?</strong></li>
+  <li><strong>Quais dados exatamente entram?</strong> Os microdados de pesquisa do DataSenado entram? Com que tratamento de privacidade?</li>
+  <li><strong>O que acontece se o WebMCP mudar de novo?</strong> Quanto do plano depende dele?</li>
+  <li><strong>Se a Cloudflare mudar preço ou política, quanto tempo levamos para sair?</strong> E onde os dados ficam fisicamente?</li>
+  <li><strong>Quando o cidadão vê a primeira coisa funcionando?</strong> Uma data.</li>
+</ol>
+
+<h2>Conclusão</h2>
+
+<p>A proposta acerta na aposta difícil — a arquitetura de dados — e subestima as fáceis: governança, metadados, acessibilidade e posicionamento institucional. Isso é comum em projetos liderados por competência técnica genuína, e é corrigível a baixo custo <strong>agora</strong>.</p>
+
+<p>O risco dominante não é o de a plataforma não funcionar. É o de que o material prometa uma maturidade que o projeto ainda não tem — “já nasce pronto”, “time travel”, “100% no navegador”, “sem servidores” — e a diferença entre promessa e entrega seja lida como falha de execução, quando é falha de calibragem do discurso. Num órgão público, esse erro custa mais caro que um erro de arquitetura: não se corrige com um <em>refactor</em>.</p>
+
+<p>Três frases resumem o que eu mudaria: <strong>corte o que ainda não é verdade</strong>; <strong>decida agora o que é irreversível</strong>; <strong>publique um dataset real antes de construir a plataforma inteira</strong>.</p>
+
+<p>A visão está certa. Falta ajustar o relógio entre o que se promete e o que se tem.</p>
+
+<div class="footnote">
+  <p><strong>Sobre esta revisão.</strong> Parecer independente baseado apenas no material de 8 páginas — sem acesso a especificação, protótipo, código, orçamento ou cronograma. Achados de “ausência” podem estar resolvidos em documentos não apresentados; nesse caso viram ausências do material de stakeholders, problema menor mas ainda real. A base de comparação (<code>healthbr-data</code>) fez escolhas próprias nas mesmas questões; onde a decisão dela é apenas uma resposta possível, isso está indicado no documento técnico.</p>
+  <p><strong>Verificação.</strong> Limites do DuckDB-WASM confirmados na documentação oficial; estado do WebMCP, no repositório do W3C Web Machine Learning CG. Versões de navegador vêm de fontes secundárias. O Plano de Dados Abertos 2026–2028 não pôde ser lido integralmente aqui e deve ser consultado antes do alinhamento institucional. <strong>Documento técnico completo</strong> — 17 achados, evidências e fontes: <code>reviews/2026-08-revisao-datasenado-lake-aberto.md</code>.</p>
+</div>
+
+</body>
+</html>

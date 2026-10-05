@@ -29,6 +29,11 @@ jobs:
       - name: Install dependencies
         run: pip install boto3
 
+      # O tratamento de falha do FTP só roda quando o FTP falha; sem este teste
+      # um except quebrado passa despercebido até o DATASUS soluçar (2026-10-05).
+      - name: Test FTP failure handling
+        run: python scripts/sync/sync_check_ftp_test.py
+
       - name: Run comparison engine
         env:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}

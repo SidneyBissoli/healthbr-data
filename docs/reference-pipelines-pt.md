@@ -1010,7 +1010,8 @@ Segunda 03:00 UTC — sync-check.yml (GitHub Actions, já existente)
   ↓ comparison engine → sync-status.json → R2 + HF Space
   ↓ se missing/outdated > 0 em dataset automatizado
 maintenance.yml (GitHub Actions — lançar-e-sair, ~2 min)
-  ↓ aborta se já existir VPS de manutenção ativa
+  ↓ job guard: se já existir VPS de manutenção ativa, pula o launch e o run
+  │   fica VERDE com aviso (dispatch redundante não é falha; desde 07/out/2026)
   ↓ cria VPS Hetzner (cpx42, Nuremberg) a partir do snapshot
   │   rotulado healthbr=maintenance — e TERMINA (não espera: o teto
   │   de 6h/job do GitHub não pode limitar a duração da rodada)
@@ -1237,7 +1238,9 @@ node scripts/pipeline/sih-cubos/canal-state.mjs --out state     # o que está pu
 
 ---
 
-*Última atualização: 08/set/2026 — §16 denominadores populacionais no canal
+*Última atualização: 07/out/2026 — §15 maintenance.yml: a guarda de VPS ativa
+virou o job `guard`, que pula o `launch` em vez de sair com exit 1 (dispatch
+redundante deixava o run vermelho); 08/set/2026: §16 denominadores populacionais no canal
 (`build-population.R`, `build-sih-population.yml`, manifesto 1.2.0 com bloco
 `population`); §16 pipeline `sih-cubos` (produtor dos
 cubos anuais do SIH migrado do sih-br-mcp; estado = canal; tabelas de

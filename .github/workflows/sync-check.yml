@@ -129,8 +129,8 @@ jobs:
             echo "Datasets automatizados em sincronia — manutenção desnecessária."
             exit 0
           fi
-          # Se já houver VPS de manutenção ativa, o maintenance.yml aborta
-          # sozinho (step "Abort if a maintenance VPS already exists").
+          # Se já houver VPS de manutenção ativa, o maintenance.yml desiste
+          # sozinho e fica VERDE (job "guard" pula o "launch", desde 07/10/2026).
           echo "Deriva detectada em: $PENDING — disparando manutenção."
           gh workflow run maintenance.yml --ref "${GITHUB_REF_NAME}" \
             -f reason="auto: $PENDING"

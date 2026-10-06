@@ -47,7 +47,45 @@ permissions:
   contents: read
 
 jobs:
+  # Recusar porque já há VPS ativa é a guarda FUNCIONANDO, não falha — e até
+  # 07/10/2026 ela saía com exit 1 e pintava o run de vermelho. Em 06/10 dois
+  # dispatches do sync-check com 4 min de intervalo dispararam duas
+  # manutenções; a segunda recusou (certo), o run ficou "failure" e o painel do
+  # portfolio-monitor abriu urgência de CI quebrado para uma rodada que correu
+  # inteira e bem. Agora a guarda é um job à parte: VPS ativa = aviso e o
+  # `launch` é PULADO (run verde); só erro de verdade (API, token) fica vermelho.
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      livre: ${{ steps.check.outputs.livre }}
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+    steps:
+      - name: Install hcloud CLI
+        run: |
+          curl -sL https://github.com/hetznercloud/cli/releases/latest/download/hcloud-linux-amd64.tar.gz \
+            | tar xz hcloud
+          sudo mv hcloud /usr/local/bin/
+
+      - name: Skip if a maintenance VPS already exists
+        id: check
+        # `shell: bash` explícito liga o pipefail (o default implícito é só
+        # `bash -e`): falha da API ou do token tem de derrubar o job, não virar
+        # "0 servidores" e lançar uma segunda VPS.
+        shell: bash
+          EXISTING=$(hcloud server list --selector healthbr=maintenance-run -o json | jq length)
+          if [ "$EXISTING" != "0" ]; then
+            echo "::notice::Já existe VPS de manutenção ativa — não criando outra (dispatch redundante, nada a fazer)."
+            hcloud server list --selector healthbr=maintenance-run
+            echo "livre=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "livre=true" >> "$GITHUB_OUTPUT"
+          fi
+
   launch:
+    needs: guard
+    if: needs.guard.outputs.livre == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -68,15 +106,6 @@ jobs:
             | tar xz hcloud
           sudo mv hcloud /usr/local/bin/
           hcloud version
-
-      - name: Abort if a maintenance VPS already exists
-        run: |
-          EXISTING=$(hcloud server list --selector healthbr=maintenance-run -o json | jq length)
-          if [ "$EXISTING" != "0" ]; then
-            echo "Já existe VPS de manutenção ativa — não criando outra."
-            hcloud server list --selector healthbr=maintenance-run
-            exit 1
-          fi
 
       - name: Find maintenance snapshot
         id: snapshot

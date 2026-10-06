@@ -123,6 +123,7 @@ are normal machine output — `git pull` before pushing; never rewrite them.
 "/c/Program Files/R/R-4.6.1/bin/Rscript.exe" -e "invisible(parse('scripts/pipeline/sih-pipeline-r.R'))"
 "/c/Program Files/R/R-4.6.1/bin/Rscript.exe" scripts/pipeline/sih-ftp-breaker-test.R   # 22 checks
 bash -n scripts/maintenance/run-maintenance.sh scripts/maintenance/inspect-last-run.sh
+python scripts/sync/sync_check_ftp_test.py   # FTP-down handling of the sync engine (also runs in sync-check.yml)
 
 # Sync engine locally (needs R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT)
 python scripts/sync/sync_check.py --output sync-status.json

@@ -274,11 +274,14 @@ def ftp_list_pni():
             ftp.quit()
             return {"success": True, "files": files, "error": None}
 
-        except (ftplib.all_errors, OSError, TimeoutError) as e:
+        # ftplib.all_errors já é tupla (inclui OSError, logo TimeoutError);
+        # aninhá-la noutra tupla faz o except levantar TypeError na 1ª falha.
+        except ftplib.all_errors as e:
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_BACKOFF * attempt)
                 continue
-            return {"success": False, "files": {}, "error": str(e)}
+            # EOFError (conexão fechada) tem str vazia: guardar ao menos o tipo.
+            return {"success": False, "files": {}, "error": str(e) or type(e).__name__}
 
     return {"success": False, "files": {}, "error": "max retries"}
 
@@ -327,11 +330,14 @@ def ftp_list_sinasc():
             ftp.quit()
             return {"success": True, "files": files, "error": None}
 
-        except (ftplib.all_errors, OSError, TimeoutError) as e:
+        # ftplib.all_errors já é tupla (inclui OSError, logo TimeoutError);
+        # aninhá-la noutra tupla faz o except levantar TypeError na 1ª falha.
+        except ftplib.all_errors as e:
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_BACKOFF * attempt)
                 continue
-            return {"success": False, "files": {}, "error": str(e)}
+            # EOFError (conexão fechada) tem str vazia: guardar ao menos o tipo.
+            return {"success": False, "files": {}, "error": str(e) or type(e).__name__}
 
     return {"success": False, "files": {}, "error": "max retries"}
 
@@ -380,11 +386,14 @@ def ftp_list_sih():
             ftp.quit()
             return {"success": True, "files": files, "error": None}
 
-        except (ftplib.all_errors, OSError, TimeoutError) as e:
+        # ftplib.all_errors já é tupla (inclui OSError, logo TimeoutError);
+        # aninhá-la noutra tupla faz o except levantar TypeError na 1ª falha.
+        except ftplib.all_errors as e:
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_BACKOFF * attempt)
                 continue
-            return {"success": False, "files": {}, "error": str(e)}
+            # EOFError (conexão fechada) tem str vazia: guardar ao menos o tipo.
+            return {"success": False, "files": {}, "error": str(e) or type(e).__name__}
 
     return {"success": False, "files": {}, "error": "max retries"}
 

@@ -47,3 +47,6 @@ data/sih-population/
 # derivação. O estado é o canal; nada disto vai para o git.
 data/sih-summary/
 .derive-cache/
+
+# Roadmap privado (lido pelo portfolio-monitor; repositorio publico)
+ROADMAP.md

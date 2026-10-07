@@ -74,6 +74,7 @@ jobs:
         # `bash -e`): falha da API ou do token tem de derrubar o job, não virar
         # "0 servidores" e lançar uma segunda VPS.
         shell: bash
+        run: |
           EXISTING=$(hcloud server list --selector healthbr=maintenance-run -o json | jq length)
           if [ "$EXISTING" != "0" ]; then
             echo "::notice::Já existe VPS de manutenção ativa — não criando outra (dispatch redundante, nada a fazer)."

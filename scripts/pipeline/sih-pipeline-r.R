@@ -547,6 +547,13 @@ update_manifest_r2 <- function(ano, dir_staging, controle, mes = NULL) {
     rows_this_year <- rows_this_year |> filter(mes == !!mes)
   }
 
+  # Marca de conferência por partição (S2, 2026-10-09): a partição que este
+  # lote (re)processou saiu de um .dbc baixado AGORA e com MD5 calculado —
+  # a conferência mais forte que existe. O sync-check semanal grava a marca
+  # mais fraca ("size", tamanho do LIST do FTP) nas partições que não
+  # reprocessa; o manifest-summary e o sih-br-mcp leem os dois campos.
+  conferido_em <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+
   for (i in seq_len(nrow(rows_this_year))) {
     row <- rows_this_year[i, ]
     partition_key <- paste0(row$ano, "-", row$mes, "-", row$uf)
@@ -589,7 +596,9 @@ update_manifest_r2 <- function(ano, dir_staging, controle, mes = NULL) {
       git_commit           = GIT_COMMIT,
       output_files         = output_files,
       total_records        = as.integer(row$n_registros),
-      total_size_bytes     = sum(sapply(output_files, function(f) f$size_bytes))
+      total_size_bytes     = sum(sapply(output_files, function(f) f$size_bytes)),
+      last_checked_at      = conferido_em,
+      check_method         = "md5"
     )
   }
 

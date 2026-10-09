@@ -32,8 +32,15 @@ import os
 import sys
 from datetime import datetime, timezone
 
-SUMMARY_VERSION = "1.0.0"
-PARTITION_FIELDS = ("source_hash_md5", "source_size_bytes", "processing_timestamp")
+SUMMARY_VERSION = "1.1.0"
+# 1.1.0 (2026-10-09, S2): `last_checked_at` + `check_method` — quando e como o
+# espelho conferiu a partição igual à fonte pela última vez ("size": LIST do
+# FTP na rodada semanal; "md5": .dbc rebaixado pela manutenção). A lista é
+# também o ANÚNCIO em `summary.fields`, que o vigia do portfolio-monitor lê.
+PARTITION_FIELDS = (
+    "source_hash_md5", "source_size_bytes", "processing_timestamp",
+    "last_checked_at", "check_method",
+)
 OUTPUT_FIELDS = ("sha256",)
 HEADER_FIELDS = ("manifest_version", "dataset", "last_updated", "pipeline_version")
 
@@ -54,7 +61,7 @@ def summarize(manifest, source_key):
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "partitions": len(partitions),
         "fields": list(PARTITION_FIELDS) + ["output_files[].sha256"],
-        "note": "Resumo do manifesto para checagem de frescor: mesmo last_updated que o manifesto de origem; por partição, só o que diz se ela mudou.",
+        "note": "Resumo do manifesto para checagem de frescor: mesmo last_updated que o manifesto de origem; por partição, só o que diz se ela mudou e quando foi conferida igual à fonte (last_checked_at/check_method, ausentes até a 1ª conferência).",
     }
     summary["partitions"] = partitions
     return summary

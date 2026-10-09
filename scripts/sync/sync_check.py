@@ -10,9 +10,18 @@ Usage:
     python sync_check.py --output sync-status.json
 
 Environment variables:
-    R2_ACCESS_KEY_ID      R2 access key (read-only sufficient)
+    R2_ACCESS_KEY_ID      R2 access key (write: grava as marcas de conferência)
     R2_SECRET_ACCESS_KEY  R2 secret key
     R2_ENDPOINT           R2 S3-compatible endpoint URL
+
+Marcas de conferência por partição (S2, 2026-10-09): para os datasets em
+CHECK_MARK_DATASETS, cada partição que esta rodada CONFERIU igual à fonte
+recebe no `<prefix>/manifest.json` `last_checked_at` (ISO-8601 UTC) e
+`check_method = "size"` (tamanho do LIST do FTP igual ao registrado). O
+pipeline grava `check_method = "md5"` quando rebaixa o .dbc. A escrita é
+condicional (`If-Match` no ETag lido): se o pipeline reescrever o manifesto
+no meio, o R2 responde 412 e a rodada relê e reaplica — nunca sobrescreve
+uma partição nova. Ver docs/contract-consumers-pt.md §4.
 
 See: docs/strategy-synchronization.md, section 3 for comparison logic.
 See: docs/implementation-synchronization.md, Etapa 2 for context.
@@ -37,7 +46,15 @@ import boto3
 # ---------------------------------------------------------------------------
 
 R2_BUCKET = "healthbr-data"
-ENGINE_VERSION = "1.4.1"
+ENGINE_VERSION = "1.5.0"
+
+# Marcas de conferência por partição (S2, 2026-10-09): datasets cujo
+# manifesto recebe `last_checked_at` + `check_method` quando a partição
+# confere igual à fonte. Começa por sih/rd (o único consumidor derivado hoje,
+# o sih-br-mcp); os outros datasets automáticos entram aqui, pelo mesmo
+# código, quando houver quem leia.
+CHECK_MARK_DATASETS = ("sih-rd",)
+CHECK_MARK_RETRIES = 3  # releituras do manifesto após um 412 (If-Match)
 
 # COVID baseline file — stores last successful API counts per UF.
 # Used as fallback when the Elasticsearch API is unreachable (e.g.,
@@ -104,6 +121,11 @@ EMPTY_DBF_THRESHOLD = 500
 # ---------------------------------------------------------------------------
 # Network helpers
 # ---------------------------------------------------------------------------
+
+
+def utc_now_iso():
+    """Instante atual em ISO-8601 UTC com sufixo Z, sem fração de segundo."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def http_head(url):
@@ -384,7 +406,10 @@ def ftp_list_sih():
                         files.setdefault(name, size)
 
             ftp.quit()
-            return {"success": True, "files": files, "error": None}
+            # `listed_at` é o instante da conferência que as marcas por
+            # partição afirmam (S2): o LIST foi lido agora, não "a rodada".
+            return {"success": True, "files": files, "error": None,
+                    "listed_at": utc_now_iso()}
 
         # ftplib.all_errors já é tupla (inclui OSError, logo TimeoutError);
         # aninhá-la noutra tupla faz o except levantar TypeError na 1ª falha.
@@ -426,6 +451,127 @@ def load_manifest(r2_client, key):
     except Exception as e:
         print(f"  WARNING: cannot load {key}: {e}", file=sys.stderr)
         return None
+
+
+# ---------------------------------------------------------------------------
+# Marcas de conferência por partição (S2)
+# ---------------------------------------------------------------------------
+
+
+def mark_for(status, manifest_part, source_meta, checked_at):
+    """
+    Marca de conferência de UMA partição, ou None. Pura.
+
+    Só ganha marca a partição `in_sync` cuja comparação de tamanho DE FATO
+    aconteceu (tamanho presente dos dois lados e igual). `outdated`,
+    `missing`, `check_failed` e a partição sem tamanho registrado não ganham
+    instante novo: o campo afirma conferência feita, nunca tentativa. O
+    tamanho comparado viaja na marca para `apply_check_marks` recusar a
+    marca se o pipeline reescreveu a partição entre o LIST e a gravação.
+    """
+    if status != "in_sync" or not manifest_part:
+        return None
+    stored_size = manifest_part.get("source_size_bytes")
+    current_size = source_meta.get("size_bytes")
+    if not stored_size or not current_size or stored_size != current_size:
+        return None
+    return {
+        "last_checked_at": checked_at,
+        "check_method": "size",
+        "source_size_bytes": stored_size,
+    }
+
+
+def apply_check_marks(manifest, marks):
+    """
+    Grava as marcas nas partições do manifesto (em memória). Pura no
+    sentido que importa: só toca `last_checked_at` e `check_method` das
+    partições marcadas; nunca o cabeçalho (`last_updated` continua sendo a
+    edição dos DADOS, o contrato do manifest-summary) nem outra partição.
+    Partição ausente, ou cujo `source_size_bytes` já não é o comparado (o
+    pipeline a reescreveu depois do LIST), fica como está.
+    Devolve quantas partições receberam a marca.
+    """
+    partitions = manifest.get("partitions") or {}
+    applied = 0
+    for key, mark in marks.items():
+        part = partitions.get(key)
+        if not part or part.get("source_size_bytes") != mark["source_size_bytes"]:
+            continue
+        part["last_checked_at"] = mark["last_checked_at"]
+        part["check_method"] = mark["check_method"]
+        applied += 1
+    return applied
+
+
+def _put_object_if_match(r2_client, etag, **kwargs):
+    """
+    PutObject condicional ao ETag lido (extensão do R2: `If-Match` no PUT;
+    412 PreconditionFailed se o objeto mudou). O boto3 valida os parâmetros
+    antes de montar a requisição, então o cabeçalho entra pelo sistema de
+    eventos, como documenta a Cloudflare (r2/examples/aws/custom-header).
+    """
+    events = r2_client.meta.events
+
+    def add_header(params, **_):
+        params["headers"]["If-Match"] = etag
+
+    events.register("before-call.s3.PutObject", add_header, unique_id="s2-if-match")
+    try:
+        return r2_client.put_object(**kwargs)
+    finally:
+        events.unregister("before-call.s3.PutObject", unique_id="s2-if-match")
+
+
+def _is_precondition_failed(exc):
+    resp = getattr(exc, "response", None) or {}
+    code = (resp.get("Error") or {}).get("Code")
+    status = (resp.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+    return code == "PreconditionFailed" or status == 412
+
+
+def write_check_marks(r2_client, key, marks, put=_put_object_if_match,
+                      retries=CHECK_MARK_RETRIES):
+    """
+    Lê `key`, aplica as marcas e regrava com `If-Match` no ETag lido.
+    Um 412 significa que alguém (o pipeline, na VPS) reescreveu o manifesto
+    entre a leitura e a escrita: relê e reaplica, até `retries` vezes —
+    a cópia nova pode ter partições que a antiga não tinha, e regravar a
+    antiga por cima as apagaria. Qualquer outra falha vira `error` no
+    resultado (a rodada segue; o sync-status mostra que a marca não saiu).
+    Devolve {"written": n, "attempts": k, "error": str|None}.
+    """
+    result = {"written": 0, "attempts": 0, "error": None}
+    if not marks:
+        return result
+    for attempt in range(1, retries + 1):
+        result["attempts"] = attempt
+        try:
+            resp = r2_client.get_object(Bucket=R2_BUCKET, Key=key)
+            etag = resp["ETag"]
+            manifest = json.loads(resp["Body"].read())
+            applied = apply_check_marks(manifest, marks)
+            if applied == 0:
+                return result
+            body = json.dumps(manifest, indent=2, ensure_ascii=False).encode("utf-8")
+            extra = {}
+            if resp.get("ContentType"):
+                extra["ContentType"] = resp["ContentType"]
+            if resp.get("CacheControl"):
+                extra["CacheControl"] = resp["CacheControl"]
+            put(r2_client, etag, Bucket=R2_BUCKET, Key=key, Body=body, **extra)
+            result["written"] = applied
+            return result
+        except Exception as e:  # noqa: BLE001 — a rodada não pode cair por causa da marca
+            if _is_precondition_failed(e) and attempt < retries:
+                print(f"  {key}: manifesto mudou durante a gravação (412); relendo",
+                      file=sys.stderr)
+                continue
+            result["error"] = f"{type(e).__name__}: {e}"
+            print(f"  WARNING: marcas de conferência NÃO gravadas em {key}: "
+                  f"{result['error']}", file=sys.stderr)
+            return result
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -974,9 +1120,14 @@ def check_sih(r2_client, ftp_listing, dataset_id="sih-rd"):
     directories. The ftp_list_sih() merges both.
 
     Manifest partition keys: "{year}-{month:02d}-{uf}" (e.g., "2024-01-SP")
+
+    Returns (result, marks): `result` is the sync-status block; `marks` are
+    the per-partition check marks (S2) this listing proved, keyed by
+    partition — empty when the FTP listing failed (nothing was checked).
     """
     cfg = SIH_TYPES[dataset_id]
     tipo, prefix, year_start = cfg["tipo"], cfg["prefix"], cfg["year_start"]
+    marks = {}
     print(f"  {dataset_id}: loading manifest...")
     manifest = load_manifest(r2_client, f"{prefix}/manifest.json")
     if not manifest:
@@ -984,17 +1135,18 @@ def check_sih(r2_client, ftp_listing, dataset_id="sih-rd"):
             "status": "check_failed", "summary": {}, "details": [],
             "error": f"Could not load {prefix}/manifest.json "
                      "(module not bootstrapped yet?)",
-        }
+        }, marks
 
     if not ftp_listing["success"]:
         return {
             "status": "check_failed", "summary": {}, "details": [],
             "error": f"FTP failed: {ftp_listing['error']}",
-        }
+        }, marks
 
     partitions = manifest.get("partitions", {})
     ftp_files = ftp_listing["files"]
     now = datetime.now(timezone.utc)
+    checked_at = ftp_listing.get("listed_at") or utc_now_iso()
 
     details = []
     counters = {}
@@ -1023,6 +1175,9 @@ def check_sih(r2_client, ftp_listing, dataset_id="sih-rd"):
                     source_exists, mpart is not None, mpart, source,
                 )
                 counters[status] = counters.get(status, 0) + 1
+                mark = mark_for(status, mpart, source, checked_at)
+                if mark:
+                    marks[key] = mark
 
                 details.append({
                     "partition": key,
@@ -1038,6 +1193,14 @@ def check_sih(r2_client, ftp_listing, dataset_id="sih-rd"):
                         ),
                         "processing_timestamp": (
                             mpart.get("processing_timestamp") if mpart else None
+                        ),
+                        # Última conferência registrada ANTES desta rodada
+                        # (a marca desta rodada só existe depois da gravação).
+                        "last_checked_at": (
+                            mpart.get("last_checked_at") if mpart else None
+                        ),
+                        "check_method": (
+                            mpart.get("check_method") if mpart else None
                         ),
                     },
                     "notes": notes,
@@ -1055,7 +1218,7 @@ def check_sih(r2_client, ftp_listing, dataset_id="sih-rd"):
         "status": overall,
         "summary": {"total_checked": n, **counters},
         "details": details,
-    }
+    }, marks
 
 
 # ---------------------------------------------------------------------------
@@ -1132,14 +1295,43 @@ def main():
     else:
         print(f"  FTP SIH FAILED: {sih_listing['error']}", file=sys.stderr)
 
+    sih_marks = {}
     for dataset_id in SIH_TYPES:
-        results[dataset_id] = check_sih(r2_client, sih_listing, dataset_id)
+        results[dataset_id], sih_marks[dataset_id] = check_sih(
+            r2_client, sih_listing, dataset_id,
+        )
+
+    # --- Marcas de conferência por partição (S2) ---
+    # Grava no manifesto de cada dataset habilitado o instante em que esta
+    # rodada conferiu a partição igual à fonte. Depois desta etapa o
+    # manifest_summary.py (passo seguinte do workflow) copia os campos para
+    # o resumo e os anuncia em summary.fields — é o que o consumidor lê.
+    check_marks = {}
+    for dataset_id in CHECK_MARK_DATASETS:
+        marks = sih_marks.get(dataset_id, {})
+        key = f"{SIH_TYPES[dataset_id]['prefix']}/manifest.json"
+        if not sih_listing["success"]:
+            check_marks[dataset_id] = {
+                "skipped": f"FTP failed: {sih_listing['error']}",
+            }
+            print(f"  {dataset_id}: marcas de conferência puladas (FTP falhou)")
+            continue
+        wrote = write_check_marks(r2_client, key, marks)
+        check_marks[dataset_id] = {
+            "checked_at": sih_listing.get("listed_at"),
+            "partitions": len(marks),
+            **wrote,
+        }
+        print(f"  {dataset_id}: marcas de conferência — {len(marks)} partições "
+              f"conferidas, {wrote['written']} gravadas em {key}"
+              + (f" (ERRO: {wrote['error']})" if wrote["error"] else ""))
 
     # --- Assemble output ---
     output = {
         "generated_at": now.isoformat(),
         "engine_version": ENGINE_VERSION,
         "datasets": results,
+        "check_marks": check_marks,
     }
 
     # --- Summary ---

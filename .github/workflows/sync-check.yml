@@ -34,6 +34,16 @@ jobs:
       - name: Test FTP failure handling
         run: python scripts/sync/sync_check_ftp_test.py
 
+      # Marcas de conferência por partição (S2, 2026-10-09): a marca só nasce
+      # de comparação feita, a gravação é condicional ao ETag (412 = reler) e
+      # o resumo anuncia os campos. Nada disso tem rede; roda sempre.
+      - name: Test per-partition check marks
+        run: python scripts/sync/sync_check_marks_test.py
+
+      # Além do sync-status.json, grava em sih/rd/manifest.json (If-Match no
+      # ETag) `last_checked_at` + `check_method` nas partições conferidas
+      # iguais ao FTP — por isso a chave precisa de escrita (a mesma que o
+      # passo do resumo já usa). Ver docs/contract-consumers-pt.md §4.
       - name: Run comparison engine
         env:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}

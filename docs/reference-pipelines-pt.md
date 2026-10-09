@@ -1110,6 +1110,25 @@ próprio script.
   só em unix) antes do processamento sequencial — o gargalo do SIH é a
   latência do FTP, não a CPU. Arquivos cujo prefetch falhar caem no
   download sequencial com retry de sempre.
+- **Conferência por partição (S2, 09/out/2026; sih/rd):** o sync-check não é
+  mais só leitura do manifesto. Para cada partição que o LIST do FTP mostrou
+  com o **mesmo tamanho** registrado, ele grava em `sih/rd/manifest.json`
+  `last_checked_at` (instante do LIST, ISO UTC) e `check_method = "size"`;
+  o pipeline SIH, ao (re)processar uma partição, grava `check_method = "md5"`
+  (o `.dbc` foi baixado e hasheado agora). Partição `outdated`, `missing` ou
+  sem tamanho registrado, e qualquer rodada com o FTP fora do ar, **não
+  ganham instante** — o campo afirma conferência feita, nunca tentativa.
+  A gravação é condicional (`If-Match` no ETag lido; 412 = o pipeline
+  reescreveu o manifesto no meio → relê e reaplica, até 3×), nunca toca
+  `last_updated` (edição dos dados, contrato do resumo) e, se falhar, não
+  derruba a rodada: fica em `check_marks` do `sync-status.json`. O passo
+  seguinte do workflow, `manifest_summary.py`, copia os dois campos para o
+  resumo (1.1.0) e os anuncia em `summary.fields` — é o que o `sih-br-mcp` e
+  o vigia do portfolio-monitor leem. Por que só o tamanho na rodada semanal:
+  conferir o MD5 exige baixar os ~11 mil `.dbc` (dezenas de GB) toda segunda;
+  o tamanho sai de um LIST. Datasets habilitados: `CHECK_MARK_DATASETS` em
+  `sync_check.py`. Testes: `python scripts/sync/sync_check_marks_test.py`.
+  Contrato para o consumidor: `docs/contract-consumers-pt.md` §4 e §4.1.
 - **Persistência por mês (SIH):** o pipeline sobe dados + manifesto +
   controle ao fim de **cada mês** (não de cada ano). O SIH é publicado
   mensalmente e o FTP do DATASUS é frequentemente lento: com consolidação
@@ -1238,7 +1257,10 @@ node scripts/pipeline/sih-cubos/canal-state.mjs --out state     # o que está pu
 
 ---
 
-*Última atualização: 07/out/2026 — §15 maintenance.yml: a guarda de VPS ativa
+*Última atualização: 09/out/2026 — §15 conferência por partição (S2): o sync-check
+grava `last_checked_at`/`check_method` em `sih/rd/manifest.json` com `If-Match`, o
+pipeline SIH grava `"md5"` ao reprocessar, o resumo 1.1.0 anuncia os campos;
+07/out/2026 — §15 maintenance.yml: a guarda de VPS ativa
 virou o job `guard`, que pula o `launch` em vez de sair com exit 1 (dispatch
 redundante deixava o run vermelho); 08/set/2026: §16 denominadores populacionais no canal
 (`build-population.R`, `build-sih-population.yml`, manifesto 1.2.0 com bloco

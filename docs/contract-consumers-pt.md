@@ -91,19 +91,42 @@ atualizado **na mesma operação** que sobe os dados. Ler o manifesto (≈ KB) �
 forma barata de saber o que existe, o que é preliminar e quando foi processado —
 antes de abrir o dataset.
 
+**Conferência por partição — `last_checked_at` e `check_method` (sih/rd, desde
+2026-10-13).** Para um consumidor que redistribui o dado, a pergunta não é "quando
+foi baixado" e sim "até quando se sabe que é IGUAL ao original". Esses dois campos
+respondem isso por partição: `last_checked_at` (ISO-8601 UTC, `AAAA-MM-DDTHH:MM:SSZ`)
+é o instante da última vez que o espelho conferiu a partição igual à fonte, e
+`check_method` diz como — `"size"`: o tamanho do arquivo no LIST do FTP do DATASUS
+era igual ao registrado (sync-check semanal, segunda 03:00 UTC); `"md5"`: o `.dbc`
+foi baixado e teve o MD5 calculado naquele instante (a manutenção reprocessou a
+partição; é a conferência mais forte, e `source_hash_md5` é desse download).
+Garantias: o campo afirma conferência **feita**, nunca tentativa — rodada com o FTP
+fora do ar não grava nada; partição `outdated` não ganha instante novo até ser
+reprocessada; os campos estão **ausentes** (não `null`) numa partição nunca
+conferida depois de 2026-10-13. A gravação pelo sync-check não altera
+`last_updated` — ele continua sendo a edição dos **dados**, que é o contrato do
+resumo (§4.1). Hoje só `sih/rd` recebe as marcas (`CHECK_MARK_DATASETS` em
+`scripts/sync/sync_check.py`); `sih/sp` e os demais entram pelo mesmo código.
+
 ### 4.1 `manifest-summary.json` — o resumo para checar frescor (sih/rd, desde 2026-09-06)
 
-Ao lado do manifesto do SIH-RD há `sih/rd/manifest-summary.json` (~2,5 MB contra
-10,4 MB): o **mesmo cabeçalho** (`manifest_version`, `dataset`, `last_updated`,
-`pipeline_version`), um bloco `summary` (`generated_at`, `source`, campos) e, por
-partição, só `source_hash_md5`, `source_size_bytes`, `processing_timestamp` e
-`output_files[].sha256`. Serve a quem gerou um produto derivado e precisa saber
+Ao lado do manifesto do SIH-RD há `sih/rd/manifest-summary.json` (~3,4 MB contra
+11,3 MB): o **mesmo cabeçalho** (`manifest_version`, `dataset`, `last_updated`,
+`pipeline_version`), um bloco `summary` (`version`, `generated_at`, `source`,
+`fields`) e, por partição, só `source_hash_md5`, `source_size_bytes`,
+`processing_timestamp`, `last_checked_at`, `check_method` (os dois últimos desde a
+versão 1.1.0 do resumo, 2026-10-13; ausentes numa partição nunca conferida — ver §4)
+e `output_files[].sha256`. Serve a quem gerou um produto derivado e precisa saber
 **se** uma partição mudou (reedição no Ministério = MD5/tamanho; pipeline
-regenerou = SHA-256; partição retirada = chave ausente), não tudo sobre ela. É
-regravado pelo sync-check a cada rodada (`scripts/sync/manifest_summary.py`), logo
-depois de o manifesto mudar — o contrato é o `last_updated` idêntico: confira-o
-contra o do manifesto (um `GET` com `Range: bytes=0-511` basta) e, se o resumo
-estiver atrás, leia o manifesto inteiro. Consumidor de referência: o job `decide` de
+regenerou = SHA-256; partição retirada = chave ausente) e **até quando se sabe que
+ela é igual ao original** (`last_checked_at`), não tudo sobre ela. `summary.fields`
+é a lista dos campos que cada partição pode trazer — é o anúncio que um consumidor
+(e o vigia do portfolio-monitor) lê no primeiro KB para saber que um campo novo
+existe. É regravado pelo sync-check a cada rodada
+(`scripts/sync/manifest_summary.py`), logo depois de o manifesto mudar — o
+contrato é o `last_updated` idêntico: confira-o contra o do manifesto (um `GET`
+com `Range: bytes=0-511` basta) e, se o resumo estiver atrás, leia o manifesto
+inteiro. Consumidor de referência: o job `decide` de
 `rebuild-sih-cubes.yml` (pipeline `sih-cubos` deste repositório), que mede o frescor
 dos cubos publicados com o `scripts/freshness-check.mjs` do `sih-br-mcp`.
 
@@ -214,4 +237,6 @@ nota no card do dataset, entrada neste documento com data, e aviso no
 `inst/healthbr-data-integration.md` do `healthbR`. Layout de partição e
 "tudo string" não mudam.
 
-*Última atualização: 10/set/2026.*
+*Última atualização: 09/out/2026 — §4 conferência por partição (`last_checked_at`,
+`check_method`) e §4.1 resumo 1.1.0 com os dois campos anunciados em `summary.fields`;
+anterior 10/set/2026.*
